@@ -14,239 +14,8 @@ use gpui::{FocusHandle, Window};
 use std::collections::HashSet;
 use zeron_proto::{ChatIndicator, Device, DriveEntry, DriveListing, FolderListing, Space};
 
-/// Promote the user's ordered pins above the untouched activity projection.
-/// Every unpinned id keeps exactly the relative order supplied by recency.
-pub(super) fn project_pinned_first(recency_ids: &[String], pinned_ids: &[String]) -> Vec<String> {
-    let active: HashSet<&str> = recency_ids.iter().map(String::as_str).collect();
-    let pinned: HashSet<&str> = pinned_ids.iter().map(String::as_str).collect();
-    let mut seen = HashSet::new();
-    pinned_ids
-        .iter()
-        .filter(|id| active.contains(id.as_str()))
-        .chain(
-            recency_ids
-                .iter()
-                .filter(|id| !pinned.contains(id.as_str())),
-        )
-        .filter(|id| seen.insert(id.as_str()))
-        .cloned()
-        .collect()
-}
-
-/// Move only the dragged pin. Every other pin, including hidden/archived pins,
-/// keeps its relative order; no other position needs to be written.
-pub(super) fn reorder_visible_pins(
-    pinned_ids: &[String],
-    visible_ids: &[String],
-    from: usize,
-    to: usize,
-) -> Vec<String> {
-    if from >= visible_ids.len() || to >= visible_ids.len() || from == to {
-        return pinned_ids.to_vec();
-    }
-
-    let moved = &visible_ids[from];
-    let anchor = &visible_ids[to];
-    let mut result: Vec<_> = pinned_ids
-        .iter()
-        .filter(|id| *id != moved)
-        .cloned()
-        .collect();
-    let Some(index) = result.iter().position(|id| id == anchor) else {
-        return pinned_ids.to_vec();
-    };
-    result.insert(index + usize::from(from < to), moved.clone());
-    result
-}
-
-/// Interruptible height tween for the sidebar's device/archive disclosures.
-/// The rendered element owns the frame clock; this state preserves the current
-/// interpolated height when a second click reverses an in-flight transition.
-#[derive(Clone, Copy)]
-pub struct SidebarDisclosureMotion {
-    pub epoch: u64,
-    pub from: f32,
-    pub to: f32,
-    pub started: std::time::Instant,
-}
-
-impl SidebarDisclosureMotion {
-    pub fn new(epoch: u64, from: f32, to: f32) -> Self {
-        Self {
-            epoch,
-            from,
-            to,
-            started: std::time::Instant::now(),
-        }
-    }
-
-    pub fn current(self) -> f32 {
-        let total = motion::COLLAPSE.total().as_secs_f32();
-        let raw = if total > 0.0 {
-            self.started.elapsed().as_secs_f32() / total
-        } else {
-            1.0
-        };
-        motion::lerp(self.from, self.to, motion::COLLAPSE.progress(raw))
-    }
-
-    pub fn animating(self) -> bool {
-        self.started.elapsed() < motion::COLLAPSE.total() + SIDEBAR_DISCLOSURE_TWEEN_GRACE
-    }
-}
-
-/// Remove only ids absent from the workspace. Archived sessions remain known
-/// so unarchiving restores their local pin and position.
-pub(super) fn retain_known_pins(
-    pinned_ids: &mut Vec<String>,
-    known_chat_ids: &HashSet<String>,
-) -> bool {
-    let before = pinned_ids.len();
-    let mut seen = HashSet::new();
-    pinned_ids.retain(|id| known_chat_ids.contains(id) && seen.insert(id.clone()));
-    pinned_ids.len() != before
-}
-
-/// Convert viewport coordinates to the first pinned row, below its disclosure.
-fn pinned_session_pointer_y(pointer_y: f32, viewport_top: f32, scroll_top: f32) -> f32 {
-    pointer_y - viewport_top + scroll_top
-        - super::SIDEBAR_LIST_PAD_TOP
-        - SIDEBAR_DISCLOSURE_HEADER_HEIGHT
-        - SIDEBAR_DISCLOSURE_BODY_INSET
-}
-
-#[cfg(test)]
-pub(super) fn pinned_session_drop_index(rel_y: f32, count: usize) -> Option<usize> {
-    if count == 0 {
-        return None;
-    }
-    let height = count as f32 * super::SIDEBAR_SESSION_SLOT - super::SIDEBAR_LIST_GAP;
-    (rel_y >= 0.0 && rel_y <= height)
-        .then(|| ((rel_y / super::SIDEBAR_SESSION_SLOT).floor() as usize).min(count - 1))
-}
-
-/// Hit testing shares the exact row metrics used by layout, including mixed PR rows.
-pub(super) fn row_drop_index(y: f32, heights: &[f32], clamp: bool) -> Option<usize> {
-    if heights.is_empty() {
-        return None;
-    }
-    let total =
-        heights.iter().sum::<f32>() + heights.len().saturating_sub(1) as f32 * SIDEBAR_LIST_GAP;
-    if !clamp && !(0.0..=total).contains(&y) {
-        return None;
-    }
-    let mut bottom = 0.0;
-    for (index, height) in heights.iter().enumerate() {
-        bottom += height + SIDEBAR_LIST_GAP;
-        if y < bottom {
-            return Some(index);
-        }
-    }
-    Some(heights.len() - 1)
-}
-
-/// Keep a sidebar-wide drag physically bounded to the pinned section. The
-/// strict drop helper above still identifies whether the pointer is actually
-/// inside the section; this helper supplies the nearest valid pinned slot
-/// while the pointer is over regular sessions.
-#[cfg(test)]
-pub(super) fn pinned_session_clamped_index(rel_y: f32, count: usize) -> Option<usize> {
-    if count == 0 {
-        return None;
-    }
-    Some(((rel_y.max(0.0) / super::SIDEBAR_SESSION_SLOT).floor() as usize).min(count - 1))
-}
-
-/// A drop can change pin membership or pinned order, never activity ordering.
-fn sidebar_session_drop_pins(
-    saved: &[String],
-    visible: &[String],
-    chat_id: &str,
-    target: SidebarSessionDrop,
-) -> Vec<String> {
-    let mut next = saved.to_vec();
-    match target {
-        SidebarSessionDrop::Regular => next.retain(|id| id != chat_id),
-        SidebarSessionDrop::Pinned(index) => {
-            if let Some(from) = visible.iter().position(|id| id == chat_id) {
-                return reorder_visible_pins(saved, visible, from, index.min(visible.len() - 1));
-            }
-            if saved.iter().any(|id| id == chat_id) {
-                return next;
-            }
-            let insertion = visible
-                .get(index)
-                .and_then(|anchor| next.iter().position(|id| id == anchor))
-                .or_else(|| {
-                    visible
-                        .last()
-                        .and_then(|anchor| next.iter().position(|id| id == anchor))
-                        .map(|ix| ix + 1)
-                })
-                .unwrap_or(next.len());
-            next.insert(insertion, chat_id.to_owned());
-        }
-    }
-    next
-}
-
-/// Preview geometry only: regular ordering is never persisted by a drag.
-fn sidebar_gap_offset(row: usize, source: Option<usize>, boundary: usize, height: f32) -> f32 {
-    match source {
-        Some(source) if row == source => 0.0,
-        Some(source) if row < source && row >= boundary => height,
-        Some(source) if row > source && row < boundary => -height,
-        None if row >= boundary => height,
-        _ => 0.0,
-    }
-}
-
-pub(super) fn pinned_drag_scroll_delta(
-    pointer_y: f32,
-    viewport_top: f32,
-    viewport_bottom: f32,
-) -> f32 {
-    if viewport_bottom <= viewport_top {
-        return 0.0;
-    }
-    if pointer_y < viewport_top + super::SIDEBAR_DRAG_SCROLL_BAND {
-        let penetration = ((viewport_top + super::SIDEBAR_DRAG_SCROLL_BAND - pointer_y)
-            / super::SIDEBAR_DRAG_SCROLL_BAND)
-            .clamp(0.0, 1.0);
-        -super::SIDEBAR_DRAG_SCROLL_MAX * penetration
-    } else if pointer_y > viewport_bottom - super::SIDEBAR_DRAG_SCROLL_BAND {
-        let penetration = ((pointer_y - (viewport_bottom - super::SIDEBAR_DRAG_SCROLL_BAND))
-            / super::SIDEBAR_DRAG_SCROLL_BAND)
-            .clamp(0.0, 1.0);
-        super::SIDEBAR_DRAG_SCROLL_MAX * penetration
-    } else {
-        0.0
-    }
-}
-
-pub(super) fn pinned_drag_scroll_step(
-    drag_active: bool,
-    loop_generation: u64,
-    drag_generation: u64,
-    current: f32,
-    max: f32,
-    delta: f32,
-) -> Option<f32> {
-    if !drag_active || loop_generation != drag_generation || delta == 0.0 {
-        return None;
-    }
-    let next = (current + delta).clamp(0.0, max.max(0.0));
-    (next != current).then_some(next)
-}
-
-pub(super) fn pinned_drag_snapshot_is_valid(
-    dragged_id: &str,
-    snapshot_ids: &[String],
-    current_ids: &[String],
-) -> bool {
-    snapshot_ids.iter().any(|id| id == dragged_id) && snapshot_ids == current_ids
-}
-
+pub(in crate::shell) mod pins;
+pub(in crate::shell) use pins::*;
 struct ActiveChatRow {
     status: ChatIndicator,
     chat: zeron_proto::Chat,
@@ -273,14 +42,14 @@ pub(super) fn compare_sidebar_chats(
 
 /// The space-filter dropdown, `Some` while open. The same searchable-menu
 /// recipe as the composer's ref picker: filter input on top
-/// (`PaletteSearch` context so ↑↓/⏎ bubble to the card), ranked substring
+/// (`PaletteSearch` context so â†‘â†“/âŽ bubble to the card), ranked substring
 /// rows, keyboard highlight.
 pub(super) struct SpacesMenu {
     search: Entity<ComposerInput>,
-    /// Keyboard highlight — an index into [`Shell::spaces_menu_rows`], or
-    /// that list's length when the pinned "New project…" footer holds it.
+    /// Keyboard highlight â€” an index into [`Shell::spaces_menu_rows`], or
+    /// that list's length when the pinned "New projectâ€¦" footer holds it.
     active: usize,
-    /// Tracked on the card — puts it on the keyboard dispatch path while the
+    /// Tracked on the card â€” puts it on the keyboard dispatch path while the
     /// search input holds focus (the structure every working picker uses).
     focus: FocusHandle,
     list_scroll: gpui::ScrollHandle,
@@ -354,17 +123,6 @@ const SIDEBAR_VIEW_ROWS: [SidebarViewRow; 11] = [
     SidebarViewRow::Compact,
 ];
 
-// list items stay tightly related at 2px, while section boundaries use 12px
-// (well over 2x the intra-list gap). Disclosure content gets a small 4px
-// handoff from its header without leaving dead space while collapsed.
-const SIDEBAR_SECTION_GAP: f32 = 12.0;
-pub(super) const SIDEBAR_DISCLOSURE_HEADER_HEIGHT: f32 = 28.0;
-pub(super) const SIDEBAR_DISCLOSURE_BODY_INSET: f32 = 4.0;
-const SIDEBAR_DISCLOSURE_SECTION_HEIGHT: f32 =
-    SIDEBAR_SECTION_GAP + SIDEBAR_DISCLOSURE_HEADER_HEIGHT;
-pub(super) const SIDEBAR_DISCLOSURE_TWEEN_GRACE: std::time::Duration =
-    std::time::Duration::from_millis(120);
-
 /// Put this machine's device group first without disturbing the recency-based
 /// order of any remote groups. A targeted promotion is more truthful than a
 /// full name sort: local context leads, then the user's chosen chat sort wins.
@@ -416,7 +174,7 @@ fn sidebar_disclosure_header(theme: &Theme, label: SharedString, chevron: AnyEle
 }
 
 /// One activatable row of the open dropdown, in nav order. `AddSpace` names
-/// the card's pinned "New project…" footer, not a list row — keyboard nav
+/// the card's pinned "New projectâ€¦" footer, not a list row â€” keyboard nav
 /// maps the list-length index to it.
 #[derive(Clone, PartialEq)]
 pub(super) enum SpacesMenuRow {
@@ -439,7 +197,7 @@ pub(super) struct AddSpaceFlow {
     /// The selected device.
     device: Option<Device>,
     /// Filter input; Enter descends into the highlighted folder. Carries the
-    /// tab-completion ghost (the faint suffix ⇥ accepts), and a trailing `/`
+    /// tab-completion ghost (the faint suffix â‡¥ accepts), and a trailing `/`
     /// on a folder-naming query descends immediately.
     search: Entity<ComposerInput>,
     browser: Loadable<FolderListing>,
@@ -448,22 +206,22 @@ pub(super) struct AddSpaceFlow {
     drives: Loadable<Vec<DriveEntry>>,
     /// Requested browser path (`None` = the device's default, i.e. home).
     browser_path: Option<String>,
-    /// The device's home (the path a `None` browse resolved to) — breadcrumbs
+    /// The device's home (the path a `None` browse resolved to) â€” breadcrumbs
     /// fold everything up to here into the Home crumb.
     home: Option<String>,
     /// Best-effort git seed for the CURRENT browser path (known when we
     /// descended through an entry whose `is_repo` we saw; the owning device's
     /// SpacesSync re-verifies either way).
     browser_repo: bool,
-    /// Keyboard highlight within the current step’s filtered rows.
+    /// Keyboard highlight within the current stepâ€™s filtered rows.
     active: usize,
     submit_busy: bool,
     error: Option<SharedString>,
-    /// Tracked on the card (`track_focus`) — puts the card on the keyboard
-    /// dispatch path so ↑↓/⌫/esc reach `add_space_key` while the search input
+    /// Tracked on the card (`track_focus`) â€” puts the card on the keyboard
+    /// dispatch path so â†‘â†“/âŒ«/esc reach `add_space_key` while the search input
     /// holds focus (the structure every working picker uses).
     focus: FocusHandle,
-    /// Folder-list scroll — keyboard navigation keeps the highlighted row in
+    /// Folder-list scroll â€” keyboard navigation keeps the highlighted row in
     /// view (`scroll_to_item`).
     list_scroll: gpui::ScrollHandle,
     focus_pending: bool,
@@ -494,7 +252,7 @@ pub(super) fn status_dot_color(status: ChatIndicator, theme: &Theme) -> gpui::Hs
         // Preset activity tone, not warning amber: running is routine.
         // Non-done statuses sit well below full
         // strength: at full alpha the colored words shouted across the
-        // whole sidebar (user request) — only Done keeps its pop.
+        // whole sidebar (user request) â€” only Done keeps its pop.
         ChatIndicator::Working => theme.busy.opacity(0.55),
         // Blue: "asking you a question" must read differently from "busy
         // working" at a glance.
@@ -617,7 +375,7 @@ impl Shell {
     // ---- space filter ----
 
     /// Set the sidebar's session filter (`None` = All spaces). On the
-    /// new-session canvas the space context follows the filter — the canvas
+    /// new-session canvas the space context follows the filter â€” the canvas
     /// default is "the space you're looking at".
     pub(super) fn set_space_filter(&mut self, filter: Option<String>, cx: &mut Context<Self>) {
         if self.settings.space_filter != filter {
@@ -678,622 +436,10 @@ impl Shell {
 
     // ---- sidebar sections ----
 
-    pub(super) fn sidebar_transfer_extra_gap(&self, group: &str) -> f32 {
-        self.sidebar_session_transfer
-            .as_ref()
-            .or_else(|| {
-                self.sidebar_session_return
-                    .as_ref()
-                    .map(|state| &state.transfer)
-            })
-            .and_then(|drag| drag.section_gaps.get(group))
-            .map_or(0.0, |gap| {
-                if self.reduced_motion {
-                    gap.to
-                } else {
-                    gap.current()
-                }
-            })
-    }
-
-    fn render_sidebar_gap_row(
-        &mut self,
-        row: AnyElement,
-        id: &str,
-        group: &str,
-        index: usize,
-    ) -> AnyElement {
-        let returning = self.sidebar_session_transfer.is_none();
-        let transfer = if let Some(drag) = self.sidebar_session_transfer.as_mut() {
-            Some(drag)
-        } else {
-            self.sidebar_session_return
-                .as_mut()
-                .map(|returning| &mut returning.transfer)
-        };
-        let Some(drag) = transfer else {
-            return row;
-        };
-        // Pin-to-pin keeps the existing sibling-slide implementation.
-        let target = if returning || (group == "pinned" && drag.source_group == "pinned") {
-            0.0
-        } else {
-            drag.preview
-                .as_ref()
-                .filter(|gap| gap.group == group)
-                .map_or(0.0, |gap| {
-                    sidebar_gap_offset(
-                        index,
-                        (drag.source_group == group).then_some(drag.source_index),
-                        gap.index,
-                        drag.row_height + SIDEBAR_LIST_GAP,
-                    )
-                })
-        };
-        let slide = drag
-            .siblings
-            .entry(id.to_owned())
-            .or_insert_with(|| SidebarSessionSlide {
-                from: 0.0,
-                to: 0.0,
-                epoch: drag.slide.epoch,
-                started: std::time::Instant::now(),
-            });
-        slide.retarget(target);
-        let (from, to, epoch) = (slide.from, slide.to, slide.epoch);
-        let frame = div().relative().child(row);
-        if !returning || self.reduced_motion {
-            frame.top(px(to)).into_any_element()
-        } else {
-            frame
-                .with_animation(
-                    SharedString::from(format!("session-gap-{id}-{epoch}")),
-                    TAB_SLIDE.animation(),
-                    move |el, t| el.top(px(motion::lerp(from, to, t))),
-                )
-                .into_any_element()
-        }
-    }
-
-    pub(super) fn begin_sidebar_session_transfer(
-        &mut self,
-        payload: &SidebarSessionDrag,
-        cursor_offset: Point<Pixels>,
-        window: &Window,
-        cx: &mut Context<Self>,
-    ) {
-        self.chat_status_hover = None;
-        self.cancel_pinned_session_drag(cx);
-        self.sidebar_session_return = None;
-        self.pinned_session_drag_generation = self.pinned_session_drag_generation.wrapping_add(1);
-        let top = f32::from(
-            window.mouse_position().y - cursor_offset.y - self.sidebar_scroll.bounds().top(),
-        ) - f32::from(self.sidebar_scroll.offset().y);
-        self.sidebar_session_transfer = Some(SidebarSessionTransfer {
-            payload: payload.clone(),
-            origin: std::rc::Rc::new(std::cell::Cell::new(
-                window.mouse_position() - cursor_offset,
-            )),
-            cursor_offset,
-            pointer: window.mouse_position(),
-            viewport: None,
-            preview: None,
-            source_group: String::new(),
-            source_index: 0,
-            row_height: 0.0,
-            source_collapse: SidebarSessionSlide {
-                from: 0.0,
-                to: 0.0,
-                epoch: 0,
-                started: std::time::Instant::now(),
-            },
-            collapsed_height: 0.0,
-            section_gaps: Default::default(),
-            siblings: Default::default(),
-            slide: SidebarSessionSlide {
-                from: top,
-                to: top,
-                epoch: self.pinned_session_drag_generation << 32,
-                started: std::time::Instant::now(),
-            },
-        });
-        {
-            let origin = self
-                .sidebar_session_transfer
-                .as_ref()
-                .unwrap()
-                .origin
-                .clone();
-            cx.spawn(async move |this, cx| {
-                loop {
-                    cx.background_executor()
-                        .timer(std::time::Duration::from_millis(
-                            SIDEBAR_DRAG_SCROLL_FRAME_MS,
-                        ))
-                        .await;
-                    let keep_running = this
-                        .update(cx, |shell, cx| {
-                            let Some(transfer) = shell.sidebar_session_transfer.as_ref() else {
-                                return false;
-                            };
-                            if !cx.has_active_drag()
-                                || !std::rc::Rc::ptr_eq(&origin, &transfer.origin)
-                            {
-                                return false;
-                            }
-                            // Layout also animates while the pointer is stationary.
-                            cx.notify();
-                            // Pinned drags already have their own edge-scroll loop.
-                            if transfer
-                                .payload
-                                .visible_ids
-                                .contains(&transfer.payload.chat_id)
-                            {
-                                return true;
-                            }
-                            let Some(viewport) = transfer.viewport else {
-                                return true;
-                            };
-                            if !viewport.contains(&transfer.pointer) {
-                                return true;
-                            }
-                            let delta = pinned_drag_scroll_delta(
-                                f32::from(transfer.pointer.y),
-                                f32::from(viewport.top()),
-                                f32::from(viewport.bottom()),
-                            );
-                            let offset = shell.sidebar_scroll.offset();
-                            let scroll_top = -f32::from(offset.y);
-                            let max_scroll = f32::from(shell.sidebar_scroll.max_offset().y);
-                            let next = (scroll_top + delta).clamp(0.0, max_scroll);
-                            if next != scroll_top {
-                                shell
-                                    .sidebar_scroll
-                                    .set_offset(gpui::point(offset.x, px(-next)));
-                                cx.notify();
-                            }
-                            true
-                        })
-                        .unwrap_or(false);
-                    if !keep_running {
-                        break;
-                    }
-                }
-            })
-            .detach();
-        }
-        cx.notify();
-    }
-
-    pub(super) fn sidebar_session_transfer_is_valid(
-        &self,
-        payload: &SidebarSessionDrag,
-        cx: &App,
-    ) -> bool {
-        if payload.filter != self.settings.space_filter
-            || self.active_sidebar_pin_profile_key(cx).as_deref() != Some(&payload.profile_key)
-        {
-            return false;
-        }
-        let state = self.state.read(cx);
-        let visible: HashSet<String> = state
-            .sidebar_chats(Utc::now(), payload.filter.as_deref())
-            .into_iter()
-            .map(|(_, chat)| chat.id.clone())
-            .collect();
-        if !visible.contains(&payload.chat_id) {
-            return false;
-        }
-        let pins = self.sidebar_pins_for_profile(&payload.profile_key, cx);
-        let current: Vec<_> = pins.into_iter().filter(|id| visible.contains(id)).collect();
-        current == *payload.visible_ids
-    }
-
-    pub(super) fn cancel_sidebar_session_transfer(&mut self, cx: &mut Context<Self>) {
-        self.chat_status_hover = None;
-        self.cancel_pinned_session_drag(cx);
-        if let Some(mut transfer) = self.sidebar_session_transfer.take() {
-            transfer.preview = None;
-            if !self.reduced_motion && self.sidebar_session_transfer_is_valid(&transfer.payload, cx)
-            {
-                self.sidebar_session_return = Some(SidebarSessionReturn {
-                    transfer,
-                    epoch: self.pinned_session_drag_generation,
-                    started: std::time::Instant::now(),
-                });
-                let epoch = self.pinned_session_drag_generation;
-                cx.spawn(async move |this, cx| {
-                    loop {
-                        cx.background_executor()
-                            .timer(std::time::Duration::from_millis(
-                                SIDEBAR_DRAG_SCROLL_FRAME_MS,
-                            ))
-                            .await;
-                        let keep_running = this
-                            .update(cx, |shell, cx| {
-                                let Some(returning) = shell.sidebar_session_return.as_ref() else {
-                                    return false;
-                                };
-                                if returning.epoch != epoch {
-                                    return false;
-                                }
-                                if returning.started.elapsed() >= TAB_SLIDE.total()
-                                    && returning.transfer.slide.started.elapsed()
-                                        >= TAB_SLIDE.total()
-                                    && returning.transfer.source_collapse.started.elapsed()
-                                        >= TAB_SLIDE.total()
-                                    && returning
-                                        .transfer
-                                        .section_gaps
-                                        .values()
-                                        .all(|gap| gap.started.elapsed() >= TAB_SLIDE.total())
-                                {
-                                    shell.sidebar_session_return = None;
-                                    cx.notify();
-                                    return false;
-                                }
-                                cx.notify();
-                                true
-                            })
-                            .unwrap_or(false);
-                        if !keep_running {
-                            break;
-                        }
-                    }
-                })
-                .detach();
-                self.pinned_session_drag_generation =
-                    self.pinned_session_drag_generation.wrapping_add(1);
-            }
-            cx.notify();
-        }
-    }
-
-    pub(super) fn render_moving_sidebar_session(
-        &mut self,
-        row: AnyElement,
-        height: f32,
-        theme: &Theme,
-    ) -> AnyElement {
-        let viewport = self.sidebar_scroll.bounds();
-        let scroll_top = -f32::from(self.sidebar_scroll.offset().y);
-        let returning = self.sidebar_session_transfer.is_none();
-        let transfer = if let Some(transfer) = self.sidebar_session_transfer.as_mut() {
-            transfer
-        } else {
-            &mut self.sidebar_session_return.as_mut().unwrap().transfer
-        };
-        let origin = f32::from(transfer.origin.get().y - viewport.top()) + scroll_top;
-        let target = if returning {
-            origin
-        } else {
-            f32::from(transfer.pointer.y - transfer.cursor_offset.y - viewport.top()) + scroll_top
-        };
-        if returning {
-            transfer.slide.retarget(target);
-        } else {
-            transfer.slide.from = target;
-            transfer.slide.to = target;
-            transfer.slide.started = std::time::Instant::now();
-        }
-        let from = transfer.slide.from;
-        let to = transfer.slide.to;
-        let epoch = transfer.slide.epoch;
-        let frame = div()
-            .absolute()
-            .left(px(Theme::SPACE_SM))
-            .right(px(Theme::SPACE_SM))
-            .h(px(height))
-            .rounded(px(8.0))
-            .when(!returning, |el| el.bg(theme.surface_raised).shadow_md())
-            .child(row);
-        if self.reduced_motion {
-            frame.top(px(to)).into_any_element()
-        } else {
-            frame
-                .with_animation(
-                    ("sidebar-session-slide", epoch),
-                    TAB_SLIDE.animation(),
-                    move |el, t| el.top(px(motion::lerp(from, to, t))),
-                )
-                .into_any_element()
-        }
-    }
-
-    pub(super) fn finish_sidebar_session_transfer(
-        &mut self,
-        payload: &SidebarSessionDrag,
-        target: SidebarSessionDrop,
-        cx: &mut Context<Self>,
-    ) {
-        self.chat_status_hover = None;
-        let matches_drag = self.sidebar_session_transfer.as_ref().is_some_and(|drag| {
-            drag.payload.chat_id == payload.chat_id
-                && drag.payload.profile_key == payload.profile_key
-                && drag.payload.filter == payload.filter
-                && drag.payload.visible_ids == payload.visible_ids
-        });
-        if !matches_drag || !self.sidebar_session_transfer_is_valid(payload, cx) {
-            self.cancel_sidebar_session_transfer(cx);
-            return;
-        }
-        let saved = self.sidebar_pins_for_profile(&payload.profile_key, cx);
-        let next =
-            sidebar_session_drop_pins(&saved, &payload.visible_ids, &payload.chat_id, target);
-        // Validate and accept before ending the preview. Rejected drops use
-        // the same animated return path as dropping outside a destination.
-        let change = if let Some(index) = next.iter().position(|id| id == &payload.chat_id) {
-            let after = index.checked_sub(1).and_then(|i| next.get(i)).cloned();
-            let before = next.get(index + 1).cloned();
-            if saved.contains(&payload.chat_id) {
-                zeron_proto::SidebarPinChange::Move {
-                    session_id: payload.chat_id.clone(),
-                    after,
-                    before,
-                }
-            } else {
-                zeron_proto::SidebarPinChange::Pin {
-                    session_id: payload.chat_id.clone(),
-                    after,
-                    before,
-                }
-            }
-        } else {
-            zeron_proto::SidebarPinChange::Unpin {
-                session_id: payload.chat_id.clone(),
-            }
-        };
-        if !self.apply_sidebar_pin_change(payload.profile_key.clone(), change, cx) {
-            self.cancel_sidebar_session_transfer(cx);
-            return;
-        }
-        self.sidebar_session_transfer = None;
-        self.cancel_pinned_session_drag(cx);
-        if matches!(target, SidebarSessionDrop::Pinned(_)) {
-            self.pinned_open = true;
-        } else {
-            self.sessions_open = true;
-        }
-        // Only pin preferences change. Regular rows keep their live activity sort.
-        // Drag previews already animated this move. Establish a fresh layout
-        // baseline so the automatic resort glide does not replay it on release.
-        self.sidebar_prev_order.clear();
-        self.sidebar_resort.clear();
-        self.sidebar_new_keys.clear();
-        cx.notify();
-    }
-
-    pub(super) fn update_pinned_session_drag(
-        &mut self,
-        payload: &SidebarSessionDrag,
-        over: usize,
-        cx: &mut Context<Self>,
-    ) {
-        if !self.pinned_open
-            || self.active_sidebar_pin_profile_key(cx).as_deref() != Some(&payload.profile_key)
-        {
-            self.cancel_pinned_session_drag(cx);
-            return;
-        }
-        let Some(from) = payload
-            .visible_ids
-            .iter()
-            .position(|id| id == &payload.chat_id)
-        else {
-            self.cancel_pinned_session_drag(cx);
-            return;
-        };
-        if over >= payload.visible_ids.len() {
-            self.cancel_pinned_session_drag(cx);
-            return;
-        }
-        match &mut self.pinned_session_drag {
-            Some(drag)
-                if drag.chat_id == payload.chat_id
-                    && drag.filter == payload.filter
-                    && drag.profile_key == payload.profile_key
-                    && drag.visible_ids.as_ref() == payload.visible_ids.as_ref()
-                    && drag.over != over =>
-            {
-                drag.prev_over = drag.over;
-                drag.over = over;
-                drag.epoch = drag.epoch.wrapping_add(1);
-                cx.notify();
-            }
-            Some(drag)
-                if drag.chat_id == payload.chat_id
-                    && drag.filter == payload.filter
-                    && drag.profile_key == payload.profile_key
-                    && drag.visible_ids.as_ref() == payload.visible_ids.as_ref() => {}
-            _ => {
-                self.pinned_session_drag_generation =
-                    self.pinned_session_drag_generation.wrapping_add(1);
-                self.pinned_session_drag = Some(PinnedSessionDragState {
-                    chat_id: payload.chat_id.clone(),
-                    visible_ids: payload.visible_ids.clone(),
-                    from,
-                    over,
-                    prev_over: from,
-                    epoch: 0,
-                    filter: payload.filter.clone(),
-                    profile_key: payload.profile_key.clone(),
-                    pointer_y: None,
-                    viewport_top: 0.0,
-                    viewport_bottom: 0.0,
-                    generation: self.pinned_session_drag_generation,
-                    autoscroll_active: false,
-                });
-                cx.notify();
-            }
-        }
-    }
-
-    pub(super) fn track_pinned_session_drag_pointer(
-        &mut self,
-        payload: SidebarSessionDrag,
-        pointer_y: f32,
-        viewport_top: f32,
-        viewport_bottom: f32,
-        cx: &mut Context<Self>,
-    ) {
-        if !payload.visible_ids.contains(&payload.chat_id) {
-            return;
-        }
-        let scroll_top = -f32::from(self.sidebar_scroll.offset().y);
-        let rel_y = pinned_session_pointer_y(pointer_y, viewport_top, scroll_top);
-        let inside_pinned_section =
-            row_drop_index(rel_y, &self.sidebar_pinned_heights, false).is_some();
-        let Some(over) = row_drop_index(rel_y, &self.sidebar_pinned_heights, true) else {
-            if let Some(drag) = self.pinned_session_drag.as_mut() {
-                drag.pointer_y = None;
-                drag.autoscroll_active = false;
-            }
-            return;
-        };
-
-        self.update_pinned_session_drag(&payload, over, cx);
-        if !inside_pinned_section {
-            if let Some(drag) = self.pinned_session_drag.as_mut() {
-                drag.pointer_y = None;
-                drag.autoscroll_active = false;
-            }
-            return;
-        }
-        let delta = pinned_drag_scroll_delta(pointer_y, viewport_top, viewport_bottom);
-        let Some(drag) = self.pinned_session_drag.as_mut() else {
-            return;
-        };
-        drag.pointer_y = Some(pointer_y);
-        drag.viewport_top = viewport_top;
-        drag.viewport_bottom = viewport_bottom;
-        let should_start = delta != 0.0 && !drag.autoscroll_active;
-        let generation = drag.generation;
-        if should_start {
-            drag.autoscroll_active = true;
-            self.start_pinned_session_autoscroll(generation, cx);
-        }
-    }
-
-    fn start_pinned_session_autoscroll(&mut self, generation: u64, cx: &mut Context<Self>) {
-        cx.spawn(async move |this, cx| {
-            loop {
-                cx.background_executor()
-                    .timer(std::time::Duration::from_millis(
-                        super::SIDEBAR_DRAG_SCROLL_FRAME_MS,
-                    ))
-                    .await;
-                let keep_running = this
-                    .update(cx, |shell, cx| {
-                        shell.pinned_session_autoscroll_tick(generation, cx)
-                    })
-                    .unwrap_or(false);
-                if !keep_running {
-                    break;
-                }
-            }
-        })
-        .detach();
-    }
-
-    fn pinned_session_autoscroll_tick(&mut self, generation: u64, cx: &mut Context<Self>) -> bool {
-        let Some(drag) = self.pinned_session_drag.as_ref() else {
-            return false;
-        };
-        if drag.generation != generation || !cx.has_active_drag() {
-            if let Some(drag) = self.pinned_session_drag.as_mut() {
-                drag.autoscroll_active = false;
-            }
-            return false;
-        }
-        let Some(pointer_y) = drag.pointer_y else {
-            if let Some(drag) = self.pinned_session_drag.as_mut() {
-                drag.autoscroll_active = false;
-            }
-            return false;
-        };
-        let viewport_top = drag.viewport_top;
-        let viewport_bottom = drag.viewport_bottom;
-        let delta = pinned_drag_scroll_delta(pointer_y, viewport_top, viewport_bottom);
-        let scroll_top = -f32::from(self.sidebar_scroll.offset().y);
-        let max_scroll = f32::from(self.sidebar_scroll.max_offset().y);
-        let Some(next_scroll) = pinned_drag_scroll_step(
-            true,
-            generation,
-            drag.generation,
-            scroll_top,
-            max_scroll,
-            delta,
-        ) else {
-            if let Some(drag) = self.pinned_session_drag.as_mut() {
-                drag.autoscroll_active = false;
-            }
-            return false;
-        };
-
-        let rel_y = pinned_session_pointer_y(pointer_y, viewport_top, next_scroll);
-        let Some(over) = row_drop_index(rel_y, &self.sidebar_pinned_heights, false) else {
-            if let Some(drag) = self.pinned_session_drag.as_mut() {
-                drag.autoscroll_active = false;
-            }
-            return false;
-        };
-
-        let offset = self.sidebar_scroll.offset();
-        self.sidebar_scroll
-            .set_offset(gpui::point(offset.x, px(-next_scroll)));
-        if let Some(drag) = self.pinned_session_drag.as_mut()
-            && drag.over != over
-        {
-            drag.prev_over = drag.over;
-            drag.over = over;
-            drag.epoch = drag.epoch.wrapping_add(1);
-        }
-        cx.notify();
-        true
-    }
-
-    pub(super) fn pinned_session_drag_is_valid(&self, cx: &App) -> bool {
-        let Some(drag) = self.pinned_session_drag.as_ref() else {
-            return true;
-        };
-        if !self.pinned_open
-            || drag.filter != self.settings.space_filter
-            || self.active_sidebar_pin_profile_key(cx).as_deref() != Some(&drag.profile_key)
-        {
-            return false;
-        }
-        let current_pins = self.sidebar_pins_for_profile(&drag.profile_key, cx);
-        let visible_ids: HashSet<String> = self
-            .state
-            .read(cx)
-            .overview_chats(Utc::now())
-            .into_iter()
-            .filter(|(_, chat)| match &drag.filter {
-                Some(space_id) => chat.space_id.as_deref() == Some(space_id.as_str()),
-                None => true,
-            })
-            .map(|(_, chat)| chat.id.clone())
-            .collect();
-        let current_ids = current_pins
-            .iter()
-            .filter(|id| visible_ids.contains(id.as_str()))
-            .cloned()
-            .collect::<Vec<_>>();
-        pinned_drag_snapshot_is_valid(&drag.chat_id, drag.visible_ids.as_ref(), &current_ids)
-    }
-
-    pub(super) fn cancel_pinned_session_drag(&mut self, cx: &mut Context<Self>) {
-        if self.pinned_session_drag.take().is_some() {
-            self.pinned_session_drag_generation =
-                self.pinned_session_drag_generation.wrapping_add(1);
-            cx.notify();
-        }
-    }
-
     /// The filter's scrollable rows: "All projects", then spaces matching
-    /// the search (ranked — `popover::filter_indices`). "All" only shows on
-    /// an empty query (searching means hunting a space). The "New project…"
-    /// action is not a row here — the card renders it as a pinned footer.
+    /// the search (ranked â€” `popover::filter_indices`). "All" only shows on
+    /// an empty query (searching means hunting a space). The "New projectâ€¦"
+    /// action is not a row here â€” the card renders it as a pinned footer.
     fn spaces_menu_rows(&self, cx: &App) -> Vec<SpacesMenuRow> {
         let query = self
             .spaces_menu
@@ -1320,10 +466,10 @@ impl Shell {
 
     fn open_spaces_menu(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.close_sidebar_view_menu(cx);
-        // "PaletteSearch" context: ↑↓/⏎ stay unbound in the input and bubble
+        // "PaletteSearch" context: â†‘â†“/âŽ stay unbound in the input and bubble
         // to the card's key handler.
         let search =
-            cx.new(|cx| ComposerInput::with_context("Search projects…", "PaletteSearch", cx));
+            cx.new(|cx| ComposerInput::with_context("Search projectsâ€¦", "PaletteSearch", cx));
         let search_events = cx.subscribe(&search, |this: &mut Shell, _, event, cx| {
             if matches!(event, ComposerInputEvent::Edited) {
                 if let Some(menu) = this.spaces_menu.open_mut() {
@@ -1342,7 +488,7 @@ impl Shell {
             list_scroll: gpui::ScrollHandle::new(),
             _search_events: search_events,
         });
-        // Fresh handle at the top — don't let the stale rail baseline read
+        // Fresh handle at the top â€” don't let the stale rail baseline read
         // the reopen as scrolling.
         self.spaces_menu_bar.clear_scroll_baseline();
         let rows = self.spaces_menu_rows(cx);
@@ -1372,10 +518,10 @@ impl Shell {
         }
     }
 
-    /// Dropdown keys (bubbling from the focused search input): ↑↓ navigate,
-    /// ⏎ activates the highlighted row, esc closes.
+    /// Dropdown keys (bubbling from the focused search input): â†‘â†“ navigate,
+    /// âŽ activates the highlighted row, esc closes.
     fn spaces_menu_key(&mut self, event: &gpui::KeyDownEvent, cx: &mut Context<Self>) {
-        // The card stays mounted (and focused) through the exit animation —
+        // The card stays mounted (and focused) through the exit animation â€”
         // keys must not drive a dying menu.
         if !self.spaces_menu.is_open() {
             return;
@@ -1398,7 +544,7 @@ impl Shell {
                 let delta = if key == popover::MenuKey::Up { -1 } else { 1 };
                 if let Some(menu) = self.spaces_menu.open_mut() {
                     menu.active = popover::menu_step(Some(menu.active), count, delta).unwrap_or(0);
-                    // The footer renders below the scroller — only in-list
+                    // The footer renders below the scroller â€” only in-list
                     // rows can be scrolled to (the footer index would leave
                     // a request pending against a row that never exists).
                     if menu.active < rows.len() {
@@ -1700,7 +846,7 @@ impl Shell {
             )
             .on_click(cx.listener(|this, _, window, cx| {
                 // A press that found the menu open closes it (the card's
-                // mouse-down-out already began the close) — never reopen.
+                // mouse-down-out already began the close) â€” never reopen.
                 if this.spaces_menu.take_press_was_open() {
                     this.close_spaces_menu(cx);
                 } else {
@@ -1853,7 +999,7 @@ impl Shell {
     }
 
     /// The dropdown card: search on top, "All projects" + space rows (check on
-    /// the active filter; right-click for rename/remove) + "New project…".
+    /// the active filter; right-click for rename/remove) + "New projectâ€¦".
     fn render_spaces_menu(&mut self, theme: &Theme, cx: &mut Context<Self>) -> AnyElement {
         let theme = &theme.for_popup();
         let (search, active, focus, list_scroll) = {
@@ -1912,7 +1058,7 @@ impl Shell {
                             ),
                         }
                     }
-                    // spaces_menu_rows never yields this variant — the
+                    // spaces_menu_rows never yields this variant â€” the
                     // footer is rendered by the card, not the list.
                     SpacesMenuRow::AddSpace => unreachable!(),
                 })
@@ -1979,7 +1125,7 @@ impl Shell {
                                         .text_color(theme.warning.opacity(0.8)),
                                 )
                             })
-                            // No check glyph — the selected row's wash (menu_row's
+                            // No check glyph â€” the selected row's wash (menu_row's
                             // active styling) is the selection signal.
                         },
                     )),
@@ -2006,12 +1152,12 @@ impl Shell {
                 search.into_any_element(),
             ))
             .child(list)
-            // "New project…" is a pinned action row under the list (the
-            // chat composer's project menu treatment) — scrolling must
+            // "New projectâ€¦" is a pinned action row under the list (the
+            // chat composer's project menu treatment) â€” scrolling must
             // never carry it away, and its nav index (`add_index`) keeps it
             // LAST.
             .child(
-                // Full-bleed through the card's 4px inset — a divider
+                // Full-bleed through the card's 4px inset â€” a divider
                 // stopping short of the edges reads as a mistake (the
                 // composer project menu's treatment).
                 div()
@@ -2043,7 +1189,7 @@ impl Shell {
                         .flex_1()
                         .min_w_0()
                         .truncate()
-                        .child(SharedString::from("New project…")),
+                        .child(SharedString::from("New projectâ€¦")),
                 ),
             )
             .into_any_element()
@@ -2145,11 +1291,11 @@ impl Shell {
             .unwrap_or("Unknown device")
             .to_string();
         let mut folder = project.clone();
-        // Unknown device → no fragment, same as the archived list.
+        // Unknown device â†’ no fragment, same as the archived list.
         if state.device_name(&chat.device_id).is_some() {
             folder = format!("{folder} @ {device}");
         }
-        // The branch shows whenever the engine has stamped one —
+        // The branch shows whenever the engine has stamped one â€”
         // main-checkout sessions included, not just worktrees.
         let branch = crate::change_requests::conversation_branch(&chat, &state.spaces)
             .map(str::trim)
@@ -2368,7 +1514,7 @@ impl Shell {
 
         let selected = self.state.read(cx).selected_chat.clone();
         // Re-checked at render so the chips drop the FRAME a popover opens,
-        // not on the next modifier event — the jumps are suppressed under it.
+        // not on the next modifier event â€” the jumps are suppressed under it.
         let jump_hints = self.jump_hints && !self.overlay_owns_keyboard(cx);
         let keymap = self.settings.keymap.clone();
         // Flat top-to-bottom slot across groups: the same order
@@ -2927,7 +2073,7 @@ impl Shell {
                 body = body.child(
                     div()
                         .id("archived-more")
-                        // Sits outside the rows' gapped column — match the
+                        // Sits outside the rows' gapped column â€” match the
                         // list's 2px row gap or it fuses with the last row.
                         .mt(px(2.0))
                         .h(px(more_height))
@@ -2965,15 +2111,15 @@ impl Shell {
 
     pub(super) fn open_add_space(&mut self, cx: &mut Context<Self>) {
         self.command_palette = None;
-        // "PaletteSearch" context: navigation keys stay unbound so ↑↓/←/→/⏎
+        // "PaletteSearch" context: navigation keys stay unbound so â†‘â†“/â†/â†’/âŽ
         // bubble to the palette frame (`add_space_key`) instead of moving the
-        // text caret — Enter and ⌘Enter are both handled there.
+        // text caret â€” Enter and âŒ˜Enter are both handled there.
         let search =
-            cx.new(|cx| ComposerInput::with_context("Search devices…", "PaletteSearch", cx));
+            cx.new(|cx| ComposerInput::with_context("Search devicesâ€¦", "PaletteSearch", cx));
         let search_events = cx.subscribe(&search, |this: &mut Shell, _, event, cx| {
             if matches!(event, ComposerInputEvent::Edited) {
                 // Typing `/` after a query that names a folder descends into
-                // it — the query reads as a path segment, so the slash IS the
+                // it â€” the query reads as a path segment, so the slash IS the
                 // pick (shell-style). Otherwise the slash stays in the query
                 // (it matches nothing, which is honest feedback).
                 if this.add_space_slash_descend(cx) {
@@ -3031,7 +2177,7 @@ impl Shell {
         flow.error = None;
         let search = flow.search.clone();
         search.update(cx, |input, cx| {
-            input.set_placeholder("Search locations…", cx);
+            input.set_placeholder("Search locationsâ€¦", cx);
             input.set_text("", cx);
         });
         self.load_space_drives(cx);
@@ -3053,7 +2199,7 @@ impl Shell {
         flow.browser_repo = false;
         let search = flow.search.clone();
         search.update(cx, |input, cx| {
-            input.set_placeholder("Search folders…", cx);
+            input.set_placeholder("Search foldersâ€¦", cx);
             input.set_text("", cx);
         });
         self.load_space_folders(path, cx);
@@ -3083,9 +2229,9 @@ impl Shell {
         search.update(cx, |input, cx| {
             input.set_placeholder(
                 if step == ProjectStep::Devices {
-                    "Search devices…"
+                    "Search devicesâ€¦"
                 } else {
-                    "Search locations…"
+                    "Search locationsâ€¦"
                 },
                 cx,
             );
@@ -3127,7 +2273,7 @@ impl Shell {
     }
 
     /// ListDrives on the flow's device (relay-forwarded when remote).
-    /// Failures stay silent — the section just shows Home; the folder
+    /// Failures stay silent â€” the section just shows Home; the folder
     /// browser's own error row already covers "device didn't respond".
     fn load_space_drives(&mut self, cx: &mut Context<Self>) {
         let Some(engine) = self.state.read(cx).engine().cloned() else {
@@ -3141,7 +2287,7 @@ impl Shell {
         flow.drives = Loadable::Loading;
         flow.drives_task = Some(cx.spawn(async move |this, cx| {
             let mut params = serde_json::Map::new();
-            // Only target remote devices — local calls skip the relay.
+            // Only target remote devices â€” local calls skip the relay.
             if let (Some(target), local) = (&device_id, &local)
                 && local.as_deref() != Some(target.as_str())
             {
@@ -3171,7 +2317,7 @@ impl Shell {
     }
 
     /// The current listing's folder rows filtered by the search query
-    /// (prefix matches first — `popover::filter_indices`).
+    /// (prefix matches first â€” `popover::filter_indices`).
     fn add_space_filtered(&self, cx: &App) -> Vec<zeron_proto::FolderEntry> {
         let Some(flow) = self.add_space.as_ref() else {
             return Vec::new();
@@ -3193,7 +2339,7 @@ impl Shell {
 
     /// Descend into the highlighted (filtered) folder; clears the query.
     /// A path-shaped query with no matching rows browses the typed path
-    /// instead — `/disk2⏎` must work, not sit on "No folders match" (an
+    /// instead â€” `/disk2âŽ` must work, not sit on "No folders match" (an
     /// absolute query can never match a folder name anyway).
     fn add_space_open_active(&mut self, cx: &mut Context<Self>) {
         let Some(flow) = self.add_space.as_ref() else {
@@ -3245,9 +2391,9 @@ impl Shell {
     }
 
     /// Slash-descend: when the query ends in `/` and the part before it names
-    /// a folder of the current listing (exact name — matching casing wins
-    /// over a case-colliding sibling — else a unique prefix), descend into it
-    /// as though it were picked. Returns whether it fired —
+    /// a folder of the current listing (exact name â€” matching casing wins
+    /// over a case-colliding sibling â€” else a unique prefix), descend into it
+    /// as though it were picked. Returns whether it fired â€”
     /// descending clears the query, so the caller must not keep acting on the
     /// old text.
     fn add_space_slash_descend(&mut self, cx: &mut Context<Self>) -> bool {
@@ -3259,7 +2405,7 @@ impl Shell {
             return false;
         }
         // A typed PATH jump: an absolute (`/disk2/`) or home-relative (`~/x/`)
-        // query browses that path directly — mounts at unconventional roots
+        // query browses that path directly â€” mounts at unconventional roots
         // (and anywhere else) are reachable without a Locations row. Same
         // trailing-`/` trigger as the folder-name descend below.
         {
@@ -3270,8 +2416,8 @@ impl Shell {
             if text.ends_with('/') && (text.starts_with('/') || text.starts_with('~')) {
                 let target = crate::pickers::typed_path_target(&text, flow.home.as_deref());
                 let Some(target) = target else {
-                    // Path-shaped but unresolvable (`~/…` before home is
-                    // known) — leave the query alone.
+                    // Path-shaped but unresolvable (`~/â€¦` before home is
+                    // known) â€” leave the query alone.
                     return false;
                 };
                 self.add_space_descend(target, false, cx);
@@ -3333,8 +2479,8 @@ impl Shell {
         Some((entry.name.clone(), entry.name[len..].to_string()))
     }
 
-    /// ⇥: accept the completion — the query becomes the full folder name
-    /// (the ghost the input was previewing). Descending stays on `/`/⏎.
+    /// â‡¥: accept the completion â€” the query becomes the full folder name
+    /// (the ghost the input was previewing). Descending stays on `/`/âŽ.
     fn add_space_accept_completion(&mut self, cx: &mut Context<Self>) {
         let Some((name, _)) = self.add_space_completion(cx) else {
             return;
@@ -3380,7 +2526,7 @@ impl Shell {
             if let Some(p) = &path {
                 params.insert("path".into(), serde_json::Value::String(p.clone()));
             }
-            // Only target remote devices — local calls skip the relay.
+            // Only target remote devices â€” local calls skip the relay.
             if let (Some(target), local) = (&device_id, &local)
                 && local.as_deref() != Some(target.as_str())
             {
@@ -3398,7 +2544,7 @@ impl Shell {
                     flow.browser = match result {
                         Ok(value) => match serde_json::from_value::<FolderListing>(value) {
                             Ok(listing) => {
-                                // A pathless browse resolved home — remember it
+                                // A pathless browse resolved home â€” remember it
                                 // so the breadcrumbs can fold it into the
                                 // device crumb.
                                 if went_home {
@@ -3436,7 +2582,7 @@ impl Shell {
         };
         let path = listing.path.clone();
         let git_detected = flow.browser_repo;
-        // Same (device, folder) already has a space → just switch to it. The
+        // Same (device, folder) already has a space â†’ just switch to it. The
         // engine dedupes this case too (a createSpace for a duplicate pair
         // no-ops), so creating would leave the minted id dangling.
         if let Some(existing) = self
@@ -3540,15 +2686,15 @@ impl Shell {
         }
     }
 
-    /// Palette keys (bubbling from the focused search input) — every legend
-    /// maps to a REAL key: ↑↓ (or ctrl-n/p) navigate, →/⏎ open the
-    /// highlighted folder, ← up a level, ⇥ completes the query to the
-    /// previewed folder name, ⌘⏎ add the OPEN folder, ⌫ (empty query) also
-    /// goes up, esc closes. (Typing `/` also descends — see the Edited
+    /// Palette keys (bubbling from the focused search input) â€” every legend
+    /// maps to a REAL key: â†‘â†“ (or ctrl-n/p) navigate, â†’/âŽ open the
+    /// highlighted folder, â† up a level, â‡¥ completes the query to the
+    /// previewed folder name, âŒ˜âŽ add the OPEN folder, âŒ« (empty query) also
+    /// goes up, esc closes. (Typing `/` also descends â€” see the Edited
     /// subscription.)
     fn add_space_key(&mut self, event: &gpui::KeyDownEvent, cx: &mut Context<Self>) {
-        // ←/→ act on the FOLDERS, not the text cursor — the palette is a
-        // navigator first; queries are short and edited with ⌫.
+        // â†/â†’ act on the FOLDERS, not the text cursor â€” the palette is a
+        // navigator first; queries are short and edited with âŒ«.
         match event.keystroke.key.as_str() {
             "right" => {
                 self.add_space_open_active(cx);
@@ -3593,8 +2739,8 @@ impl Shell {
                     cx.notify();
                 }
             }
-            // ⏎ opens the highlighted folder (an alias for →); the space is
-            // added with ⌘⏎ — and the chord acts on the folder OPEN in the
+            // âŽ opens the highlighted folder (an alias for â†’); the space is
+            // added with âŒ˜âŽ â€” and the chord acts on the folder OPEN in the
             // breadcrumbs, not the highlight. The highlight auto-rests on the
             // first row, so a chord that took it would add arbitrary
             // subfolders; the usual target (a repo root full of subfolders)
@@ -3791,7 +2937,7 @@ impl Shell {
                     .py(px(6.0))
                     .text_color(theme.text_muted)
                     .text_size(crate::typography::ui_rems(11.0))
-                    .child("Loading locations…"),
+                    .child("Loading locationsâ€¦"),
             );
         }
         let crumb =
@@ -3987,14 +3133,14 @@ impl Shell {
                 icons::ARROW_DOWN,
                 "Navigate",
             ))
-            .child(popover::key_hint_text(&theme, "↵", "Open"))
+            .child(popover::key_hint_text(&theme, "â†µ", "Open"))
             .child(popover::key_hint_text(&theme, "esc", "Close"))
             .child(div().flex_1())
             .when(step == ProjectStep::Folders, |el| {
                 el.child(
                     popover::btn_ghost(
                         &theme,
-                        if busy { "Adding…" } else { "Add project" },
+                        if busy { "Addingâ€¦" } else { "Add project" },
                         "project-add",
                     )
                     .id("project-add")
@@ -4152,7 +3298,7 @@ impl Shell {
                             this.open_rename_space(rename_id.clone(), cx)
                         }))
                         .child(icon(icons::PEN).size(px(16.0)).text_color(theme.text_muted))
-                        .child(SharedString::from("Rename…")),
+                        .child(SharedString::from("Renameâ€¦")),
                 )
                 .child(popover::menu_separator())
                 .child(
@@ -4169,7 +3315,7 @@ impl Shell {
                                 .size(px(16.0))
                                 .text_color(theme.danger),
                         )
-                        .child(SharedString::from("Remove…")),
+                        .child(SharedString::from("Removeâ€¦")),
                 )
                 .into_any_element();
             overlays.push(popover::menu_at(
@@ -4243,11 +3389,11 @@ impl Shell {
             };
             let copy = if count == 1 {
                 format!(
-                    "Removing “{name}” permanently deletes its 1 session on {device}. This can’t be undone."
+                    "Removing â€œ{name}â€ permanently deletes its 1 session on {device}. This canâ€™t be undone."
                 )
             } else {
                 format!(
-                    "Removing “{name}” permanently deletes its {count} sessions on {device}. This can’t be undone."
+                    "Removing â€œ{name}â€ permanently deletes its {count} sessions on {device}. This canâ€™t be undone."
                 )
             };
             let card = popover::dialog_card(&theme)
