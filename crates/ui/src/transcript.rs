@@ -128,6 +128,9 @@ pub const ATT_THUMB_H: f32 = 80.0;
 pub(crate) mod stick_spring;
 pub use stick_spring::*;
 
+pub(crate) mod code_block;
+pub use code_block::*;
+
 pub(crate) mod row;
 pub use row::{
     call_block, diff_rows, diff_to_file, format_timestamp, parse_for_row, rows_for_entry,
@@ -401,135 +404,7 @@ pub fn format_elapsed(secs: i64) -> String {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Highlight store (background, time-sliced, paint-only)
-// ---------------------------------------------------------------------------
 
-struct HighlightEntry {
-    key: DocumentHighlightKey,
-    document: Option<Weak<zeron_syntax::HighlightedDocument>>,
-    _task: Option<Task<()>>,
-}
-
-/// Cache of tokenized code blocks keyed by `(row id, block ix)`. Tokenization
-/// runs on the background executor, time-sliced; results apply as paint-only
-/// run colors when they land.
-#[derive(Default)]
-struct HighlightStore {
-    entries: HashMap<(SharedString, usize), HighlightEntry>,
-    cache: SyntaxHighlightCache,
-}
-
-impl HighlightStore {
-    /// Current tokens if ready; kicks a background tokenize when stale/missing.
-    fn request(
-        &mut self,
-        row_id: SharedString,
-        block_ix: usize,
-        lang: Lang,
-        code: &str,
-        cx: &mut Context<Transcript>,
-    ) -> Option<Arc<zeron_syntax::HighlightedDocument>> {
-        let slot_key = (row_id.clone(), block_ix);
-        let document_key = DocumentHighlightKey::new(lang, code);
-        if let Some(entry) = self.entries.get(&slot_key)
-            && entry.key == document_key
-        {
-            let document = entry.document.as_ref()?;
-            if let Some(document) = document.upgrade() {
-                return Some(document);
-            }
-        }
-        if let Some(document) = self.cache.get(&document_key) {
-            self.entries.insert(
-                slot_key,
-                HighlightEntry {
-                    key: document_key,
-                    document: Some(Arc::downgrade(&document)),
-                    _task: None,
-                },
-            );
-            return Some(document);
-        }
-        let code = code.to_string();
-        let source_bytes = code.len();
-        let task = cx.spawn(async move |this, cx| {
-            let started = Instant::now();
-            let document = cx
-                .background_executor()
-                .spawn(async move {
-                    zeron_syntax::highlight(zeron_syntax::HighlightRequest {
-                        source: &code,
-                        path: None,
-                        fence_tag: Some(match lang {
-                            Lang::Rust => "rust",
-                            Lang::JavaScript => "javascript",
-                            Lang::Jsx => "jsx",
-                            Lang::TypeScript => "typescript",
-                            Lang::Tsx => "tsx",
-                            Lang::Python => "python",
-                            Lang::Go => "go",
-                            Lang::Json => "json",
-                            Lang::Jsonc => "jsonc",
-                            Lang::Bash => "bash",
-                            Lang::Toml => "toml",
-                            Lang::Markdown => "markdown",
-                            Lang::Html => "html",
-                            Lang::Css => "css",
-                            Lang::Yaml => "yaml",
-                            Lang::C => "c",
-                            Lang::Cpp => "cpp",
-                            Lang::CSharp => "csharp",
-                            Lang::Java => "java",
-                            Lang::Kotlin => "kotlin",
-                            Lang::Swift => "swift",
-                            Lang::Ruby => "ruby",
-                            Lang::Php => "php",
-                            Lang::Sql => "sql",
-                            Lang::Lua => "lua",
-                            Lang::Dockerfile => "dockerfile",
-                            Lang::Nix => "nix",
-                            Lang::Make => "make",
-                        }),
-                    })
-                    .ok()
-                })
-                .await;
-            this.update(cx, |transcript, cx| {
-                if let Some(document) = document {
-                    let document = Arc::new(document);
-                    let retained = transcript
-                        .highlights
-                        .cache
-                        .insert(document_key, document.clone());
-                    if let Some(entry) = transcript.highlights.entries.get_mut(&slot_key)
-                        && entry.key == document_key
-                    {
-                        tracing::debug!(
-                            language = ?lang,
-                            source_bytes,
-                            spans = document.lines.iter().map(Vec::len).sum::<usize>(),
-                            elapsed_us = started.elapsed().as_micros() as u64,
-                            "syntax highlight ready"
-                        );
-                        entry.document = retained.then(|| Arc::downgrade(&document));
-                        cx.notify();
-                    }
-                }
-            })
-            .ok();
-        });
-        self.entries.insert(
-            (row_id, block_ix),
-            HighlightEntry {
-                key: document_key,
-                document: None,
-                _task: Some(task),
-            },
-        );
-        None
-    }
-}
 
 // ---------------------------------------------------------------------------
 // Transcript entity
@@ -1200,7 +1075,7 @@ pub struct Transcript {
     /// Each instance owns separate scroll handles and list measurements, so
     /// every one must reset itself after a global Fit-mode transition.
     code_fences_generation: u64,
-    highlights: HighlightStore,
+    pub(crate) highlights: HighlightStore,
     show_jump_button: bool,
     /// Distance from the bottom at the last observation (wheel event or spring
     /// tick) — restick and escape are direction-aware
@@ -1254,13 +1129,13 @@ pub struct Transcript {
     hovered_entry: Option<(SharedString, SharedString)>,
     /// Code block showing "Copied" feedback: `(row id, block ix)`, cleared by
     /// the companion task after ~1.2s.
-    copied_code: Option<(SharedString, usize)>,
-    copied_clear: Option<Task<()>>,
+    pub(crate) copied_code: Option<(SharedString, usize)>,
+    pub(crate) copied_clear: Option<Task<()>>,
     /// Per-visible-fence horizontal offsets and scrollbar hover/drag state.
     /// Keys use the transcript's stable row identity, so streaming → settled
     /// rerenders keep their local scroll position without leaking state for
     /// blocks no longer present in the selected chat.
-    code_fences: HashMap<SharedString, render::CodeFenceRuntime>,
+    pub(crate) code_fences: HashMap<SharedString, render::CodeFenceRuntime>,
     /// Entry whose hover action is showing transient copied-check feedback.
     copied_message: Option<SharedString>,
     copied_message_clear: Option<Task<()>>,
@@ -4551,141 +4426,7 @@ impl Transcript {
         cx.notify();
     }
 
-    /// Copy-button wiring for one row's code blocks ([`render::CopyUi`]):
-    /// click writes the block's code to the clipboard and shows a transient
-    /// "Copied" check on that block for ~1.2s (overlay — no layout shift).
-    fn copy_ui_for(&self, row_id: &SharedString, cx: &mut Context<Self>) -> render::CopyUi {
-        let copied_ix = self
-            .copied_code
-            .as_ref()
-            .filter(|(id, _)| id == row_id)
-            .map(|(_, ix)| *ix);
-        let row_key = row_id.clone();
-        let entity = cx.weak_entity();
-        let handler: Rc<dyn Fn(usize, SharedString, &mut Window, &mut gpui::App)> =
-            Rc::new(move |ix, code, _window, cx| {
-                cx.write_to_clipboard(ClipboardItem::new_string(code.to_string()));
-                let row_key = row_key.clone();
-                entity
-                    .update(cx, |this, cx| {
-                        this.copied_code = Some((row_key, ix));
-                        this.copied_clear = Some(cx.spawn(async move |this, cx| {
-                            cx.background_executor()
-                                .timer(Duration::from_millis(1200))
-                                .await;
-                            this.update(cx, |this, cx| {
-                                this.copied_code = None;
-                                this.copied_clear = None;
-                                cx.notify();
-                            })
-                            .ok();
-                        }));
-                        cx.notify();
-                    })
-                    .ok();
-            });
-        render::CopyUi { handler, copied_ix }
-    }
 
-    /// Interactive layout/scroll plumbing for one agent Markdown fence. The
-    /// persisted Fit choice is global, while each block retains only its own
-    /// ephemeral horizontal offset and hover/drag state.
-    fn code_ui_for(
-        &mut self,
-        row_id: &SharedString,
-        block_ix: usize,
-        cx: &mut Context<Self>,
-    ) -> render::CodeUi {
-        let key: SharedString = format!("{row_id}#code{block_ix}").into();
-        let runtime = self.code_fences.entry(key.clone()).or_default();
-        render::code_ui_for(
-            key,
-            crate::settings::current(cx).code_fences_fit_content,
-            runtime,
-            cx.weak_entity(),
-            |transcript| &mut transcript.code_fences,
-        )
-    }
-    fn code_uis_for(
-        &mut self,
-        row_id: &SharedString,
-        block: &Block,
-        block_ix: usize,
-        cx: &mut Context<Self>,
-    ) -> Option<HashMap<usize, render::CodeUi>> {
-        let indices = render::code_block_indices(block, block_ix);
-        (!indices.is_empty()).then(|| {
-            indices
-                .into_iter()
-                .map(|ix| (ix, self.code_ui_for(row_id, ix, cx)))
-                .collect()
-        })
-    }
-
-    /// Request highlights for the code blocks of a tree. `only` limits to one
-    /// block index (split rows); `None` covers the whole tree (live rows).
-    fn code_highlight_for(
-        &mut self,
-        row_id: &SharedString,
-        tree: &Arc<BlockTree>,
-        only: Option<usize>,
-        cx: &mut Context<Self>,
-    ) -> HashMap<usize, Option<Arc<zeron_syntax::HighlightedDocument>>> {
-        let mut out = HashMap::new();
-        for (ix, top) in tree.blocks.iter().enumerate() {
-            if only.is_some_and(|o| o != ix) {
-                continue;
-            }
-            if let Block::CodeBlock { language, code } = &top.block
-                && let Some(lang) = language
-                    .as_deref()
-                    .and_then(zeron_syntax::language_for_alias)
-            {
-                out.insert(
-                    ix,
-                    self.highlights.request(row_id.clone(), ix, lang, code, cx),
-                );
-            }
-        }
-        out
-    }
-
-    fn tool_diff_highlight_for(
-        &mut self,
-        row_id: &SharedString,
-        tool_ix: usize,
-        detail: &ToolDetail,
-        cx: &mut Context<Self>,
-    ) -> Option<Arc<crate::changes::DiffHighlights>> {
-        let ToolDetail::Diff {
-            file,
-            old_text,
-            new_text,
-        } = detail
-        else {
-            return None;
-        };
-        let cache_row: SharedString = format!("{row_id}#tool-diff-{tool_ix}").into();
-        let old = match old_text {
-            Some(source) => {
-                let path = file.old_path.as_deref().unwrap_or(&file.path);
-                let lang = zeron_syntax::language_for_path(path)?;
-                Some(
-                    self.highlights
-                        .request(cache_row.clone(), 0, lang, source, cx)?,
-                )
-            }
-            None => None,
-        };
-        let new = match new_text {
-            Some(source) => {
-                let lang = zeron_syntax::language_for_path(&file.path)?;
-                Some(self.highlights.request(cache_row, 1, lang, source, cx)?)
-            }
-            None => None,
-        };
-        Some(Arc::new(crate::changes::DiffHighlights { old, new }))
-    }
 
     fn render_tool_group(
         &mut self,
