@@ -7,10 +7,11 @@ use gpui::{
 };
 use unicode_width::UnicodeWidthChar as _;
 
-use zeron_proto::{Chat, CheckoutDiff};
-use zeron_syntax::LanguageId as Lang;
+pub use zeron_proto::Chat;
+use zeron_proto::CheckoutDiff;
+pub use zeron_syntax::LanguageId as Lang;
 
-use crate::comments::{self, CommentSide, ReviewComment};
+pub use crate::comments::{self, CommentSide, ReviewComment};
 use crate::composer::ComposerInput;
 use crate::markdown::render;
 use crate::theme::Theme;
