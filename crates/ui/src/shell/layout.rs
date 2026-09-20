@@ -730,4 +730,240 @@ impl Shell {
                 }),
             )
     }
+
+    pub(super) fn render_ready_page(
+        &mut self,
+        window: &mut Window,
+        theme_is_glass: bool,
+        theme_bg: gpui::Hsla,
+        cx: &mut Context<Self>,
+    ) -> (AnyElement, AnyElement) {
+        // MessageRail width gate: hide below 48rem of main-panel width.
+        let viewport = f32::from(window.viewport_size().width);
+        self.viewport_height = f32::from(window.viewport_size().height);
+        // Stamped for `right_target` — the expanded changes panel
+        // sizes itself to the viewport.
+        self.viewport_width = viewport;
+        let on_chat = matches!(self.route, Route::Chat);
+        let right_target_width = if on_chat { self.right_now(cx) } else { 0.0 };
+        let panel_handoff = self.composer_dock.borrow_mut().observe_pane(
+            self.state.read(cx).selected_chat.is_some(),
+            right_target_width,
+            on_chat && !self.reduced_motion,
+            self.render_time.unwrap_or_else(std::time::Instant::now),
+        );
+        if panel_handoff {
+            self.motion_active.set(true);
+        }
+        let main_target_width =
+            conversation_width(viewport, self.sidebar_target(), right_target_width);
+        let main_transition = self.active_tween_endpoints(self.main_takeover_tween);
+        let main_content_width =
+            stable_panel_content_width(main_target_width, main_transition);
+        let transcript_width = self.composer_dock.borrow_mut().transcript_width(
+            main_content_width,
+            self.state.read(cx).selected_chat.is_some(),
+            panel_handoff,
+        );
+        let main_width = (transcript_width - 10.0).max(0.0);
+        // Clearance excludes the terminal dock: the transcript
+        // viewport ends at the dock's top (see the underlay in
+        // `render_main`), so only the chrome above it overlaps.
+        let term_h = self.eval_tween(self.terminal_tween, self.terminal_target(cx));
+        let stack_h = (self.bottom_stack.get() - term_h).max(0.0);
+        let expected_has_composer = {
+            let state = self.state.read(cx);
+            (!state.spaces.is_empty() || state.no_project) && state.selected_chat.is_some()
+        };
+        let bottom_stack_ready = bottom_stack_measurement_matches(
+            self.bottom_stack_has_composer.get(),
+            expected_has_composer,
+        );
+        self.transcript.update(cx, |t, cx| {
+            t.set_rail_enabled(rail::rail_visible(main_width), cx);
+            if bottom_stack_ready && expected_has_composer {
+                t.set_bottom_clearance(stack_h, cx);
+            }
+        });
+
+        let sidebar = self.render_sidebar(cx);
+        let sidebar_handle = self.resize_handle(
+            "sidebar-resize",
+            PaneResizeKind::Sidebar,
+            || SidebarResize,
+            |shell, _| {
+                shell.settings.sidebar_width = SIDEBAR_DEFAULT;
+                shell.sidebar_edge_bounce = None;
+            },
+            cx,
+        );
+        let main = self.render_main(window, main_content_width, transcript_width, cx);
+        // The Changes pane is chat-scoped chrome: the Settings route
+        // never renders it (zeron __root.tsx `!isSettings && activeChat`
+        // around the diff column) — the per-session open flags stay
+        // intact for the return trip.
+        let right_open = on_chat && self.right_pane_open(cx);
+        // Takeover mode derives its width from the viewport, so a
+        // manual drag handle would fight the expanded target.
+        let right_handle = (right_open
+            && !panel_handoff
+            && !self.right_pane_expanded
+            && !self.tween_active(self.right_tween))
+        .then(|| {
+            self.resize_handle(
+                "right-pane-resize",
+                PaneResizeKind::Right,
+                || RightPaneResize,
+                |shell, _| {
+                    shell.settings.right_pane_width = RIGHT_PANE_DEFAULT;
+                    shell.right_edge_bounce = None;
+                },
+                cx,
+            )
+            // A forgiving transparent hit target centered on the
+            // seam; the panel's 1px border remains the visual divider.
+            .left(px(-PANE_RESIZE_HITBOX_HALF_WIDTH))
+        });
+        let right: AnyElement = if on_chat {
+            self.render_right_pane(window, cx)
+        } else {
+            Empty.into_any_element()
+        };
+        let overlays = self.render_overlays(window.viewport_size(), window, cx);
+        // Copied out (not held) — `render_title_bar` needs `cx` mutable.
+        let border_color = Theme::of(cx).border;
+        // No inset cards (user request): the conversation column sits
+        // flush and unbordered, the transcript directly on the frost
+        // glass; the changes pane is a flush left-bordered glass panel
+        // (built inside `render_right_pane`).
+        let main = if main_transition.is_some() {
+            div()
+                .h_full()
+                .w(px(main_content_width))
+                .flex_none()
+                .flex()
+                .child(main)
+                .into_any_element()
+        } else {
+            main
+        };
+        let card_bg = if cfg!(target_os = "windows") && theme_is_glass {
+            Some(match Theme::of(cx).appearance {
+                crate::theme::Appearance::Dark => theme_bg.opacity(0.35),
+                crate::theme::Appearance::Light => theme_bg.opacity(0.85),
+            })
+        } else if !theme_is_glass {
+            Some(theme_bg)
+        } else {
+            None
+        };
+        let mut card_div = div()
+            .flex_1()
+            .min_w_0()
+            .flex()
+            .flex_row()
+            .overflow_hidden();
+        if let Some(bg) = card_bg {
+            card_div = card_div.bg(bg);
+        }
+        let card: AnyElement = card_div
+            .child(main)
+            .into_any_element();
+        // The whole app page is one keyed `animate-in` entrance (zeron
+        // App.tsx `<div key={phase} className="animate-in h-full">`):
+        // arriving from the splash or any gate fades the page in; the
+        // splash-out crossfades over it on boot.
+        // The sidebar resize handle FLOATS over the sidebar/card seam
+        // (zero layout width, same idiom as the changes-pane grabber)
+        // so the sidebar's right gutter stays exactly as wide as its
+        // left one — a 5px flex child here read as lopsided spacing.
+        let sidebar_seam = div()
+            .w(px(0.0))
+            .h_full()
+            .flex_none()
+            .relative()
+            .child(sidebar_handle.left(px(-PANE_RESIZE_HITBOX_HALF_WIDTH)));
+        // Keep the right resize target outside the pane's
+        // overflow-hidden width container. This mirrors the sidebar
+        // seam and lets the target straddle both adjacent panes.
+        // Paint it after the page so page input cannot occlude the
+        // inner half. A deferred draw would capture all native input.
+        let right_seam: AnyElement = if let Some(handle) = right_handle {
+            div()
+                .w(px(0.0))
+                .h_full()
+                .flex_none()
+                .absolute()
+                .left_0()
+                .top_0()
+                .child(handle)
+                .into_any_element()
+        } else {
+            Empty.into_any_element()
+        };
+        let title_bar = self.render_title_bar(window.viewport_size().height, cx);
+        // Sidebar tone: a slightly lighter column behind the sidebar,
+        // spanning the FULL window height (under the traffic lights,
+        // through the titlebar, down to the bottom edge). Its width
+        // rides the same tween as the sidebar, so the tone melts away
+        // with the collapse instead of vanishing in a frame.
+        let sidebar_now = self.sidebar_now();
+        // Hairline on its right edge — full height like the tone,
+        // so the sidebar column reads as its own surface.
+        // The tone carries the window's left corners when the CSD
+        // window floats — with one caveat: a corner radius is
+        // clamped to the element's own size, and the COLLAPSED
+        // sidebar is a ~1px border sliver (the grab affordance).
+        // macOS trims that hairline with the window server's native
+        // corner clip; we reproduce the same trim by insetting the
+        // sliver vertically to where the curve begins, so its tips
+        // never float over the transparent corner cutouts.
+        let window_corner = Self::window_corner_radius(window);
+        let sidebar_tone = div()
+            .absolute()
+            .top_0()
+            .bottom_0()
+            .left_0()
+            .w(px(sidebar_now))
+            .when(window_corner > 0.0, |el| {
+                if sidebar_now >= 2.0 * window_corner {
+                    el.rounded_tl(px(window_corner))
+                        .rounded_bl(px(window_corner))
+                } else {
+                    el.top(px(window_corner)).bottom(px(window_corner))
+                }
+            })
+            .bg(crate::theme::wash(0.05))
+            .border_r_1()
+            .border_color(border_color);
+        // The content row spans the FULL window height — the titlebar
+        // overlays it (glass, no fill), so the transcript can scroll
+        // under the header and fade out at its edge. Columns that
+        // must NOT underlap (sidebar content, the changes panel,
+        // settings) pad themselves down by the titlebar height.
+        let page = div()
+            .size_full()
+            .relative()
+            .child(
+                div()
+                    .size_full()
+                    .flex()
+                    .flex_row()
+                    .child(sidebar)
+                    .child(sidebar_seam)
+                    .child(card)
+                    .child(
+                        div()
+                            .h_full()
+                            .flex_none()
+                            .relative()
+                            .child(right)
+                            .child(right_seam),
+                    ),
+            )
+            .child(div().absolute().top_0().left_0().right_0().child(title_bar))
+            .child(self.render_titlebar_cluster(cx))
+            .children(overlays);
+        (sidebar_tone.into_any_element(), motion::fade_in("phase-app", page).into_any_element())
+    }
 }

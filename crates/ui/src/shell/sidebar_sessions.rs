@@ -12,6 +12,11 @@ pub(crate) const SIDEBAR_DRAG_SCROLL_MAX: f32 = 12.0;
 pub(crate) const SIDEBAR_DRAG_SCROLL_FRAME_MS: u64 = 16;
 pub(crate) const SIDEBAR_LIST_PAD_TOP: f32 = 4.0;
 
+/// Sidebar resort glide (feature-inventory §1.6): 260ms
+/// `cubic-bezier(0.22,1,0.36,1)` per-row translate, the View Transitions
+/// equivalent.
+pub const RESORT: MotionSpec = MotionSpec::new(260, motion::EASE_RESORT);
+
 /// Active and archived sessions share harness/title geometry.
 pub(crate) const SIDEBAR_ACTIVE_HARNESS_ICON_SIZE: f32 = 13.0;
 pub(crate) const SIDEBAR_ACTIVE_HARNESS_TITLE_GAP: f32 = Theme::SPACE_SM;

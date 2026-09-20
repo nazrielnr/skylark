@@ -13,7 +13,15 @@ use crate::theme::Theme;
 use crate::transcript::{Transcript, TranscriptEvent};
 use crate::workspace_links::resolve_workspace_file_link;
 
-use super::{layout::WidthTween, NavEntry, PendingExit, Shell};
+use super::{layout::WidthTween, NavEntry, Shell};
+
+#[derive(Debug, Clone)]
+pub enum PendingExit {
+    CloseWindow,
+    Quit,
+    RuntimeChange,
+    InstallUpdate(std::path::PathBuf),
+}
 
 /// One right-pane surface tab: a workspace browser, an individual workspace
 /// file editor, a Git diff or history page, an embedded terminal, or a
