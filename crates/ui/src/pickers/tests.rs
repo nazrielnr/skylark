@@ -1,5 +1,13 @@
+use std::time::Duration;
+
 use super::*;
-use zeron_proto::{FolderEntry, Model, ModelOption, ModelOptionChoice};
+use gpui::{div, px, KeyDownEvent};
+use zeron_proto::{
+    FolderEntry, FolderListing, HarnessId, Model, ModelOption, ModelOptionChoice,
+    ReasoningLevel, SandboxLevel, Space,
+};
+
+use crate::theme::Theme;
 
 struct ModelShortcutHost {
     focus_sub: Option<gpui::Subscription>,

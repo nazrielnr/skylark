@@ -2,6 +2,8 @@ use gpui::SharedString;
 use zeron_engine::registry::HarnessDescriptor;
 use zeron_proto::{HarnessId, Model, ReasoningLevel};
 
+use crate::popover;
+
 /// Sentinel for "no keyboard-highlighted row" (`active`): matches no index,
 /// and `usize::MAX as isize == -1` — `menu_step` treats it like `None`, so
 /// the first Down lands on row 0.
@@ -345,4 +347,96 @@ pub(crate) fn offered_harnesses_impl(list: &[HarnessDescriptor], allow_mock: boo
                     || (allow_mock && d.id == HarnessId::Mock))
         })
         .collect()
+}
+
+/// Flatten the picker's visible rows for one tab. The QUERY NEVER LEAVES THE
+/// VIEWED TAB (user request; the old global search spanned every harness and
+/// hid the rail): on a harness tab it ranks that harness's models only, on
+/// the favorites tab it ranks the starred set. Without a query, a harness
+/// tab lists its catalog stars-first and the favorites tab lists every star.
+pub(crate) fn scoped_model_rows<'a>(
+    query: &str,
+    rail: ModelRail,
+    effective: Option<HarnessId>,
+    descriptors: &[HarnessDescriptor],
+    models_for: impl Fn(HarnessId) -> Option<&'a [Model]>,
+    is_favorite: impl Fn(HarnessId, &str) -> bool,
+) -> Vec<ModelRowData> {
+    let row = |descriptor: &HarnessDescriptor, model: &Model| ModelRowData {
+        harness: descriptor.id,
+        harness_name: SharedString::from(descriptor.name.clone()),
+        model: model.clone(),
+    };
+    let in_scope = |descriptor: &HarnessDescriptor, model: &Model| match rail {
+        ModelRail::Favorites => is_favorite(descriptor.id, &model.id),
+        ModelRail::Harness => Some(descriptor.id) == effective,
+    };
+    if !query.is_empty() {
+        // Rank: label prefix < label substring < description hit; stars,
+        // then input order, break ties (t3 modelPickerSearch's field ladder
+        // + favorite boost, collapsed to our ranks). The description stays
+        // in the haystack — opencode's provider attribution ("anthropic")
+        // must find its models even inside one tab.
+        let mut ranked: Vec<(usize, usize, usize, ModelRowData)> = Vec::new();
+        let mut input_ix = 0usize;
+        for descriptor in descriptors {
+            let Some(models) = models_for(descriptor.id) else {
+                continue;
+            };
+            for model in models {
+                if !in_scope(descriptor, model) {
+                    continue;
+                }
+                let by_label = popover::match_rank(query, &model.label);
+                let by_description = popover::match_rank(
+                    query,
+                    &format!(
+                        "{} {}",
+                        model.description.as_deref().unwrap_or(""),
+                        model.label
+                    ),
+                )
+                .map(|rank| rank + 2);
+                if let Some(rank) = by_label.into_iter().chain(by_description).min() {
+                    let starred = !is_favorite(descriptor.id, &model.id);
+                    ranked.push((rank, starred as usize, input_ix, row(descriptor, model)));
+                }
+                input_ix += 1;
+            }
+        }
+        ranked.sort_by_key(|(rank, unstarred, ix, _)| (*rank, *unstarred, *ix));
+        return ranked.into_iter().map(|(_, _, _, row)| row).collect();
+    }
+    match rail {
+        ModelRail::Favorites => {
+            let mut rows = Vec::new();
+            for descriptor in descriptors {
+                let Some(models) = models_for(descriptor.id) else {
+                    continue;
+                };
+                for model in models {
+                    if is_favorite(descriptor.id, &model.id) {
+                        rows.push(row(descriptor, model));
+                    }
+                }
+            }
+            rows
+        }
+        ModelRail::Harness => {
+            let Some(descriptor) = descriptors.iter().find(|d| Some(d.id) == effective) else {
+                return Vec::new();
+            };
+            let Some(models) = models_for(descriptor.id) else {
+                return Vec::new();
+            };
+            let (starred, rest): (Vec<&Model>, Vec<&Model>) = models
+                .iter()
+                .partition(|m| is_favorite(descriptor.id, &m.id));
+            starred
+                .into_iter()
+                .chain(rest)
+                .map(|model| row(descriptor, model))
+                .collect()
+        }
+    }
 }
