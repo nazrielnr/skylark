@@ -3,14 +3,14 @@
 use std::time::Duration;
 
 use super::*;
-use gpui::{
-    div, px, AnyElement, App, Context, IntoElement, Pixels, SharedString, Window,
-};
+use gpui::{div, px, AnyElement, Context, IntoElement, Pixels, SharedString};
 use gpui_tokio::Tokio;
 use zeron_engine::InstanceLock;
 use zeron_proto::{AuthState, WorkspaceScope};
 use zeron_rpc::methods;
 
+use crate::icons::{self, icon};
+use crate::motion;
 use crate::popover;
 use crate::state::{AppState, ConnectionStatus, EngineMode, Indicator};
 use crate::theme::Theme;
@@ -1126,5 +1126,89 @@ impl Shell {
         };
 
         Some(popover::modal("sync-lifecycle-dialog", viewport, card))
+    }
+
+    pub(super) fn render_signed_out_restart(&mut self, cx: &mut Context<Self>) -> AnyElement {
+        let theme = Theme::of(cx).clone();
+        let runtime_change_label = if self.runtime_change_task.is_some() {
+            "Stopping engine…"
+        } else {
+            "Retry local mode"
+        };
+        let card = div()
+            .w(px(380.0))
+            .px(px(32.0))
+            .py(px(40.0))
+            .rounded(px(12.0))
+            .border_1()
+            .border_color(theme.border)
+            .bg(theme.surface_card)
+            .shadow_lg()
+            .flex()
+            .flex_col()
+            .items_center()
+            .text_center()
+            .child(
+                icon(icons::ZERON_LOGO)
+                    .w(px(31.4))
+                    .h(px(36.0))
+                    .text_color(theme.text),
+            )
+            .child(
+                div()
+                    .mt(px(24.0))
+                    .text_size(crate::typography::ui_rems(18.0))
+                    .font_weight(gpui::FontWeight::SEMIBOLD)
+                    .text_color(theme.text)
+                    .child(SharedString::from("Signed out")),
+            )
+            .child(
+                div()
+                    .mt(px(6.0))
+                    .mb(px(24.0))
+                    .text_size(crate::typography::ui_rems(13.0))
+                    .line_height(px(19.0))
+                    .text_color(theme.text_muted)
+                    .child(SharedString::from(
+                        "Zeron removed your credentials but could not finish closing the previous synced workspace. Retry before continuing in local mode.",
+                    )),
+            )
+            .when_some(self.runtime_change_error.clone(), |card, error| {
+                card.child(
+                    div()
+                        .mb(px(16.0))
+                        .text_size(crate::typography::ui_rems(12.0))
+                        .line_height(px(17.0))
+                        .text_color(theme.danger)
+                        .child(error),
+                )
+            })
+            .child(
+                popover::btn_primary(&theme, runtime_change_label)
+                    .id("signed-out-quit")
+                    .when(self.runtime_change_task.is_some(), |button| {
+                        button.opacity(0.6)
+                    })
+                    .on_click(cx.listener(|this, _, _, cx| {
+                        this.start_local_runtime_transition(false, cx)
+                    })),
+            );
+
+        div()
+            .absolute()
+            .inset_0()
+            .occlude()
+            .bg(theme.bg)
+            .child(grid_backdrop(&theme))
+            .child(
+                div()
+                    .absolute()
+                    .inset_0()
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .child(motion::fade_in("signed-out-restart", card)),
+            )
+            .into_any_element()
     }
 }
