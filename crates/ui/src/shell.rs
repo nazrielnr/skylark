@@ -56,6 +56,7 @@ use crate::theme::Theme;
 use crate::transcript::{self, Transcript};
 
 mod actions_ui;
+mod appshot_flow;
 mod command_palette;
 mod fixtures;
 mod keyboard;
@@ -106,47 +107,6 @@ pub(crate) use sidebar_sessions::{
 pub(crate) use sidebar_sessions::SIDEBAR_SESSION_SLOT;
 
 use spaces::{AddSpaceFlow, RenameSpaceDialog};
-
-
-/// Restore a default focus only after an in-flight handoff has had a frame to
-/// claim the window. A synchronous focus-lost fallback can otherwise steal
-/// focus from controls that are mounting in response to the same input event.
-pub(crate) fn restore_focus_if_empty_on_next_frame<T: 'static>(
-    focus: FocusHandle,
-    window: &mut Window,
-    cx: &mut Context<T>,
-) {
-    window.on_next_frame(move |window, cx| {
-        if window.focused(cx).is_none() {
-            window.focus(&focus, cx);
-        }
-    });
-    cx.notify();
-}
-
-/// Check the completed dispatch tree, not just the lifetime of the focused
-/// handle: a hidden editor can stay alive after its element has unmounted.
-pub(crate) fn restore_mounted_focus(
-    root: &FocusHandle,
-    preferred: &FocusHandle,
-    unfocused: &FocusHandle,
-    window: &mut Window,
-    cx: &mut App,
-) {
-    let preferred_mounted = root.contains(preferred, window);
-    if !root.contains_focused(window, cx) || (root.is_focused(window) && preferred_mounted) {
-        // Explicit blur keeps shortcuts active without returning the caret to
-        // an input. The root remains the temporary fallback for stale handles.
-        let target = if window.focused(cx).is_none() {
-            unfocused
-        } else if preferred_mounted {
-            preferred
-        } else {
-            root
-        };
-        window.focus(target, cx);
-    }
-}
 
 
 /// Interruptible height tween for the sidebar's device/archive disclosures.
@@ -889,68 +849,6 @@ impl Shell {
             _transcript_invalidation: transcript_invalidation,
         }
     }
-
-    /// Route a completed viewer-side capture only after its source window is
-    /// safely captured. The explicit target key avoids relying on the
-    /// state-observation/draft-swap effect ordering when opening the canvas.
-    pub fn receive_appshot(
-        &mut self,
-        appshot: crate::appshots::CapturedAppshot,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        use crate::appshots::AppshotDestination;
-
-        let selected = self.state.read(cx).selected_chat.clone();
-        let target = match self.settings.appshot_destination {
-            AppshotDestination::Automatic if selected.is_some() => selected,
-            AppshotDestination::LastSession if selected.is_some() => selected,
-            AppshotDestination::LastSession => self
-                .last_appshot_chat
-                .clone()
-                .filter(|id| self.state.read(cx).chats.iter().any(|chat| &chat.id == id)),
-            AppshotDestination::Automatic | AppshotDestination::NewSession => None,
-        };
-        if let Some(chat_id) = &target {
-            self.open_chat(chat_id.clone(), cx);
-        } else if self.settings.appshot_destination == AppshotDestination::NewSession
-            || self.state.read(cx).selected_chat.is_some()
-        {
-            // Reuse upstream's project-filter and device defaults for a new
-            // canvas. Automatic capture on an existing canvas keeps its pick.
-            self.open_new_session(cx);
-        } else {
-            self.route = Route::Chat;
-        }
-        let key = target.unwrap_or_default();
-        self.composer.update(cx, |composer, cx| {
-            composer.stage_appshot_for(key, appshot, cx)
-        });
-        window.focus(&self.composer.focus_handle(cx), cx);
-        cx.notify();
-    }
-
-    pub fn show_appshot_error(
-        &mut self,
-        message: String,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        self.route = Route::Chat;
-        self.composer
-            .update(cx, |composer, cx| composer.show_appshot_error(message, cx));
-        window.focus(&self.composer.focus_handle(cx), cx);
-        cx.notify();
-    }
-
-
-
-
-
-
-
-
-
 }
 
 impl Render for Shell {

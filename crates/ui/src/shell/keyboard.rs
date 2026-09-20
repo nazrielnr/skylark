@@ -1,7 +1,7 @@
 //! Keyboard events, shortcuts, and keymap configuration for Shell.
 
 use chrono::Utc;
-use gpui::{actions, Action, App, Context, Entity, Keystroke, Window};
+use gpui::{actions, Action, App, Context, Entity, FocusHandle, Keystroke, Window};
 pub use gpui::KeyBinding;
 
 use crate::changes::Changes;
@@ -274,5 +274,45 @@ impl Shell {
             }
             ShellEscapeOutcome::OtherKey | ShellEscapeOutcome::Ignored => {}
         }
+    }
+}
+
+/// Restore a default focus only after an in-flight handoff has had a frame to
+/// claim the window. A synchronous focus-lost fallback can otherwise steal
+/// focus from controls that are mounting in response to the same input event.
+pub(crate) fn restore_focus_if_empty_on_next_frame<T: 'static>(
+    focus: FocusHandle,
+    window: &mut Window,
+    cx: &mut Context<T>,
+) {
+    window.on_next_frame(move |window, cx| {
+        if window.focused(cx).is_none() {
+            window.focus(&focus, cx);
+        }
+    });
+    cx.notify();
+}
+
+/// Check the completed dispatch tree, not just the lifetime of the focused
+/// handle: a hidden editor can stay alive after its element has unmounted.
+pub(crate) fn restore_mounted_focus(
+    root: &FocusHandle,
+    preferred: &FocusHandle,
+    unfocused: &FocusHandle,
+    window: &mut Window,
+    cx: &mut App,
+) {
+    let preferred_mounted = root.contains(preferred, window);
+    if !root.contains_focused(window, cx) || (root.is_focused(window) && preferred_mounted) {
+        // Explicit blur keeps shortcuts active without returning the caret to
+        // an input. The root remains the temporary fallback for stale handles.
+        let target = if window.focused(cx).is_none() {
+            unfocused
+        } else if preferred_mounted {
+            preferred
+        } else {
+            root
+        };
+        window.focus(target, cx);
     }
 }
