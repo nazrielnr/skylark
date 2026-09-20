@@ -1,5 +1,6 @@
     use super::*;
     use chrono::Utc;
+    use gpui::Focusable as _;
 
     #[gpui::test]
     fn editing_staged_diff_comments_preserves_identity_and_cancellation(
