@@ -1,6 +1,7 @@
     use super::*;
     use chrono::Utc;
-    use gpui::Focusable as _;
+    use gpui::{font, Focusable as _};
+    use crate::markdown::render;
 
     #[gpui::test]
     fn editing_staged_diff_comments_preserves_identity_and_cancellation(
