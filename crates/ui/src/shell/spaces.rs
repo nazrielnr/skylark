@@ -59,6 +59,42 @@ pub(super) fn reorder_visible_pins(
     result
 }
 
+/// Interruptible height tween for the sidebar's device/archive disclosures.
+/// The rendered element owns the frame clock; this state preserves the current
+/// interpolated height when a second click reverses an in-flight transition.
+#[derive(Clone, Copy)]
+pub struct SidebarDisclosureMotion {
+    pub epoch: u64,
+    pub from: f32,
+    pub to: f32,
+    pub started: std::time::Instant,
+}
+
+impl SidebarDisclosureMotion {
+    pub fn new(epoch: u64, from: f32, to: f32) -> Self {
+        Self {
+            epoch,
+            from,
+            to,
+            started: std::time::Instant::now(),
+        }
+    }
+
+    pub fn current(self) -> f32 {
+        let total = motion::COLLAPSE.total().as_secs_f32();
+        let raw = if total > 0.0 {
+            self.started.elapsed().as_secs_f32() / total
+        } else {
+            1.0
+        };
+        motion::lerp(self.from, self.to, motion::COLLAPSE.progress(raw))
+    }
+
+    pub fn animating(self) -> bool {
+        self.started.elapsed() < motion::COLLAPSE.total() + SIDEBAR_DISCLOSURE_TWEEN_GRACE
+    }
+}
+
 /// Remove only ids absent from the workspace. Archived sessions remain known
 /// so unarchiving restores their local pin and position.
 pub(super) fn retain_known_pins(

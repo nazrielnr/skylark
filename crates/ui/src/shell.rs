@@ -70,6 +70,8 @@ mod project_icon;
 mod right_tabs;
 mod settings_modal;
 mod right_pane;
+mod routes;
+mod session_panels;
 mod sidebar_drag;
 mod sidebar_mutations;
 mod sidebar_pins;
@@ -82,6 +84,8 @@ mod terminal_container;
 mod titlebar;
 mod user_menu;
 pub use keyboard::*;
+pub use routes::*;
+pub use session_panels::*;
 pub use surfaces::*;
 pub use titlebar::*;
 pub(crate) use layout::*;
@@ -93,6 +97,7 @@ pub(crate) use user_menu::*;
 pub(super) use org_gate::grid_backdrop;
 pub(super) use right_tabs::workspace_file_title;
 pub(super) use sidebar_mutations::{ChatMenuPage, ChatMenuState, RenameChatDialog};
+pub(super) use spaces::SidebarDisclosureMotion;
 pub(super) use terminal_container::TERMINAL_RESIZE_HITBOX_HEIGHT;
 use org_gate::OrgGateUi;
 use right_tabs::RightTabDragState;
@@ -108,151 +113,6 @@ pub(crate) use sidebar_sessions::SIDEBAR_SESSION_SLOT;
 
 use spaces::{AddSpaceFlow, RenameSpaceDialog};
 
-
-/// Interruptible height tween for the sidebar's device/archive disclosures.
-/// The rendered element owns the frame clock; this state preserves the current
-/// interpolated height when a second click reverses an in-flight transition.
-#[derive(Clone, Copy)]
-pub(super) struct SidebarDisclosureMotion {
-    pub(super) epoch: u64,
-    pub(super) from: f32,
-    pub(super) to: f32,
-    started: std::time::Instant,
-}
-
-impl SidebarDisclosureMotion {
-    fn new(epoch: u64, from: f32, to: f32) -> Self {
-        Self {
-            epoch,
-            from,
-            to,
-            started: std::time::Instant::now(),
-        }
-    }
-
-    fn current(self) -> f32 {
-        let total = motion::COLLAPSE.total().as_secs_f32();
-        let raw = if total > 0.0 {
-            self.started.elapsed().as_secs_f32() / total
-        } else {
-            1.0
-        };
-        motion::lerp(self.from, self.to, motion::COLLAPSE.progress(raw))
-    }
-
-    fn animating(self) -> bool {
-        self.started.elapsed() < motion::COLLAPSE.total() + spaces::SIDEBAR_DISCLOSURE_TWEEN_GRACE
-    }
-}
-
-
-
-/// The settings sections (feature-inventory §1.5 routes).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SettingsSection {
-    Devices,
-    /// Which harnesses the composer offers (enable/disable toggles).
-    Harnesses,
-    /// Per-provider CLI accounts (login, usage) — labeled "Accounts".
-    Agents,
-    Appearance,
-    Files,
-    Notifications,
-    Shortcuts,
-    Appshots,
-    Archived,
-}
-
-impl SettingsSection {
-    pub const ALL: [SettingsSection; 9] = [
-        SettingsSection::Devices,
-        SettingsSection::Harnesses,
-        SettingsSection::Agents,
-        SettingsSection::Appearance,
-        SettingsSection::Files,
-        SettingsSection::Notifications,
-        SettingsSection::Shortcuts,
-        SettingsSection::Appshots,
-        SettingsSection::Archived,
-    ];
-
-    /// Sidebar + header label (zeron settings-sidebar.tsx SECTIONS / __root.tsx
-    /// `settingsTitle` — the same strings in both places).
-    pub fn label(self) -> &'static str {
-        match self {
-            SettingsSection::Devices => "Devices",
-            SettingsSection::Harnesses => "Agents",
-            SettingsSection::Agents => "Accounts",
-            SettingsSection::Appearance => "Appearance",
-            SettingsSection::Files => "Files",
-            SettingsSection::Notifications => "Notifications",
-            SettingsSection::Shortcuts => "Shortcuts",
-            SettingsSection::Appshots => "Appshots",
-            SettingsSection::Archived => "Archived sessions",
-        }
-    }
-}
-
-/// What the main outlet shows.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Route {
-    Chat,
-    Settings(SettingsSection),
-}
-
-
-
-
-
-/// Per-chat panel open flags (zeron parity: `sessionPanels` — the terminal and
-/// changes panels open *per session*, in memory only; heights and every other
-/// persisted setting stay global).
-///
-/// Everything defaults CLOSED — the right pane included (user request,
-/// revising the earlier default-open: it popped open on every session you
-/// visited). Opening is an explicit act, remembered per chat for the rest of
-/// the app run; a fresh open with no surface tabs lands on the picker.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
-pub struct ChatPanels {
-    pub terminal_open: bool,
-    /// Right pane visible (the surface host — historically the Changes pane).
-    pub changes_open: bool,
-    /// Which surface tab renders; validated against the live tab list each
-    /// frame (a closed tab falls back gracefully).
-    pub right_active: RightSurface,
-}
-
-/// The session-scoped panel map. Keys are chat ids; the new-chat canvas uses
-/// the empty key. Not persisted — a fresh app starts with everything closed.
-#[derive(Debug, Default)]
-pub struct SessionPanels {
-    map: std::collections::HashMap<String, ChatPanels>,
-}
-
-impl SessionPanels {
-    pub fn get(&self, key: &str) -> ChatPanels {
-        self.map.get(key).copied().unwrap_or_default()
-    }
-
-    /// Flip the terminal flag for `key`; returns the new value.
-    pub fn toggle_terminal(&mut self, key: &str) -> bool {
-        let entry = self.map.entry(key.to_string()).or_default();
-        entry.terminal_open = !entry.terminal_open;
-        entry.terminal_open
-    }
-
-    /// Flip the changes flag for `key`; returns the new value.
-    pub fn toggle_changes(&mut self, key: &str) -> bool {
-        let entry = self.map.entry(key.to_string()).or_default();
-        entry.changes_open = !entry.changes_open;
-        entry.changes_open
-    }
-
-    /// Mutate `key`'s flags in place (right-pane surface bookkeeping).
-    pub fn update(&mut self, key: &str, f: impl FnOnce(&mut ChatPanels)) {
-        f(self.map.entry(key.to_string()).or_default());
-    }
-}
 
 /// Sidebar resort glide (feature-inventory §1.6): 260ms
 /// `cubic-bezier(0.22,1,0.36,1)` per-row translate, the View Transitions
