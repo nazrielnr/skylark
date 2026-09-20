@@ -1,6 +1,8 @@
 //! Unit and regression tests for composer input, attachments, and keybindings.
 
 use super::*;
+use gpui::{MouseDownEvent, MouseUpEvent};
+use crate::settings::ComposerSendBehavior;
 
     fn composer_focus_window(
         cx: &mut gpui::TestAppContext,
