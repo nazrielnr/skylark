@@ -64,6 +64,7 @@ mod main_outlet;
 mod navigation;
 mod notifications;
 mod org_gate;
+mod overlays;
 mod project_icon;
 mod right_tabs;
 mod settings_modal;
@@ -84,6 +85,7 @@ pub use surfaces::*;
 pub use titlebar::*;
 pub(crate) use layout::*;
 pub(crate) use main_outlet::*;
+pub(crate) use overlays::*;
 pub(crate) use sidebar_drag::*;
 pub(crate) use sync_switch::*;
 pub(crate) use user_menu::*;
@@ -296,18 +298,6 @@ impl SessionPanels {
 /// `cubic-bezier(0.22,1,0.36,1)` per-row translate, the View Transitions
 /// equivalent.
 pub const RESORT: MotionSpec = MotionSpec::new(260, motion::EASE_RESORT);
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum SplashPhase {
-    Visible,
-    FadingOut,
-    Gone,
-}
-
-
-
-
-
 
 #[derive(Debug, Clone)]
 pub(super) enum PendingExit {
@@ -961,45 +951,6 @@ impl Shell {
 
 
 
-    fn render_overlays(
-        &mut self,
-        viewport: gpui::Size<Pixels>,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> Vec<AnyElement> {
-        let mut overlays: Vec<AnyElement> = Vec::new();
-
-        if let Some(overlay) = self.render_chat_menu_overlay(cx) {
-            overlays.push(overlay);
-        }
-
-        if let Some(overlay) = self.render_rename_dialog_overlay(viewport, window, cx) {
-            overlays.push(overlay);
-        }
-
-        overlays.extend(self.render_space_overlays(viewport, window, cx));
-        if let Some(overlay) = self.render_command_palette(viewport, window, cx) {
-            overlays.push(overlay);
-        }
-        if let Some(overlay) = self.render_add_space_overlay(viewport, window, cx) {
-            overlays.push(overlay);
-        }
-        if let Some(overlay) = self.render_project_action_overlay(viewport, window, cx) {
-            overlays.push(overlay);
-        }
-
-        if let Some(overlay) = self.render_delete_confirm_dialog_overlay(viewport, cx) {
-            overlays.push(overlay);
-        }
-
-        if let Some(sync) = self.render_sync_overlay(viewport, cx) {
-            overlays.push(sync);
-        }
-
-        overlays
-    }
-
-
 }
 
 impl Render for Shell {
@@ -1611,16 +1562,10 @@ impl Render for Shell {
         }
 
         // Boot splash overlay: visible → crossfades out on Ready → removed.
-        let root = match self.splash {
-            SplashPhase::Visible => {
-                let theme = Theme::of(cx).clone();
-                root.child(loaders::splash_overlay(&theme, false, cx.entity_id(), cx))
-            }
-            SplashPhase::FadingOut => {
-                let theme = Theme::of(cx).clone();
-                root.child(loaders::splash_overlay(&theme, true, cx.entity_id(), cx))
-            }
-            SplashPhase::Gone => root,
+        let root = if let Some(splash) = self.render_splash(cx) {
+            root.child(splash)
+        } else {
+            root
         };
 
         // Caption controls are shell-level chrome, not Ready-page content:
