@@ -961,57 +961,6 @@ impl Shell {
 
 
 
-    fn retry_engine(&mut self, cx: &mut Context<Self>) {
-        AppState::bootstrap(self.state.clone(), self.boot.clone(), cx);
-    }
-
-    // ---- routes / settings ----
-
-
-
-
-    // ---- back/forward (route history) ----
-
-    fn navigate_back(&mut self, cx: &mut Context<Self>) {
-        if let Some(entry) = self.nav.back() {
-            self.apply_nav(entry, cx);
-        }
-    }
-
-    fn navigate_forward(&mut self, cx: &mut Context<Self>) {
-        if let Some(entry) = self.nav.forward() {
-            self.apply_nav(entry, cx);
-        }
-    }
-
-    /// Land on a history entry WITHOUT recording a new one: the stack already
-    /// points at `entry` (back/forward moved the index); the selection change
-    /// this triggers dedups against `current()` in [`Self::on_state_changed`].
-    pub(super) fn apply_nav(&mut self, entry: NavEntry, cx: &mut Context<Self>) {
-        self.suspend_file_images(cx);
-        match entry {
-            NavEntry::Chat(chat_id) => {
-                self.route = Route::Chat;
-                self.focus_composer(cx);
-                let target = (!chat_id.is_empty()).then_some(chat_id);
-                if self.state.read(cx).selected_chat != target {
-                    self.state.update(cx, |s, cx| s.select_chat(target, cx));
-                }
-            }
-            NavEntry::Settings(section) => {
-                self.route = Route::Settings(section);
-            }
-        }
-        self.close_user_menu(cx);
-        self.close_chat_menu(cx);
-        cx.notify();
-    }
-
-
-
-
-
-
     fn render_overlays(
         &mut self,
         viewport: gpui::Size<Pixels>,

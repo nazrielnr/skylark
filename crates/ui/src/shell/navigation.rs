@@ -1,6 +1,8 @@
 //! Navigation history and route entries for the shell titlebar and back/forward stack.
 
-use super::SettingsSection;
+use gpui::Context;
+
+use super::{Route, SettingsSection, Shell};
 
 /// One route-history entry (zeron parity: the renderer's TanStack memory
 /// history — every route the user visited, browser-style).
@@ -80,5 +82,42 @@ impl NavHistory {
 
     pub fn len(&self) -> usize {
         self.entries.len()
+    }
+}
+
+impl Shell {
+    pub(super) fn navigate_back(&mut self, cx: &mut Context<Self>) {
+        if let Some(entry) = self.nav.back() {
+            self.apply_nav(entry, cx);
+        }
+    }
+
+    pub(super) fn navigate_forward(&mut self, cx: &mut Context<Self>) {
+        if let Some(entry) = self.nav.forward() {
+            self.apply_nav(entry, cx);
+        }
+    }
+
+    /// Land on a history entry WITHOUT recording a new one: the stack already
+    /// points at `entry` (back/forward moved the index); the selection change
+    /// this triggers dedups against `current()` in [`Self::on_state_changed`].
+    pub(super) fn apply_nav(&mut self, entry: NavEntry, cx: &mut Context<Self>) {
+        self.suspend_file_images(cx);
+        match entry {
+            NavEntry::Chat(chat_id) => {
+                self.route = Route::Chat;
+                self.focus_composer(cx);
+                let target = (!chat_id.is_empty()).then_some(chat_id);
+                if self.state.read(cx).selected_chat != target {
+                    self.state.update(cx, |s, cx| s.select_chat(target, cx));
+                }
+            }
+            NavEntry::Settings(section) => {
+                self.route = Route::Settings(section);
+            }
+        }
+        self.close_user_menu(cx);
+        self.close_chat_menu(cx);
+        cx.notify();
     }
 }

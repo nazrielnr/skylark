@@ -549,4 +549,8 @@ impl Shell {
             )
             .into_any_element()
     }
+
+    pub(super) fn retry_engine(&mut self, cx: &mut Context<Self>) {
+        AppState::bootstrap(self.state.clone(), self.boot.clone(), cx);
+    }
 }
