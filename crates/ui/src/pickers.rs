@@ -26,10 +26,6 @@ use zeron_proto::{
 };
 use zeron_rpc::methods;
 
-/// Display cap for the ref list (t3code shows pages of 100 with a status
-/// footer; a flat cap + "Showing X of Y refs" reads the same without
-/// pagination plumbing).
-const MAX_REF_ROWS: usize = 300;
 
 /// A triangle from the last point in the active trigger to the near edge
 /// of its submenu. Mirroring the edge handles menus placed on either side.
@@ -91,96 +87,99 @@ fn slow_catalog_delay() -> Option<std::time::Duration> {
 
 pub mod browser;
 pub mod config;
+pub mod git_picker;
 pub mod model_catalog;
+pub mod space_picker;
 #[cfg(test)]
 mod tests;
 
 pub use browser::*;
 pub use config::*;
+pub use git_picker::*;
 pub use model_catalog::*;
 
 pub struct Pickers {
-    state: Entity<AppState>,
-    config: DraftConfig,
+    pub(crate) state: Entity<AppState>,
+    pub(crate) config: DraftConfig,
     /// Sticky last-used picks (zeron `zeron.composer.defaults:v1`): seeds the
     /// new-chat chips and is rewritten on every new-chat pick.
-    defaults: ComposerDefaults,
+    pub(crate) defaults: ComposerDefaults,
     /// Where [`Self::defaults`] persists (`{data_dir}/composer-defaults.json`);
     /// `None` before bootstrap stamps the state (writes are skipped).
-    data_dir: Option<PathBuf>,
+    pub(crate) data_dir: Option<PathBuf>,
     /// Selection the draft picks belong to — switching chats drops them so a
     /// pick made in one chat never leaks into another.
-    draft_owner: Option<String>,
+    pub(crate) draft_owner: Option<String>,
     /// Space the branch draft/cache belong to (see the state observer).
-    space_owner: Option<String>,
-    device_owner: Option<String>,
-    target_generation: u64,
-    open: popover::Popup<PickerKind>,
+    pub(crate) space_owner: Option<String>,
+    pub(crate) device_owner: Option<String>,
+    pub(crate) target_generation: u64,
+    pub(crate) open: popover::Popup<PickerKind>,
     /// The harness/model picker's rail selection (favorites vs the effective
     /// harness's list). Re-primed on every open.
-    model_rail: ModelRail,
-    setting_menu: Option<ModelSetting>,
-    setting_active: usize,
-    setting_on_left: bool,
-    setting_intent_origin: Option<gpui::Point<gpui::Pixels>>,
-    setting_hover_pending: Option<ModelSetting>,
-    setting_hover_pointer: Option<gpui::Point<gpui::Pixels>>,
-    setting_hover_task: Option<Task<()>>,
-    model_space_below: Option<f32>,
-    setting_bounds: Option<gpui::Bounds<gpui::Pixels>>,
-    setting_scroll: gpui::ScrollHandle,
-    harnesses: Loadable<Vec<HarnessDescriptor>>,
-    models: HashMap<HarnessId, Loadable<Vec<Model>>>,
-    refs: Loadable<Vec<RepoRef>>,
+    pub(crate) model_rail: ModelRail,
+    pub(crate) setting_menu: Option<ModelSetting>,
+    pub(crate) setting_active: usize,
+    pub(crate) setting_on_left: bool,
+    pub(crate) setting_intent_origin: Option<gpui::Point<gpui::Pixels>>,
+    pub(crate) setting_hover_pending: Option<ModelSetting>,
+    pub(crate) setting_hover_pointer: Option<gpui::Point<gpui::Pixels>>,
+    pub(crate) setting_hover_task: Option<Task<()>>,
+    pub(crate) model_space_below: Option<f32>,
+    pub(crate) setting_bounds: Option<gpui::Bounds<gpui::Pixels>>,
+    pub(crate) setting_scroll: gpui::ScrollHandle,
+    pub(crate) harnesses: Loadable<Vec<HarnessDescriptor>>,
+    pub(crate) models: HashMap<HarnessId, Loadable<Vec<Model>>>,
+    pub(crate) refs: Loadable<Vec<RepoRef>>,
     /// Space id the `refs` slot belongs to (invalidated on space change).
-    refs_space: Option<String>,
+    pub(crate) refs_space: Option<String>,
     /// Highlighted row in the open list (keyboard nav).
-    active: usize,
+    pub(crate) active: usize,
     /// Models-list scroll — keyboard nav keeps the highlighted row in view.
     /// A `UniformListScrollHandle`: the model list virtualizes (7k-model
     /// catalogs must scroll smoothly), and this is its handle; the plain
     /// base handle inside serves the floating scrollbar's metrics.
-    model_scroll: gpui::UniformListScrollHandle,
+    pub(crate) model_scroll: gpui::UniformListScrollHandle,
     /// Flattened rows the list/keyboard/⌘N all walk, cached per
     /// [`ModelRowsKey`]: a 7k-model catalog rebuilt+ranked on every
     /// keystroke, arrow press AND render was the picker's open/scroll lag.
-    model_rows_cache: std::cell::RefCell<Option<(ModelRowsKey, std::sync::Arc<Vec<ModelRowData>>)>>,
+    pub(crate) model_rows_cache: std::cell::RefCell<Option<(ModelRowsKey, std::sync::Arc<Vec<ModelRowData>>)>>,
     /// Bumped on every catalog/favorites mutation; invalidates the cache.
-    catalog_rev: u64,
+    pub(crate) catalog_rev: u64,
     /// Hover/drag state of the floating menu scrollbar. One instance serves
     /// every picker list like `menu_scroll` does — the popups are mutually
     /// exclusive, so only one list mounts at a time.
-    menu_bar: popover::MenuScrollbarState,
+    pub(crate) menu_bar: popover::MenuScrollbarState,
     /// Scroll handle shared by the plain-div picker lists (branch, project,
     /// device) — the popups are mutually exclusive, so only one mounts at a
     /// time and a fresh open resets the offset.
-    menu_scroll: gpui::ScrollHandle,
+    pub(crate) menu_scroll: gpui::ScrollHandle,
     /// Shared search / URL / name input, reused across popovers.
-    search: Entity<ComposerInput>,
+    pub(crate) search: Entity<ComposerInput>,
     /// One-shot mute for the next Edited event's highlight reset — armed by
     /// [`Self::toggle`]'s programmatic clear (see the subscription).
-    search_reset_muted: bool,
-    focus: FocusHandle,
+    pub(crate) search_reset_muted: bool,
+    pub(crate) focus: FocusHandle,
     /// `ZERON_OPEN_PICKER` boot: keep claiming focus until it sticks, so
     /// keyboard nav drives the data-side-opened popover (headless rigs have
     /// no synthetic pointer, but synthetic keys do arrive).
-    boot_focus_pending: bool,
+    pub(crate) boot_focus_pending: bool,
     /// Reclaim focus while mounting: shell recovery can replace an immediate
     /// focus request while the menu is still absent from the dispatch tree.
-    focus_on_mount: bool,
-    load_task: Option<Task<()>>,
+    pub(crate) focus_on_mount: bool,
+    pub(crate) load_task: Option<Task<()>>,
     /// Own slot: the refs load runs concurrently with the eager
     /// harness/model loads — sharing `load_task` would abort one mid-flight.
-    refs_task: Option<Task<()>>,
+    pub(crate) refs_task: Option<Task<()>>,
     /// In-flight mid-session `SwitchRef` (the ref being switched to).
-    switching: Option<String>,
-    switch_task: Option<Task<()>>,
+    pub(crate) switching: Option<String>,
+    pub(crate) switch_task: Option<Task<()>>,
     /// Last mid-session switch failure (shown in the ref popover).
-    switch_error: Option<String>,
-    mutate_task: Option<Task<()>>,
-    _search_events: Subscription,
-    _state_observe: Subscription,
-    _catalog_observe: Subscription,
+    pub(crate) switch_error: Option<String>,
+    pub(crate) mutate_task: Option<Task<()>>,
+    pub(crate) _search_events: Subscription,
+    pub(crate) _state_observe: Subscription,
+    pub(crate) _catalog_observe: Subscription,
 }
 
 impl gpui::EventEmitter<ReturnComposerFocus> for Pickers {}
@@ -365,7 +364,7 @@ impl Pickers {
         self.state.read(cx).selected_chat.is_some()
     }
 
-    fn engine(&self, cx: &App) -> Option<EngineHandle> {
+    pub(crate) fn engine(&self, cx: &App) -> Option<EngineHandle> {
         self.state.read(cx).engine().cloned()
     }
 
@@ -522,7 +521,7 @@ impl Pickers {
     // ---- open/close ----
 
     /// The picker that's open AND interactive — `None` while one animates out.
-    fn open_kind(&self) -> Option<PickerKind> {
+    pub(crate) fn open_kind(&self) -> Option<PickerKind> {
         self.open.as_open().copied()
     }
 
@@ -539,7 +538,7 @@ impl Pickers {
     }
 
     /// Begin the exit animation (shared by every close path).
-    fn animate_close(&mut self, cx: &mut Context<Self>) {
+    pub(crate) fn animate_close(&mut self, cx: &mut Context<Self>) {
         if self.is_open() {
             cx.emit(ReturnComposerFocus);
         }
@@ -547,7 +546,7 @@ impl Pickers {
     }
 
     /// Outside clicks and navigation keep focus at the clicked destination.
-    fn dismiss(&mut self, cx: &mut Context<Self>) {
+    pub(crate) fn dismiss(&mut self, cx: &mut Context<Self>) {
         self.focus_on_mount = false;
         self.cancel_setting_hover();
         self.setting_menu = None;
@@ -559,7 +558,7 @@ impl Pickers {
         cx.notify();
     }
 
-    fn close(&mut self, cx: &mut Context<Self>) {
+    pub(crate) fn close(&mut self, cx: &mut Context<Self>) {
         self.animate_close(cx);
         cx.notify();
     }
@@ -890,176 +889,8 @@ impl Pickers {
         })
         .detach();
     }
-
-    /// ListRefs for the selected SPACE's folder — targeted at the space's
-    /// device (relay-forwarded when remote), keyed/invalidated by space id.
-    /// Rows carry checkout state (`current`, `worktreePath`) so the picker can
-    /// tag refs and the checkout-kind selector can offer worktree reuse.
-    fn ensure_refs(&mut self, force: bool, cx: &mut Context<Self>) {
-        let Some(space) = self.state.read(cx).selected_space_row().cloned() else {
-            return;
-        };
-        if !space.git_detected {
-            return;
-        }
-        let fresh = self.refs_space.as_deref() == Some(space.id.as_str());
-        if fresh && matches!(self.refs, Loadable::Loading) {
-            return; // a load is already in flight
-        }
-        // Non-forced (the footer's eager kick, re-run every render) only loads
-        // from Idle: an Error must WAIT for an explicit retry/reopen (force),
-        // or re-render would flip Error back to Loading before the retry row
-        // ever paints — an eternal skeleton plus an RPC storm (user report:
-        // "the ref dropdown never loads anything").
-        if !force && fresh && !matches!(self.refs, Loadable::Idle) {
-            return;
-        }
-        let Some(engine) = self.engine(cx) else {
-            return;
-        };
-        let local = self.state.read(cx).local_device_id.clone();
-        // Stale-while-revalidate: a forced refresh of an already-loaded space
-        // keeps the current rows on screen while the reload runs — a send that
-        // just minted a worktree (or a terminal-side branch) appears on the
-        // popover's next open without the list ever flashing to a skeleton.
-        if !(force && fresh && matches!(self.refs, Loadable::Ready(_))) {
-            self.refs = Loadable::Loading;
-        }
-        self.refs_space = Some(space.id.clone());
-        self.refs_task = Some(cx.spawn(async move |this, cx| {
-            let mut params = serde_json::Map::new();
-            params.insert(
-                "repoPath".into(),
-                serde_json::Value::String(space.path.clone()),
-            );
-            if local.as_deref() != Some(space.device_id.as_str()) {
-                params.insert(
-                    "targetDeviceId".into(),
-                    serde_json::Value::String(space.device_id.clone()),
-                );
-            }
-            let result = engine
-                .client()
-                .call(methods::LIST_REFS, serde_json::Value::Object(params))
-                .await;
-            this.update(cx, |pickers, cx| {
-                pickers.refs = match result {
-                    Ok(value) => match serde_json::from_value::<Vec<RepoRef>>(value) {
-                        Ok(refs) => Loadable::Ready(refs),
-                        Err(err) => Loadable::Error(err.to_string()),
-                    },
-                    Err(err) => Loadable::Error(err.to_string()),
-                };
-                // Rows landed under an open, un-searched popover: re-home the
-                // nav highlight to the selected row.
-                if pickers.open_kind() == Some(PickerKind::Branch)
-                    && pickers.search.read(cx).text().is_empty()
-                {
-                    pickers.active = pickers.selected_ref_index(cx);
-                }
-                cx.notify();
-            })
-            .ok();
-        }));
-    }
-
     // ---- selections ----
 
-    fn pick_ref(&mut self, row: RepoRef, cx: &mut Context<Self>) {
-        // Refs are fixed at creation: an existing session can never move
-        // (wing's rule — the footer renders read-only labels there, so this
-        // is a belt-and-braces guard).
-        if self.state.read(cx).selected_chat_row().is_some() {
-            return;
-        }
-        if row.worktree_path.is_some() {
-            // Reuse the ref's existing worktree ("Current worktree") — the
-            // t3code `reuseExistingWorktree` path.
-            self.config.branch = Some(row.name.clone());
-            self.config.checkout = CheckoutKind::Local;
-        } else if self.config.checkout == CheckoutKind::NewWorktree || row.current {
-            // Base pick for a new worktree, or the already-current ref.
-            self.config.branch = Some(row.name.clone());
-        } else {
-            // Local mode + a plain non-current ref: CHECK OUT the space
-            // folder (full t3code `switchRef` — picking `main` means "put my
-            // local checkout on main", it must never flip the mode).
-            self.switch_draft_ref(row, cx);
-            return;
-        }
-        self.animate_close(cx);
-        cx.notify();
-    }
-
-    /// Draft-mode checkout switch: `git checkout` in the SPACE's folder
-    /// (relay-forwarded for remote spaces). Success records the pick and
-    /// refreshes tags; failure keeps the popover open with git's message.
-    fn switch_draft_ref(&mut self, row: RepoRef, cx: &mut Context<Self>) {
-        if self.switching.is_some() {
-            return; // one switch at a time
-        }
-        let Some(space) = self.state.read(cx).selected_space_row().cloned() else {
-            return;
-        };
-        let Some(engine) = self.engine(cx) else {
-            return;
-        };
-        let local = self.state.read(cx).local_device_id.clone();
-        self.switch_error = None;
-        self.switching = Some(row.name.clone());
-        let ref_name = row.name.clone();
-        self.switch_task = Some(cx.spawn(async move |this, cx| {
-            let mut params = serde_json::Map::new();
-            params.insert(
-                "repoPath".into(),
-                serde_json::Value::String(space.path.clone()),
-            );
-            params.insert(
-                "refName".into(),
-                serde_json::Value::String(ref_name.clone()),
-            );
-            if local.as_deref() != Some(space.device_id.as_str()) {
-                params.insert(
-                    "targetDeviceId".into(),
-                    serde_json::Value::String(space.device_id.clone()),
-                );
-            }
-            let result = engine
-                .client()
-                .call(methods::SWITCH_REF, serde_json::Value::Object(params))
-                .await;
-            this.update(cx, |pickers, cx| {
-                pickers.switching = None;
-                match result {
-                    Ok(_) => {
-                        pickers.config.branch = Some(ref_name);
-                        pickers.animate_close(cx);
-                        pickers.ensure_refs(true, cx);
-                    }
-                    Err(err) => pickers.switch_error = Some(err.to_string()),
-                }
-                cx.notify();
-            })
-            .ok();
-        }));
-        cx.notify();
-    }
-
-    fn pick_checkout(&mut self, kind: CheckoutKind, cx: &mut Context<Self>) {
-        if kind == CheckoutKind::Local
-            && self.config.checkout == CheckoutKind::NewWorktree
-            && self.selected_ref_worktree().is_none()
-            && self.selected_ref().is_some_and(|r| !r.current)
-        {
-            // Back to "Current checkout" with a non-current plain ref picked:
-            // drop the pick (we don't checkout the main folder) — the current
-            // branch takes over.
-            self.config.branch = None;
-        }
-        self.config.checkout = kind;
-        self.animate_close(cx);
-        cx.notify();
-    }
 
     fn pick_harness(&mut self, harness: HarnessId, cx: &mut Context<Self>) {
         if self.harness_locked(cx) {
@@ -1386,446 +1217,6 @@ impl Pickers {
         // row's ring: "two highlighted rows" (user report, twice).
         self.active = self.selected_model_index(cx);
         cx.notify();
-    }
-
-    fn filtered_ref_rows(&self, cx: &App) -> Vec<RepoRef> {
-        let Some(refs) = self.refs.ready() else {
-            return Vec::new();
-        };
-        let names: Vec<String> = refs.iter().map(|r| r.name.clone()).collect();
-        let query = self.search.read(cx).text().to_string();
-        popover::filter_indices(&query, &names)
-            .into_iter()
-            .map(|ix| refs[ix].clone())
-            .collect()
-    }
-
-    // ---- checkout resolution (the t3code env-mode semantics) ----
-
-    /// Index of the highlighted-by-default row in the (filtered) ref list:
-    /// the session's branch on an existing chat, the draft pick on a new one,
-    /// else the current branch. Capped to the displayed window.
-    fn selected_ref_index(&self, cx: &App) -> usize {
-        let rows = self.filtered_ref_rows(cx);
-        let selected = self
-            .state
-            .read(cx)
-            .selected_chat_row()
-            .and_then(|c| c.branch.clone())
-            .or_else(|| self.config.branch.clone());
-        let index = match selected {
-            Some(name) => rows.iter().position(|r| r.name == name).unwrap_or(0),
-            None => rows.iter().position(|r| r.current).unwrap_or(0),
-        };
-        index.min(MAX_REF_ROWS.saturating_sub(1))
-    }
-
-    /// The picked ref's row, else the repo's current branch's row.
-    fn selected_ref(&self) -> Option<&RepoRef> {
-        let refs = self.refs.ready()?;
-        match self.config.branch.as_deref() {
-            Some(name) => refs.iter().find(|r| r.name == name),
-            None => refs.iter().find(|r| r.current),
-        }
-    }
-
-    /// The picked (or current) ref's name.
-    fn effective_ref_name(&self) -> Option<String> {
-        self.config
-            .branch
-            .clone()
-            .or_else(|| self.selected_ref().map(|r| r.name.clone()))
-    }
-
-    /// The existing worktree the picked ref is materialized in, if any.
-    fn selected_ref_worktree(&self) -> Option<String> {
-        self.selected_ref().and_then(|r| r.worktree_path.clone())
-    }
-
-    /// The resolved on-send checkout action for a new session.
-    pub fn checkout_plan(&self) -> CheckoutPlan {
-        match self.config.checkout {
-            CheckoutKind::NewWorktree => CheckoutPlan::NewWorktree {
-                base: self.effective_ref_name(),
-            },
-            CheckoutKind::Local => match self.selected_ref_worktree() {
-                Some(path) => CheckoutPlan::ReuseWorktree {
-                    path,
-                    branch: self.effective_ref_name().unwrap_or_default(),
-                },
-                None => CheckoutPlan::CurrentCheckout {
-                    branch: self.effective_ref_name(),
-                },
-            },
-        }
-    }
-
-    /// Label of the checkout-kind trigger (t3code `resolveEnvModeLabel` /
-    /// `resolveCurrentWorkspaceLabel`).
-    fn checkout_label(&self) -> &'static str {
-        match self.config.checkout {
-            CheckoutKind::NewWorktree => "New worktree",
-            CheckoutKind::Local => {
-                if self.selected_ref_worktree().is_some() {
-                    "Current worktree"
-                } else {
-                    "Current checkout"
-                }
-            }
-        }
-    }
-
-    /// Label of the ref trigger: `From <ref>` only when a NEW worktree will be
-    /// created off it (t3code `getBranchTriggerLabel`); the bare name otherwise.
-    fn ref_label(&self) -> SharedString {
-        match (self.config.checkout, self.effective_ref_name()) {
-            (_, None) => SharedString::from("Select ref"),
-            (CheckoutKind::NewWorktree, Some(name)) => SharedString::from(format!("From {name}")),
-            (CheckoutKind::Local, Some(name)) => SharedString::from(name),
-        }
-    }
-
-    // ---- the space picker (new-session canvas) ----
-
-    /// The picker's project rows: scoped to the canvas's device — the device
-    /// switcher narrows the list, projects on other devices don't show
-    /// (pick the device first, then its project). Unscoped only while the
-    /// device is still unknown (pre-probe boot).
-    fn scoped_space_rows(&self, cx: &App) -> Vec<Space> {
-        let state = self.state.read(cx);
-        let device = state.effective_device_id();
-        state
-            .spaces_sorted()
-            .into_iter()
-            .filter(|s| match device.as_deref() {
-                Some(d) => s.device_id == d,
-                None => true,
-            })
-            .cloned()
-            .collect()
-    }
-
-    /// [`Self::scoped_space_rows`] matching the search query, ranked
-    /// (`popover::filter_indices`).
-    fn filtered_space_rows(&self, cx: &App) -> Vec<Space> {
-        let query = self.search.read(cx).text().to_string();
-        let spaces = self.scoped_space_rows(cx);
-        let names: Vec<String> = spaces
-            .iter()
-            .map(|s| s.display_name().to_string())
-            .collect();
-        popover::filter_indices(&query, &names)
-            .into_iter()
-            .map(|ix| spaces[ix].clone())
-            .collect()
-    }
-
-    /// Current project row on an unsearched open, or the final opt-out row.
-    /// An implicit empty selection has no highlight until the user navigates.
-    fn selected_space_index(&self, cx: &App) -> usize {
-        if self.state.read(cx).no_project {
-            return self.scoped_space_rows(cx).len();
-        }
-        let selected = self
-            .state
-            .read(cx)
-            .selected_space_row()
-            .map(|s| s.id.clone());
-        selected
-            .as_deref()
-            .and_then(|id| self.scoped_space_rows(cx).iter().position(|s| s.id == id))
-            .unwrap_or(NO_ACTIVE_ROW)
-    }
-
-    /// Re-home the canvas onto another project. The state observer does the
-    /// heavy lifting: branch draft, ref cache, and the per-device
-    /// harness/model catalogs all invalidate on the project change.
-    fn pick_space(&mut self, space_id: String, cx: &mut Context<Self>) {
-        self.state.update(cx, |s, cx| {
-            s.auto_selected = true;
-            s.select_space(Some(space_id), cx);
-        });
-        self.remember_target(cx);
-        self.close(cx);
-    }
-
-    fn pick_no_project(&mut self, cx: &mut Context<Self>) {
-        self.state.update(cx, |s, cx| {
-            // A late opening chats frame must not auto-open an old session
-            // after the user has explicitly chosen the new-session target.
-            s.auto_selected = true;
-            s.select_space(None, cx);
-        });
-        self.remember_target(cx);
-        self.close(cx);
-    }
-
-    fn pick_device(&mut self, device_id: String, cx: &mut Context<Self>) {
-        self.state
-            .update(cx, |s, cx| s.select_device(device_id, cx));
-        self.remember_target(cx);
-        self.close(cx);
-    }
-
-    /// Persist the device/project picks — the "last selected" defaults the
-    /// next boot's canvas restores.
-    fn remember_target(&mut self, cx: &App) {
-        {
-            let state = self.state.read(cx);
-            self.defaults.device = state
-                .selected_device
-                .clone()
-                .or_else(|| state.local_device_id.clone());
-            self.defaults.project = state.selected_space.clone();
-            self.defaults.no_project = state.no_project;
-        }
-        if let Some(dir) = &self.data_dir {
-            if let Err(err) = self.defaults.save(dir) {
-                tracing::warn!(error = %err, "composer-defaults save failed");
-            }
-        }
-    }
-
-    /// Devices in picker order: this device first, then by name.
-    fn device_rows(&self, cx: &App) -> Vec<zeron_proto::Device> {
-        let state = self.state.read(cx);
-        let local = state.local_device_id.clone();
-        let mut devices: Vec<zeron_proto::Device> = state.devices.clone();
-        devices.sort_by_key(|d| {
-            (
-                local.as_deref() != Some(d.id.as_str()),
-                d.name.to_lowercase(),
-                d.id.clone(),
-            )
-        });
-        devices
-    }
-
-    /// [`Self::device_rows`] filtered by the search box (same ranked
-    /// substring match as the project rows).
-    fn filtered_device_rows(&self, cx: &App) -> Vec<zeron_proto::Device> {
-        let query = self.search.read(cx).text().to_string();
-        let rows = self.device_rows(cx);
-        let names: Vec<String> = rows.iter().map(|d| d.name.clone()).collect();
-        popover::filter_indices(&query, &names)
-            .into_iter()
-            .map(|ix| rows[ix].clone())
-            .collect()
-    }
-
-    fn selected_device_index(&self, cx: &App) -> usize {
-        let effective = self.state.read(cx).effective_device_id();
-        self.device_rows(cx)
-            .iter()
-            .position(|d| Some(d.id.as_str()) == effective.as_deref())
-            .unwrap_or(0)
-    }
-
-    /// The device popover: search + one row per device (name, muted "offline"
-    /// tag, check on the canvas's effective device).
-    fn render_device_popover(&mut self, cx: &mut Context<Self>) -> AnyElement {
-        let theme = Theme::of(cx).for_popup();
-        let now = chrono::Utc::now();
-        let rows = self.filtered_device_rows(cx);
-        let (effective, local, online): (Option<String>, Option<String>, Vec<bool>) = {
-            let state = self.state.read(cx);
-            (
-                state.effective_device_id(),
-                state.local_device_id.clone(),
-                rows.iter()
-                    .map(|d| state.device_online(&d.id, now))
-                    .collect(),
-            )
-        };
-        let active = self.active;
-        let scrollbar = popover::rail(self, "device-scrollbar", &theme, cx);
-        let body: AnyElement = if rows.is_empty() {
-            div()
-                .p(px(Theme::SPACE_SM))
-                .text_size(crate::typography::ui_rems(12.0))
-                .text_color(theme.text_faint)
-                .child(SharedString::from("No devices match."))
-                .into_any_element()
-        } else {
-            popover::menu_scroll_host("device-list-host")
-                .on_hover(cx.listener(Self::on_menu_list_hover))
-                .child(
-                    popover::menu_scroll_list("device-list", &self.menu_scroll)
-                        .flex()
-                        .flex_col()
-                        .gap(px(2.0))
-                        .max_h(px(224.0))
-                        .children(rows.into_iter().zip(online).enumerate().map(
-                            |(ix, (device, online))| {
-                                let is_local = local.as_deref() == Some(device.id.as_str());
-                                let label: SharedString = device.name.clone().into();
-                                let is_selected = effective.as_deref() == Some(device.id.as_str());
-                                let pick_id = device.id.clone();
-                                popover::menu_row_nav(
-                                    &theme,
-                                    is_selected,
-                                    ix == active,
-                                    format!("device-row-{ix}"),
-                                )
-                                .id(("device-row", ix))
-                                .on_click(cx.listener(move |this, _, _, cx| {
-                                    this.pick_device(pick_id.clone(), cx);
-                                }))
-                                .child(div().flex_1().min_w_0().truncate().child(label))
-                                // The local device wears a muted right-aligned "You"
-                                // instead of a "(this device)" suffix in the name.
-                                .when(is_local, |el| {
-                                    el.child(
-                                        div()
-                                            .flex_none()
-                                            .text_size(crate::typography::ui_rems(10.0))
-                                            .text_color(theme.text_muted)
-                                            .child(SharedString::from("You")),
-                                    )
-                                })
-                                // Disconnected glyph, not the word (user request).
-                                .when(!online, |el| {
-                                    el.child(
-                                        crate::icons::icon(crate::icons::WIFI_OFF)
-                                            .size(px(12.0))
-                                            .flex_none()
-                                            .text_color(theme.warning.opacity(0.8)),
-                                    )
-                                })
-                            },
-                        )),
-                )
-                .children(scrollbar)
-                .into_any_element()
-        };
-        div()
-            .flex()
-            .flex_col()
-            .child(self.search_box(&theme))
-            .child(body)
-            .into_any_element()
-    }
-
-    /// The project popover: search + one row per project on the picked device
-    /// (check on the current pick), then "New project…" and the opt-out rows. Rows
-    /// are device-scoped, so no per-row `@ device` tag — the device chip next
-    /// door names the host.
-    fn render_space_popover(&mut self, cx: &mut Context<Self>) -> AnyElement {
-        let theme = Theme::of(cx).for_popup();
-        let rows = self.filtered_space_rows(cx);
-        let selected = self
-            .state
-            .read(cx)
-            .selected_space_row()
-            .map(|s| s.id.clone());
-        let active = self.active;
-        let no_project_index = rows.len();
-        let scrollbar = popover::rail(self, "space-scrollbar", &theme, cx);
-        let body: AnyElement = if rows.is_empty() {
-            // Distinguish "the filter ate everything" from "this device has
-            // no projects yet" — the scoped list makes the latter common.
-            let empty: &str = if self.search.read(cx).text().is_empty() {
-                "No projects on this device."
-            } else {
-                "No projects match."
-            };
-            div()
-                .p(px(Theme::SPACE_SM))
-                .text_size(crate::typography::ui_rems(12.0))
-                .text_color(theme.text_faint)
-                .child(SharedString::from(empty.to_string()))
-                .into_any_element()
-        } else {
-            popover::menu_scroll_host("space-list-host")
-                .on_hover(cx.listener(Self::on_menu_list_hover))
-                .child(
-                    popover::menu_scroll_list("space-list", &self.menu_scroll)
-                        .flex()
-                        .flex_col()
-                        .gap(px(2.0))
-                        .max_h(px(224.0))
-                        .children(rows.into_iter().enumerate().map(|(ix, space)| {
-                            let label: SharedString = space.display_name().to_string().into();
-                            let is_selected = selected.as_deref() == Some(space.id.as_str());
-                            let pick_id = space.id.clone();
-                            popover::menu_row_nav(
-                                &theme,
-                                is_selected,
-                                ix == active,
-                                format!("space-row-{ix}"),
-                            )
-                            .id(("space-row", ix))
-                            .on_click(cx.listener(move |this, _, _, cx| {
-                                this.pick_space(pick_id.clone(), cx);
-                            }))
-                            .child(div().flex_1().min_w_0().truncate().child(label))
-                        })),
-                )
-                .children(scrollbar)
-                .into_any_element()
-        };
-        let no_project = popover::menu_row_nav(
-            &theme,
-            self.state.read(cx).no_project,
-            active == no_project_index,
-            "project-none".to_string(),
-        )
-        .id("project-none")
-        .on_click(cx.listener(|this, _, _, cx| this.pick_no_project(cx)))
-        .child(
-            crate::icons::icon(crate::icons::CLOSE)
-                .size(px(12.0))
-                .flex_none()
-                .text_color(theme.text_muted),
-        )
-        .child(
-            div()
-                .flex_1()
-                .min_w_0()
-                .truncate()
-                .child("Don't work in a project"),
-        );
-        // Action row under a hairline: mint a project.
-        let new_project = popover::menu_row_nav(&theme, false, false, "project-new".to_string())
-            .id("project-new")
-            .on_click(cx.listener(|this, _, window, cx| {
-                this.dismiss(cx);
-                window.dispatch_action(Box::new(crate::shell::AddSpacePalette), cx);
-            }))
-            .child(
-                crate::icons::icon(crate::icons::PLUS)
-                    .size(px(12.0))
-                    .flex_none()
-                    .text_color(theme.text_muted),
-            )
-            .child(
-                div()
-                    .flex_1()
-                    .min_w_0()
-                    .truncate()
-                    .child(SharedString::from("New project…")),
-            );
-        div()
-            .flex()
-            .flex_col()
-            // Same 2px rhythm as the list's own row gap — the action rows
-            // sat flush while list rows breathed (user report).
-            .gap(px(2.0))
-            .child(self.search_box(&theme))
-            .child(body)
-            .child(
-                // Full-bleed through the card's shared inset — a divider
-                // stopping short of the edges read as a mistake.
-                div()
-                    .my(px(2.0))
-                    .mx(px(-popover::CARD_INSET))
-                    .h(px(1.0))
-                    .flex_none()
-                    .bg(theme.border.opacity(0.6)),
-            )
-            .child(new_project)
-            .child(no_project)
-            .into_any_element()
     }
 
     fn on_search_submit(&mut self, cx: &mut Context<Self>) {
@@ -2573,12 +1964,12 @@ impl Pickers {
             .into_any_element()
     }
 
-    fn search_box(&self, theme: &Theme) -> AnyElement {
+    pub(crate) fn search_box(&self, theme: &Theme) -> AnyElement {
         popover::search_input_frame(theme, self.search.clone().into_any_element())
             .into_any_element()
     }
 
-    fn retry_row(
+    pub(crate) fn retry_row(
         &self,
         id: &'static str,
         message: &str,
@@ -2636,7 +2027,7 @@ impl Pickers {
 
     /// The list-hover half of the rail treatment; the strip's own hover,
     /// press, drag, and mouse-up listeners come from [`popover::rail`].
-    fn on_menu_list_hover(
+    pub(crate) fn on_menu_list_hover(
         &mut self,
         hovered: &bool,
         _window: &mut gpui::Window,
@@ -2645,211 +2036,6 @@ impl Pickers {
         if self.menu_bar.set_list_hovered(*hovered) {
             cx.notify();
         }
-    }
-
-    /// The ref picker (t3code BranchToolbarBranchSelector): search on top,
-    /// rows with right-aligned muted `current`/`worktree` tags, and a
-    /// "Showing X of Y refs" footer when the list is capped.
-    fn render_branch_popover(&mut self, cx: &mut Context<Self>) -> AnyElement {
-        let theme = Theme::of(cx).for_popup();
-        if self.state.read(cx).selected_space_row().is_none() {
-            return div()
-                .p(px(Theme::SPACE_SM))
-                .text_size(crate::typography::ui_rems(12.0))
-                .text_color(theme.text_faint)
-                .child(SharedString::from("No project selected"))
-                .into_any_element();
-        }
-        let rows = self.filtered_ref_rows(cx);
-        let total = rows.len();
-        let shown = total.min(MAX_REF_ROWS);
-        // Existing session: the highlighted row is the SESSION's branch and a
-        // pick switches the checkout (see `pick_ref`); a new chat highlights
-        // the draft pick.
-        let session_branch = self
-            .state
-            .read(cx)
-            .selected_chat_row()
-            .and_then(|c| c.branch.clone());
-        let switching = self.switching.clone();
-        let scrollbar = popover::rail(self, "branch-scrollbar", &theme, cx);
-        let body: AnyElement = match &self.refs {
-            Loadable::Loading | Loadable::Idle => {
-                popover::skeleton_rows("branch-skeleton", &theme, 4, cx.entity_id(), cx)
-            }
-            Loadable::Error(message) => {
-                let message = message.clone();
-                self.retry_row("branch-retry", &message, PickerKind::Branch, &theme, cx)
-            }
-            Loadable::Ready(_) if rows.is_empty() => div()
-                .p(px(Theme::SPACE_SM))
-                .text_size(crate::typography::ui_rems(12.0))
-                .text_color(theme.text_faint)
-                .child(SharedString::from("No refs found."))
-                .into_any_element(),
-            Loadable::Ready(_) => {
-                let active = self.active;
-                let selected = session_branch.or_else(|| self.config.branch.clone());
-                popover::menu_scroll_host("branch-list-host")
-                    .on_hover(cx.listener(Self::on_menu_list_hover))
-                    .child(
-                        popover::menu_scroll_list("branch-list", &self.menu_scroll)
-                            .flex()
-                            .flex_col()
-                            .gap(px(2.0))
-                            .max_h(px(224.0))
-                            .children(rows.into_iter().take(MAX_REF_ROWS).enumerate().map(
-                                |(ix, row)| {
-                                    let label: SharedString = row.name.clone().into();
-                                    let is_selected =
-                                        selected.as_deref() == Some(row.name.as_str());
-                                    // Right-aligned muted tag (t3code `text-[10px]
-                                    // text-muted-foreground/45`): current beats worktree.
-                                    let tag: Option<&'static str> = if row.current {
-                                        Some("current")
-                                    } else if row.worktree_path.is_some() {
-                                        Some("worktree")
-                                    } else {
-                                        None
-                                    };
-                                    let is_switching =
-                                        switching.as_deref() == Some(row.name.as_str());
-                                    popover::menu_row_nav(
-                                        &theme,
-                                        is_selected,
-                                        ix == active,
-                                        format!("branch-row-{ix}"),
-                                    )
-                                    .id(("branch-row", ix))
-                                    .when(switching.is_some(), |el| el.opacity(0.55))
-                                    .on_click(cx.listener(move |this, _, _, cx| {
-                                        this.pick_ref(row.clone(), cx);
-                                    }))
-                                    .child(div().flex_1().min_w_0().truncate().child(label))
-                                    .when(is_switching, |el| {
-                                        el.child(
-                                            div()
-                                                .flex_none()
-                                                .text_size(crate::typography::ui_rems(10.0))
-                                                .text_color(theme.text_muted)
-                                                .child(SharedString::from("switching…")),
-                                        )
-                                    })
-                                    .when_some(
-                                        tag,
-                                        |el, tag| {
-                                            el.child(
-                                                div()
-                                                    .flex_none()
-                                                    .text_size(crate::typography::ui_rems(10.0))
-                                                    .text_color(theme.text_muted)
-                                                    .child(SharedString::from(tag)),
-                                            )
-                                        },
-                                    )
-                                },
-                            )),
-                    )
-                    .children(scrollbar)
-                    .into_any_element()
-            }
-        };
-        let mut popover = div()
-            .flex()
-            .flex_col()
-            .child(self.search_box(&theme))
-            .child(body);
-        // Mid-session switch failure (dirty tree, ref checked out elsewhere):
-        // git's own message, under a hairline.
-        if let Some(error) = &self.switch_error {
-            popover = popover.child(
-                popover::menu_section().child(
-                    div()
-                        .px(px(Theme::SPACE_SM))
-                        .py(px(4.0))
-                        .text_size(crate::typography::ui_rems(11.0))
-                        .text_color(theme.danger.opacity(0.9))
-                        .child(SharedString::from(error.clone())),
-                ),
-            );
-        }
-        if total > shown {
-            popover = popover.child(
-                popover::menu_section().child(
-                    div()
-                        .px(px(Theme::SPACE_SM))
-                        .py(px(4.0))
-                        .text_size(crate::typography::ui_rems(11.0))
-                        .text_color(theme.text_faint)
-                        .child(SharedString::from(format!(
-                            "Showing {shown} of {total} refs"
-                        ))),
-                ),
-            );
-        }
-        popover.into_any_element()
-    }
-
-    /// The checkout-kind dropdown (t3code BranchToolbarEnvModeSelector): two
-    /// rows — "Current checkout"/"Current worktree" (local) and "New worktree".
-    fn render_checkout_popover(&mut self, cx: &mut Context<Self>) -> AnyElement {
-        let theme = Theme::of(cx).for_popup();
-        let has_worktree = self.selected_ref_worktree().is_some();
-        let local_label: &'static str = if has_worktree {
-            "Current worktree"
-        } else {
-            "Current checkout"
-        };
-        let local_icon = if has_worktree {
-            crate::icons::FOLDER_WITH_FILES
-        } else {
-            crate::icons::FOLDER
-        };
-        let options: [(CheckoutKind, &'static str, &'static str); 2] = [
-            (CheckoutKind::Local, local_label, local_icon),
-            (
-                CheckoutKind::NewWorktree,
-                "New worktree",
-                crate::icons::FOLDER_WITH_FILES,
-            ),
-        ];
-        let active = self.active;
-        let current = self.config.checkout;
-        div()
-            .flex()
-            .flex_col()
-            .gap(px(2.0))
-            .children(
-                options
-                    .into_iter()
-                    .enumerate()
-                    .map(|(ix, (kind, label, icon_path))| {
-                        let is_selected = current == kind;
-                        popover::menu_row_nav(
-                            &theme,
-                            is_selected,
-                            ix == active,
-                            format!("checkout-row-{ix}"),
-                        )
-                        .id(("checkout-row", ix))
-                        .on_click(cx.listener(move |this, _, _, cx| {
-                            this.pick_checkout(kind, cx);
-                        }))
-                        .child(
-                            crate::icons::icon(icon_path)
-                                .size(px(14.0))
-                                .text_color(theme.text_muted),
-                        )
-                        .child(
-                            div()
-                                .flex_1()
-                                .min_w_0()
-                                .truncate()
-                                .child(SharedString::from(label)),
-                        )
-                    }),
-            )
-            .into_any_element()
     }
 
     /// The combined harness + model switcher (zeron harness-model-picker.tsx):
