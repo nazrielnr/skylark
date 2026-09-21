@@ -52,7 +52,10 @@ pub use staging::{
     stage_png_bytes,
 };
 mod upload;
-pub use upload::{LoadedAttachmentImage, read_attachment_image, upload_attachment};
+pub use upload::{
+    LoadedAttachmentImage, call_with_timeout, queue_thumbnail_image, read_attachment_image,
+    upload_attachment,
+};
 mod cache;
 pub use cache::*;
 mod lightbox;
