@@ -58,13 +58,13 @@ const UPLOAD_CONCURRENCY: usize = 3;
 /// the 3-consecutive-failure abort — an upload could lawfully crawl for hours
 /// reading "Sending…" (2026-08-18 user report). Scaled with size, capped:
 /// past this, fail the send with the banner instead of spinning.
-fn attachment_deadline(n_chunks: usize) -> Duration {
+pub(crate) fn attachment_deadline(n_chunks: usize) -> Duration {
     Duration::from_secs((120 + 15 * n_chunks as u64).min(900))
 }
 
 /// The `(seq, b64 byte-range)` plan for a file's chunks. An empty file still
 /// sends one empty chunk (the commit needs the uploadId staged).
-fn chunk_ranges(b64_len: usize) -> Vec<(u64, std::ops::Range<usize>)> {
+pub(crate) fn chunk_ranges(b64_len: usize) -> Vec<(u64, std::ops::Range<usize>)> {
     let mut ranges = Vec::new();
     let mut start = 0usize;
     let mut seq = 0u64;

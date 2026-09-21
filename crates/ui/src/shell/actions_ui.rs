@@ -552,8 +552,9 @@ impl Shell {
             .flex()
             .flex_row()
             .items_center()
-            .h(px(24.0))
+            .h(px(28.0))
             .rounded(px(6.0))
+            .overflow_hidden()
             .border_1()
             .border_color(theme.border)
             .occlude();
@@ -570,7 +571,7 @@ impl Shell {
                 })
                 .child(
                     icon(action_icon(action.icon))
-                        .size(px(13.0))
+                        .size(px(14.0))
                         .text_color(theme.text_muted),
                 )
                 .when(show_label, |el| {
@@ -605,7 +606,7 @@ impl Shell {
                 .on_click(cx.listener(|this, _, _, cx| this.toggle_project_actions_menu(cx)))
                 .child(
                     icon(icons::DANGER_TRIANGLE)
-                        .size(px(13.0))
+                        .size(px(14.0))
                         .text_color(theme.danger),
                 )
                 .when(show_label, |el| {
@@ -620,7 +621,7 @@ impl Shell {
                 )
                 .child(
                     icon(icons::PLUS)
-                        .size(px(13.0))
+                        .size(px(14.0))
                         .text_color(theme.text_muted),
                 )
                 .child(SharedString::from("Add action"));
@@ -1020,13 +1021,13 @@ fn action_segment(theme: &Theme, id: &'static str) -> gpui::Stateful<gpui::Div> 
     div()
         .id(id)
         .h_full()
-        .px(px(7.0))
+        .px(px(8.0))
         .flex()
         .items_center()
-        .gap(px(5.0))
-        .text_size(px(11.5))
+        .gap(px(6.0))
+        .text_size(crate::typography::ui_rems(12.0))
         .text_color(theme.text.opacity(0.9))
-        .hover(|style| style.bg(crate::theme::ink(0.07)))
+        .hover(|style| style.bg(theme.glass_hover()))
         .on_mouse_down(MouseButton::Left, |_, window, _| window.prevent_default())
 }
 
@@ -1037,14 +1038,14 @@ fn action_chevron(
     div()
         .id("project-actions-chevron")
         .h_full()
-        .w(px(23.0))
+        .w(px(24.0))
         .flex()
         .items_center()
         .justify_center()
         .border_l_1()
         .border_color(theme.border)
         .cursor_pointer()
-        .hover(|style| style.bg(crate::theme::ink(0.07)))
+        .hover(|style| style.bg(theme.glass_hover()))
         .on_mouse_down(MouseButton::Left, |_, window, _| window.prevent_default())
         .on_click(move |event, window, cx| {
             cx.stop_propagation();
@@ -1052,7 +1053,7 @@ fn action_chevron(
         })
         .child(
             icon(icons::ALT_ARROW_DOWN)
-                .size(px(11.0))
+                .size(px(12.0))
                 .text_color(theme.text_muted),
         )
 }

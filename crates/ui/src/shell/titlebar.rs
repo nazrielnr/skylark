@@ -2,7 +2,7 @@
 
 use super::*;
 use gpui::{
-    div, px, AnyElement, App, Context, IntoElement, MouseButton, Pixels, Window, WindowControlArea,
+    AnyElement, App, Context, IntoElement, MouseButton, Pixels, Window, WindowControlArea, div, px,
 };
 
 use crate::icons::{self, icon};
@@ -55,12 +55,12 @@ pub const TITLEBAR_IDENTITY_GAP: f32 = Theme::SPACE_MD;
 /// A 28px action centered in the 38px titlebar with its 2px downward optical
 /// shift lands 6px from the top; use the same inset at the trailing edge.
 pub const TITLEBAR_ACTION_EDGE_INSET: f32 = 6.0;
-/// Width of the persistent top-left button cluster itself: a 24px sidebar
-/// trigger, an 8px group gap, then two 24px history buttons on a 2px rhythm.
-pub const CLUSTER_BUTTONS_WIDTH: f32 = 24.0 * 3.0 + TITLEBAR_GROUP_GAP + TITLEBAR_CONTROL_GAP;
+/// Width of the persistent top-left button cluster itself: a 28px sidebar
+/// trigger, an 8px group gap, then two 28px history buttons on a 2px rhythm.
+pub const CLUSTER_BUTTONS_WIDTH: f32 = 28.0 * 3.0 + TITLEBAR_GROUP_GAP + TITLEBAR_CONTROL_GAP;
 /// Extra width consumed when the collapsed-sidebar New Session action joins
 /// the left controls as its own group.
-pub const TITLEBAR_ACTION_SLOT_WIDTH: f32 = TITLEBAR_GROUP_GAP + 24.0;
+pub const TITLEBAR_ACTION_SLOT_WIDTH: f32 = TITLEBAR_GROUP_GAP + 28.0;
 /// Horizontal inset owned by the titlebar control row itself. Keep this value
 /// paired with [`Self::titlebar_spacer`]: using a different number for the
 /// spacer shifts every control while leaving the declared cluster geometry
@@ -112,7 +112,8 @@ pub fn titlebar_island_vertical_geometry(progress: f32) -> (f32, f32) {
 }
 
 pub const WINDOWS_CAPTION_BUTTON_WIDTH: f32 = 36.0;
-pub const WINDOWS_CAPTION_WIDTH: f32 = WINDOWS_CAPTION_BUTTON_WIDTH * 3.0;
+/// Width of the Windows caption controls cluster including the divider (107.0px).
+pub const WINDOWS_CAPTION_WIDTH: f32 = 107.0;
 
 /// Right padding for titlebar content: past the native Windows caption
 /// cluster, or past zeron's own Linux caption buttons (10px edge inset +
@@ -139,7 +140,7 @@ pub fn window_control_button(
     let fade_key = format!("window-control-{id}");
     div()
         .id(id)
-        .size(px(24.0))
+        .size(px(28.0))
         .flex_none()
         .flex()
         .items_center()
@@ -201,14 +202,15 @@ pub fn windows_caption_button(
     };
     div()
         .id(id)
-        .w(px(WINDOWS_CAPTION_BUTTON_WIDTH))
-        .h_full()
+        .size(px(28.0))
         .flex_none()
         .flex()
         .items_center()
         .justify_center()
+        .rounded(px(6.0))
+        .cursor_pointer()
         .text_size(crate::typography::ui_rems(10.0))
-        .text_color(theme.text)
+        .text_color(theme.text_muted)
         .hover(move |style| style.bg(hover_bg).text_color(hover_fg))
         .active(move |style| style.bg(active_bg).text_color(active_fg))
         .occlude()
@@ -240,7 +242,7 @@ pub fn linux_caption_button(
         // gpui svgs don't inherit the div's text color — recolor the glyph
         // on hover through the group instead (zed's WindowControl idiom).
         .group("linux-caption-button")
-        .size(px(24.0))
+        .size(px(28.0))
         .flex_none()
         .flex()
         .items_center()
@@ -276,7 +278,7 @@ pub fn nav_history_button(
 ) -> AnyElement {
     if !enabled {
         return div()
-            .size(px(24.0))
+            .size(px(28.0))
             .flex_none()
             .flex()
             .items_center()
@@ -375,7 +377,11 @@ impl Shell {
     /// The unified window titlebar: chat → the session tab strip; settings →
     /// the section label. Full-width on the glass shell; the traffic lights
     /// and control cluster overlay its left end.
-    pub(super) fn render_title_bar(&mut self, viewport_height: Pixels, cx: &mut Context<Self>) -> AnyElement {
+    pub(super) fn render_title_bar(
+        &mut self,
+        viewport_height: Pixels,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
         match self.route {
             Route::Chat => self.render_session_title_bar(viewport_height, cx),
             Route::Settings(_) => {
@@ -583,7 +589,11 @@ impl Shell {
     /// titlebar. `WindowControlArea` maps these hit targets to HTMINBUTTON,
     /// HTMAXBUTTON, and HTCLOSE, so Windows owns their behavior (including
     /// Snap Layouts) while GPUI renders the system Segoe caption glyphs.
-    pub(super) fn render_windows_caption_controls(&self, window: &Window, cx: &App) -> Option<AnyElement> {
+    pub(super) fn render_windows_caption_controls(
+        &self,
+        window: &Window,
+        cx: &App,
+    ) -> Option<AnyElement> {
         if !cfg!(target_os = "windows") {
             return None;
         }
@@ -603,7 +613,19 @@ impl Shell {
                 .h(px(Theme::TITLEBAR_HEIGHT))
                 .flex()
                 .flex_row()
+                .items_center()
+                .pt(px(Theme::TITLEBAR_TOP_PAD))
+                .pr(px(8.0))
+                .gap(px(4.0))
                 .font_family("Segoe Fluent Icons")
+                .child(
+                    div()
+                        .h(px(16.0))
+                        .w(px(1.0))
+                        .mr(px(2.0))
+                        .rounded_full()
+                        .bg(theme.border),
+                )
                 .child(windows_caption_button(
                     "window-minimize",
                     "\u{e921}",
@@ -639,7 +661,10 @@ impl Shell {
     /// compositor can't do (e.g. minimize on some Wayland compositors) drop
     /// out, close always stays.
     #[cfg(target_os = "linux")]
-    pub(super) fn resolve_linux_captions(window: &Window, cx: &App) -> Option<gpui::WindowButtonLayout> {
+    pub(super) fn resolve_linux_captions(
+        window: &Window,
+        cx: &App,
+    ) -> Option<gpui::WindowButtonLayout> {
         use gpui::{MAX_BUTTONS_PER_SIDE, WindowButton, WindowButtonLayout};
         if !matches!(
             window.window_decorations(),
@@ -675,7 +700,10 @@ impl Shell {
     }
 
     #[cfg(not(target_os = "linux"))]
-    pub(super) fn resolve_linux_captions(_window: &Window, _cx: &App) -> Option<gpui::WindowButtonLayout> {
+    pub(super) fn resolve_linux_captions(
+        _window: &Window,
+        _cx: &App,
+    ) -> Option<gpui::WindowButtonLayout> {
         None
     }
 
@@ -702,7 +730,11 @@ impl Shell {
     /// Zeron-drawn Linux caption controls, one overlay per populated side.
     /// Shell-level chrome like the Windows cluster: mounted at the root so
     /// they stay above the splash and every auth/org/error gate.
-    pub(super) fn render_linux_caption_controls(&self, window: &Window, cx: &App) -> Vec<AnyElement> {
+    pub(super) fn render_linux_caption_controls(
+        &self,
+        window: &Window,
+        cx: &App,
+    ) -> Vec<AnyElement> {
         let Some(layout) = self.linux_captions else {
             return Vec::new();
         };
@@ -789,15 +821,13 @@ impl Shell {
         top && bottom && left && right && cfg!(target_os = "linux")
     }
 
-    /// The corner radius chrome layers must PAINT for this frame. gpui's
-    /// content masks are rectangles — `.rounded()` never clips children, so
-    /// every full-bleed layer that can occupy a window corner rounds its own
-    /// background with this radius (the layer beneath shows through the
-    /// curve, down to the transparent window corners). Zero everywhere the
-    /// window must be square: macOS rounds via the window server, and a
-    /// tiled/maximized Linux window sits flush with the screen.
+    /// Radius painted by full-bleed GPUI surfaces. macOS clips natively;
+    /// floating Windows/Linux windows need their app-owned surfaces rounded.
+    /// Maximized, fullscreen, and tiled windows stay square against the screen.
     pub(crate) fn window_corner_radius(window: &Window) -> f32 {
-        if Self::linux_window_floating(window) {
+        if cfg!(target_os = "windows") && !window.is_maximized() && !window.is_fullscreen() {
+            LINUX_WINDOW_CORNER_RADIUS
+        } else if Self::linux_window_floating(window) {
             LINUX_WINDOW_CORNER_RADIUS
         } else {
             0.0

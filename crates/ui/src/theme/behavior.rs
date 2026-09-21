@@ -34,12 +34,10 @@ impl Theme {
     /// Main-panel header height (zeron `h-11`) — in-card headers (changes pane).
     pub const HEADER_HEIGHT: f32 = 44.0;
     /// The unified window titlebar (traffic lights + cluster + tabs). Content
-    /// rides [`Self::TITLEBAR_TOP_PAD`] lower than center so the air above
-    /// matches the perceived gap to the inset card below (border + card body).
-    pub const TITLEBAR_HEIGHT: f32 = 38.0;
-    /// Top-only padding moves the flex center by half this value. On macOS,
-    /// 38 / 2 + 4 / 2 = 21 matches the native traffic lights' center.
-    pub const TITLEBAR_TOP_PAD: f32 = 4.0;
+    /// is vertically centered so the space above and below the 28px controls is equal (6px).
+    pub const TITLEBAR_HEIGHT: f32 = 40.0;
+    /// Top padding offset for titlebar content flex rows.
+    pub const TITLEBAR_TOP_PAD: f32 = 0.0;
     /// Reserved status strip under the content outlet (zeron `h-6`) — the
     /// WorkingIndicator row; reserving it keeps the composer from shifting.
     pub const STATUS_STRIP_HEIGHT: f32 = 24.0;

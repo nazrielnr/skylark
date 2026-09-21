@@ -21,7 +21,7 @@ use crate::{
     theme::Theme,
 };
 
-pub const SEARCH_ROW_HEIGHT: f32 = 27.0;
+pub const SEARCH_ROW_HEIGHT: f32 = 28.0;
 const SEARCH_TREE_INDENT: f32 = 14.0;
 const SEARCH_RESULT_LIMIT: usize = 200;
 
@@ -593,7 +593,7 @@ impl FilesSurface {
                     .min_w_0()
                     .truncate()
                     .font_family(theme.font_sans.clone())
-                    .text_size(px(11.5))
+                    .text_size(crate::typography::ui_rems(12.0))
                     .text_color(if is_directory {
                         theme.text_muted
                     } else {
@@ -613,7 +613,7 @@ fn centered_search_message(message: SharedString, color: gpui::Hsla) -> AnyEleme
         .justify_center()
         .px(px(24.0))
         .text_center()
-        .text_size(px(11.5))
+        .text_size(crate::typography::ui_rems(12.0))
         .text_color(color)
         .child(message)
         .into_any_element()

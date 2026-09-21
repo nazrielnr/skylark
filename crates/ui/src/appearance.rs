@@ -386,17 +386,15 @@ pub fn apply_windows_acrylic(
             let hwnd = win32.hwnd.get() as windows_sys::Win32::Foundation::HWND;
             unsafe {
                 use windows_sys::Win32::Graphics::Dwm::{
-                    DwmExtendFrameIntoClientArea, DwmSetWindowAttribute,
-                    DWMWA_SYSTEMBACKDROP_TYPE,
+                    DwmSetWindowAttribute, DWMWA_SYSTEMBACKDROP_TYPE,
                 };
-                use windows_sys::Win32::UI::Controls::MARGINS;
 
                 // Clear any legacy SetWindowCompositionAttribute accent policy that may
                 // have been applied by gpui_windows, ensuring DWMWA_SYSTEMBACKDROP_TYPE takes effect.
                 clear_legacy_accent_policy(hwnd);
 
                 // Set DWMWA_USE_IMMERSIVE_DARK_MODE (20): 1 for dark, 0 for light.
-                // This updates the native caption buttons and commands DWM whether to render
+                // This updates caption styling and commands DWM whether to render
                 // the Mica / Mica Alt material in dark or light mode.
                 let is_dark: i32 = if theme_appearance.is_dark() { 1 } else { 0 };
                 let res_dark = DwmSetWindowAttribute(
@@ -407,14 +405,6 @@ pub fn apply_windows_acrylic(
                 );
 
                 if is_glass {
-                    let margins = MARGINS {
-                        cxLeftWidth: -1,
-                        cxRightWidth: -1,
-                        cyTopHeight: -1,
-                        cyBottomHeight: -1,
-                    };
-                    let res_margins = DwmExtendFrameIntoClientArea(hwnd, &margins);
-
                     // 4 = DWMSBT_TABBEDWINDOW (Mica Alt, as used in Windows 11 File Explorer)
                     let backdrop_type: u32 = 4;
                     let res_backdrop = DwmSetWindowAttribute(
@@ -429,7 +419,6 @@ pub fn apply_windows_acrylic(
                         is_glass,
                         hwnd = ?hwnd,
                         res_dark,
-                        res_margins,
                         res_backdrop,
                         "apply_windows_acrylic: enabled Mica Alt backdrop (Windows Explorer style)"
                     );

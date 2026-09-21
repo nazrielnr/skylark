@@ -67,19 +67,19 @@ impl AttachmentKey {
 }
 
 #[derive(Default)]
-struct ImageCache {
-    map: HashMap<AttachmentKey, CacheEntry>,
+pub(crate) struct ImageCache {
+    pub(crate) map: HashMap<AttachmentKey, CacheEntry>,
     /// Monotonic access clock for LRU ordering.
-    tick: u64,
-    loaded_bytes: usize,
-    generated_bytes: usize,
+    pub(crate) tick: u64,
+    pub(crate) loaded_bytes: usize,
+    pub(crate) generated_bytes: usize,
     /// Evicted images awaiting `flush_evicted` (freeing needs `&mut App`,
     /// which eviction sites — async load completions — don't always have).
-    pending_free: Vec<Arc<Image>>,
+    pub(crate) pending_free: Vec<Arc<Image>>,
 }
 
 impl ImageCache {
-    fn insert_loaded(&mut self, key: AttachmentKey, image: CachedAttachmentImage) {
+    pub(crate) fn insert_loaded(&mut self, key: AttachmentKey, image: CachedAttachmentImage) {
         // Generated rasters are normalized to PNG; account for their decoded
         // CPU/GPU copies as well as encoded bytes in the existing cache budget.
         let pixels = crate::appshots::png_dimensions(&image.image.bytes)
