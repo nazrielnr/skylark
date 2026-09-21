@@ -198,6 +198,8 @@ pub struct AccountsPage {
     _code_events: Subscription,
 }
 
+#[path = "accounts/render.rs"]
+mod render;
 #[path = "accounts/view.rs"]
 mod view;
 
