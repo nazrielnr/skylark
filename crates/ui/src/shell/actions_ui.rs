@@ -552,8 +552,8 @@ impl Shell {
             .flex()
             .flex_row()
             .items_center()
-            .h(px(28.0))
-            .rounded(px(6.0))
+            .h(crate::typography::ui_rems(28.0))
+            .rounded(crate::typography::ui_rems(6.0))
             .overflow_hidden()
             .border_1()
             .border_color(theme.border)
@@ -571,13 +571,13 @@ impl Shell {
                 })
                 .child(
                     icon(action_icon(action.icon))
-                        .size(px(14.0))
+                        .size(crate::typography::ui_rems(14.0))
                         .text_color(theme.text_muted),
                 )
                 .when(show_label, |el| {
                     el.child(
                         div()
-                            .max_w(px(150.0))
+                            .max_w(crate::typography::ui_rems(150.0))
                             .truncate()
                             .child(SharedString::from(action.name)),
                     )
@@ -606,7 +606,7 @@ impl Shell {
                 .on_click(cx.listener(|this, _, _, cx| this.toggle_project_actions_menu(cx)))
                 .child(
                     icon(icons::DANGER_TRIANGLE)
-                        .size(px(14.0))
+                        .size(crate::typography::ui_rems(14.0))
                         .text_color(theme.danger),
                 )
                 .when(show_label, |el| {
@@ -621,7 +621,7 @@ impl Shell {
                 )
                 .child(
                     icon(icons::PLUS)
-                        .size(px(14.0))
+                        .size(crate::typography::ui_rems(14.0))
                         .text_color(theme.text_muted),
                 )
                 .child(SharedString::from("Add action"));
@@ -1021,10 +1021,10 @@ fn action_segment(theme: &Theme, id: &'static str) -> gpui::Stateful<gpui::Div> 
     div()
         .id(id)
         .h_full()
-        .px(px(8.0))
+        .px(crate::typography::ui_rems(8.0))
         .flex()
         .items_center()
-        .gap(px(6.0))
+        .gap(crate::typography::ui_rems(6.0))
         .text_size(crate::typography::ui_rems(12.0))
         .text_color(theme.text.opacity(0.9))
         .hover(|style| style.bg(theme.glass_hover()))
@@ -1038,7 +1038,7 @@ fn action_chevron(
     div()
         .id("project-actions-chevron")
         .h_full()
-        .w(px(24.0))
+        .w(crate::typography::ui_rems(24.0))
         .flex()
         .items_center()
         .justify_center()
@@ -1053,7 +1053,7 @@ fn action_chevron(
         })
         .child(
             icon(icons::ALT_ARROW_DOWN)
-                .size(px(12.0))
+                .size(crate::typography::ui_rems(12.0))
                 .text_color(theme.text_muted),
         )
 }

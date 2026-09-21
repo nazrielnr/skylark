@@ -32,7 +32,7 @@ impl FilesSurface {
         }
         self.preview.active = Some(path.clone());
         self.preview.touch_document(&path);
-        self.preview.tree_sidebar_visible = false;
+        self.preview.show_tree_sidebar();
         if !self.preview.documents.contains_key(&path) {
             let Some(context) = self.request_context.as_ref() else {
                 return;

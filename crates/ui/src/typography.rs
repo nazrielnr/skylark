@@ -510,6 +510,15 @@ pub fn font_size(cx: &App) -> UiFontSize {
         .unwrap_or_default()
 }
 
+pub fn ui_scale(cx: &App) -> f32 {
+    let px = font_size(cx).pixels();
+    if px <= 0.0 {
+        1.0
+    } else {
+        px / 16.0
+    }
+}
+
 pub fn availability(cx: &App) -> FontAvailability {
     cx.try_global::<TypographyState>()
         .map(|state| state.availability.clone())

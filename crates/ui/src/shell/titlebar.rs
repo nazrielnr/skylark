@@ -54,7 +54,7 @@ pub const TITLEBAR_GROUP_GAP: f32 = Theme::SPACE_SM;
 pub const TITLEBAR_IDENTITY_GAP: f32 = Theme::SPACE_MD;
 /// A 28px action centered in the 38px titlebar with its 2px downward optical
 /// shift lands 6px from the top; use the same inset at the trailing edge.
-pub const TITLEBAR_ACTION_EDGE_INSET: f32 = 6.0;
+pub const TITLEBAR_ACTION_EDGE_INSET: f32 = 12.0;
 /// Width of the persistent top-left button cluster itself: a 28px sidebar
 /// trigger, an 8px group gap, then two 28px history buttons on a 2px rhythm.
 pub const CLUSTER_BUTTONS_WIDTH: f32 = 28.0 * 3.0 + TITLEBAR_GROUP_GAP + TITLEBAR_CONTROL_GAP;
@@ -98,9 +98,21 @@ pub fn cluster_clearance(
     linux_left_captions: usize,
     container_pad: f32,
 ) -> f32 {
+    cluster_clearance_scaled(is_macos, fullscreen, linux_left_captions, container_pad, 1.0)
+}
+
+pub fn cluster_clearance_scaled(
+    is_macos: bool,
+    fullscreen: bool,
+    linux_left_captions: usize,
+    container_pad: f32,
+    scale: f32,
+) -> f32 {
+    let scale = if scale <= 0.0 { 1.0 } else { scale };
     (cluster_buttons_start(is_macos, fullscreen, linux_left_captions) + CLUSTER_BUTTONS_WIDTH + 8.0
         - container_pad)
         .max(0.0)
+        * scale
 }
 
 pub fn titlebar_island_vertical_geometry(progress: f32) -> (f32, f32) {
@@ -108,24 +120,31 @@ pub fn titlebar_island_vertical_geometry(progress: f32) -> (f32, f32) {
     // Keep the native 24px controls untouched and give them 4px of air.
     let height = 28.0 + 4.0 * progress.clamp(0.0, 1.0);
     let center = (Theme::TITLEBAR_HEIGHT + Theme::TITLEBAR_TOP_PAD) * 0.5;
-    (center - height * 0.5, height)
+    let baseline_y = Theme::TITLEBAR_TOP_PAD + 28.0 * 0.5;
+    let y = motion::lerp(baseline_y, center, progress.clamp(0.0, 1.0));
+    (height, y)
 }
 
 pub const WINDOWS_CAPTION_BUTTON_WIDTH: f32 = 36.0;
-/// Width of the Windows caption controls cluster including the divider (107.0px).
-pub const WINDOWS_CAPTION_WIDTH: f32 = 107.0;
+/// Width of the Windows caption controls cluster including the divider (117.0px).
+pub const WINDOWS_CAPTION_WIDTH: f32 = 117.0;
 
 /// Right padding for titlebar content: past the native Windows caption
 /// cluster, or past zeron's own Linux caption buttons (10px edge inset +
 /// the button row) when the layout puts any on the right.
 pub fn titlebar_right_padding(is_windows: bool, linux_right_captions: usize, base: f32) -> f32 {
-    base + if is_windows {
+    titlebar_right_padding_scaled(is_windows, linux_right_captions, base, 1.0)
+}
+
+pub fn titlebar_right_padding_scaled(is_windows: bool, linux_right_captions: usize, base: f32, scale: f32) -> f32 {
+    let scale = if scale <= 0.0 { 1.0 } else { scale };
+    (base + if is_windows {
         WINDOWS_CAPTION_WIDTH
     } else if linux_right_captions > 0 {
         10.0 + caption_buttons_width(linux_right_captions)
     } else {
         0.0
-    }
+    }) * scale
 }
 
 /// A size-6 icon button for the titlebar strip (zeron window-controls.tsx:
@@ -140,12 +159,12 @@ pub fn window_control_button(
     let fade_key = format!("window-control-{id}");
     div()
         .id(id)
-        .size(px(28.0))
+        .size(crate::typography::ui_rems(28.0))
         .flex_none()
         .flex()
         .items_center()
         .justify_center()
-        .rounded(px(6.0))
+        .rounded(crate::typography::ui_rems(6.0))
         .cursor_pointer()
         // zeron window-controls.tsx: `transition-colors` — the wash fades.
         .bg(motion::hover_blend(
@@ -172,7 +191,7 @@ pub fn window_control_button(
             cx.stop_propagation();
             on_click(event, window, cx)
         })
-        .child(icon(icon_path).size(px(16.0)).text_color(muted))
+        .child(icon(icon_path).size(crate::typography::ui_rems(15.0)).text_color(muted))
 }
 
 /// A Windows-owned caption target using the same system glyphs and native
@@ -202,12 +221,12 @@ pub fn windows_caption_button(
     };
     div()
         .id(id)
-        .size(px(28.0))
+        .size(crate::typography::ui_rems(28.0))
         .flex_none()
         .flex()
         .items_center()
         .justify_center()
-        .rounded(px(6.0))
+        .rounded(crate::typography::ui_rems(6.0))
         .cursor_pointer()
         .text_size(crate::typography::ui_rems(10.0))
         .text_color(theme.text_muted)
@@ -242,12 +261,12 @@ pub fn linux_caption_button(
         // gpui svgs don't inherit the div's text color — recolor the glyph
         // on hover through the group instead (zed's WindowControl idiom).
         .group("linux-caption-button")
-        .size(px(28.0))
+        .size(crate::typography::ui_rems(28.0))
         .flex_none()
         .flex()
         .items_center()
         .justify_center()
-        .rounded(px(6.0))
+        .rounded(crate::typography::ui_rems(6.0))
         .cursor_pointer()
         .hover(move |style| style.bg(hover_bg))
         .occlude()
@@ -258,7 +277,7 @@ pub fn linux_caption_button(
         })
         .child(
             icon(icon_path)
-                .size(px(16.0))
+                .size(crate::typography::ui_rems(15.0))
                 .text_color(muted)
                 .group_hover("linux-caption-button", move |style| {
                     style.text_color(hover_fg)
@@ -278,7 +297,7 @@ pub fn nav_history_button(
 ) -> AnyElement {
     if !enabled {
         return div()
-            .size(px(28.0))
+            .size(crate::typography::ui_rems(28.0))
             .flex_none()
             .flex()
             .items_center()
@@ -288,7 +307,7 @@ pub fn nav_history_button(
             .occlude()
             .child(
                 icon(icon_path)
-                    .size(px(16.0))
+                    .size(crate::typography::ui_rems(15.0))
                     .text_color(theme.text_muted.opacity(0.35)),
             )
             .into_any_element();
@@ -308,12 +327,12 @@ pub fn header_icon_button(
     let fade_key = format!("header-icon-{id}");
     div()
         .id(id)
-        .size(px(28.0))
+        .size(crate::typography::ui_rems(28.0))
         .flex_none()
         .flex()
         .items_center()
         .justify_center()
-        .rounded(px(6.0))
+        .rounded(crate::typography::ui_rems(6.0))
         .cursor_pointer()
         // zeron __root.tsx header buttons: `transition-colors`.
         .bg(motion::hover_blend(
@@ -331,7 +350,7 @@ pub fn header_icon_button(
             cx.stop_propagation();
             on_click(event, window, cx)
         })
-        .child(icon(icon_path).size(px(16.0)).text_color(muted))
+        .child(icon(icon_path).size(crate::typography::ui_rems(15.0)).text_color(muted))
 }
 
 // ---------------------------------------------------------------------------
@@ -371,7 +390,7 @@ impl Shell {
             self.titlebar_tween,
             cluster_buttons_start(is_macos, fullscreen, self.linux_left_caption_count()),
         );
-        cluster + CLUSTER_BUTTONS_WIDTH + TITLEBAR_IDENTITY_GAP
+        (cluster + CLUSTER_BUTTONS_WIDTH + TITLEBAR_IDENTITY_GAP) * self.ui_scale()
     }
 
     /// The unified window titlebar: chat → the session tab strip; settings →
@@ -392,7 +411,10 @@ impl Shell {
                     .pt(px(Theme::TITLEBAR_TOP_PAD))
                     .pl(px(self.title_bar_content_start()))
                     .pr(px(self.titlebar_right_pad(TITLEBAR_ACTION_EDGE_INSET)));
-                let bar = div().h(px(Theme::TITLEBAR_HEIGHT)).flex_none().child(inner);
+                let bar = div()
+                    .h(crate::typography::ui_rems(Theme::TITLEBAR_HEIGHT))
+                    .flex_none()
+                    .child(inner);
                 self.titlebar_drag_region("settings-header-titlebar", bar, cx)
                     .into_any_element()
             }
@@ -497,7 +519,7 @@ impl Shell {
             .absolute()
             .top_0()
             .left_0()
-            .h(px(Theme::TITLEBAR_HEIGHT))
+            .h(crate::typography::ui_rems(Theme::TITLEBAR_HEIGHT))
             .flex()
             .flex_row()
             .items_center()
@@ -541,11 +563,11 @@ impl Shell {
             ))
             .child(
                 div()
-                    .ml(px(TITLEBAR_GROUP_GAP))
+                    .ml(crate::typography::ui_rems(TITLEBAR_GROUP_GAP))
                     .flex()
                     .flex_row()
                     .items_center()
-                    .gap(px(TITLEBAR_CONTROL_GAP))
+                    .gap(crate::typography::ui_rems(TITLEBAR_CONTROL_GAP))
                     .child(nav_history_button(
                         "nav-back",
                         icons::ARROW_LEFT,
@@ -564,7 +586,7 @@ impl Shell {
             .children(show_plus.then(|| {
                 div()
                     .flex_none()
-                    .ml(px(TITLEBAR_GROUP_GAP))
+                    .ml(crate::typography::ui_rems(TITLEBAR_GROUP_GAP))
                     .opacity(plus_alpha)
                     .child(window_control_button(
                         "titlebar-new-session",
@@ -610,19 +632,19 @@ impl Shell {
                 .absolute()
                 .top_0()
                 .right_0()
-                .h(px(Theme::TITLEBAR_HEIGHT))
+                .h(crate::typography::ui_rems(Theme::TITLEBAR_HEIGHT))
                 .flex()
                 .flex_row()
                 .items_center()
                 .pt(px(Theme::TITLEBAR_TOP_PAD))
-                .pr(px(8.0))
-                .gap(px(4.0))
+                .pr(crate::typography::ui_rems(8.0))
+                .gap(crate::typography::ui_rems(4.0))
                 .font_family("Segoe Fluent Icons")
                 .child(
                     div()
-                        .h(px(16.0))
+                        .h(crate::typography::ui_rems(16.0))
                         .w(px(1.0))
-                        .mr(px(2.0))
+                        .mx(crate::typography::ui_rems(8.0))
                         .rounded_full()
                         .bg(theme.border),
                 )
@@ -720,10 +742,11 @@ impl Shell {
     /// Right padding titlebar content needs to clear the platform's caption
     /// controls (native Windows cluster / zeron-drawn Linux buttons).
     pub(super) fn titlebar_right_pad(&self, base: f32) -> f32 {
-        titlebar_right_padding(
+        titlebar_right_padding_scaled(
             cfg!(target_os = "windows"),
             self.linux_right_caption_count(),
             base,
+            self.ui_scale(),
         )
     }
 
@@ -746,13 +769,13 @@ impl Shell {
             div()
                 .absolute()
                 .top_0()
-                .h(px(Theme::TITLEBAR_HEIGHT))
+                .h(crate::typography::ui_rems(Theme::TITLEBAR_HEIGHT))
                 .flex()
                 .flex_row()
                 .items_center()
                 .pt(px(Theme::TITLEBAR_TOP_PAD))
-                .gap(px(2.0))
-                .px(px(10.0))
+                .gap(crate::typography::ui_rems(4.0))
+                .px(crate::typography::ui_rems(10.0))
                 .children(buttons.iter().flatten().map(|button| {
                     match button {
                         gpui::WindowButton::Minimize => linux_caption_button(

@@ -475,8 +475,8 @@ impl GitHistory {
                 .flex()
                 .items_center()
                 .justify_center()
-                .text_size(px(12.0))
-                .text_color(theme.text_faint)
+                .text_size(crate::typography::ui_rems(14.0))
+                .text_color(theme.text_muted)
                 .child("No repository selected")
                 .into_any_element()
         } else if self.loading && self.commits.is_empty() {
@@ -486,18 +486,18 @@ impl GitHistory {
                 .flex_col()
                 .items_center()
                 .justify_center()
-                .gap(px(8.0))
+                .gap(crate::typography::ui_rems(8.0))
                 .child(crate::loaders::gradient_spinner(
                     "history-loading",
                     &theme,
-                    3.0,
+                    3.5,
                     cx.entity_id(),
                     cx,
                 ))
                 .child(
                     div()
-                        .text_size(px(12.0))
-                        .text_color(theme.text_faint)
+                        .text_size(crate::typography::ui_rems(14.0))
+                        .text_color(theme.text_muted)
                         .child("Loading history…"),
                 )
                 .into_any_element()
@@ -521,8 +521,9 @@ impl GitHistory {
                 .flex()
                 .items_center()
                 .justify_center()
-                .px(px(20.0))
-                .text_size(px(12.0))
+                .px(crate::typography::ui_rems(20.0))
+                .text_size(crate::typography::ui_rems(14.0))
+                .text_color(theme.text_muted)
                 .text_color(if active_error.is_some() {
                     theme.warning
                 } else {

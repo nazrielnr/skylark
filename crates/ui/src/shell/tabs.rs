@@ -183,13 +183,14 @@ impl Shell {
         // session is selected (`render_titlebar_cluster`) — this row budgets
         // one button slot so the title never sits under it.
         let sidebar_now = self.sidebar_now();
-        let plus_inset = TITLEBAR_ACTION_SLOT_WIDTH * self.titlebar_plus_alpha(cx);
+        let scale = self.ui_scale();
+        let plus_inset = TITLEBAR_ACTION_SLOT_WIDTH * self.titlebar_plus_alpha(cx) * scale;
 
         // Same glide as the old strip: content starts at the inset card's
         // left edge while the sidebar is open, and slides toward the control
         // cluster as it collapses.
         let content_left =
-            (sidebar_now + Theme::SPACE_LG).max(self.title_bar_content_start() + plus_inset);
+            (sidebar_now + Theme::SPACE_LG * scale).max(self.title_bar_content_start() + plus_inset);
 
         // Trailing titlebar section. With the changes pane open this is the
         // PANE'S HEADER — a strip exactly as wide as the pane carrying its
@@ -221,24 +222,25 @@ impl Shell {
             // window-control cluster still wins while the sidebar is
             // collapsed (the chips clear it instead of underlapping).
             let cluster_end =
-                self.title_bar_content_start() - TITLEBAR_IDENTITY_GAP + plus_inset - 14.0;
-            (sidebar_now - 8.0).max(cluster_end)
+                self.title_bar_content_start() - (TITLEBAR_IDENTITY_GAP * scale) + plus_inset - (14.0 * scale);
+            (sidebar_now - 8.0 * scale).max(cluster_end)
         } else {
             content_left
         };
-        let row_gap = 8.0;
+        let toggle_btn_w = 28.0 * scale;
+        let row_gap = 8.0 * scale;
         let right_pad = self.titlebar_right_pad(TITLEBAR_ACTION_EDGE_INSET);
         let open_trailing_width = right_pane_open.then(|| {
             let right_now = self.eval_tween(self.right_tween, self.right_target(cx));
             let gap_budget = if takeover { row_gap } else { row_gap * 3.0 };
             let avail = self.viewport_width - row_left - right_pad - gap_budget;
-            let animated_width = ((right_now - right_pad).min(avail) - 28.0).max(0.0);
-            animated_width + 28.0
+            let animated_width = ((right_now - right_pad).min(avail) - toggle_btn_w).max(0.0);
+            animated_width + toggle_btn_w
         });
         let trailing_width = if on_canvas {
             0.0
         } else {
-            open_trailing_width.unwrap_or(28.0)
+            open_trailing_width.unwrap_or(toggle_btn_w)
         };
         let available_titlebar_width =
             (self.viewport_width - row_left - right_pad - trailing_width - row_gap * 3.0).max(0.0);
@@ -252,23 +254,20 @@ impl Shell {
                 .h_full()
                 .flex()
                 .flex_row()
-                .items_center();
+                .items_center()
+                .gap(crate::typography::ui_rems(6.0));
             let tabs = self.render_right_tab_strip(cx);
             controls = controls.child(
                 div()
-                    .w(px((trailing_width - 28.0).max(0.0)))
+                    .w(px((trailing_width - toggle_btn_w - 6.0 * scale).max(0.0)))
                     .h_full()
                     .flex_none()
                     .flex()
                     .flex_row()
                     .items_center()
-                    .gap(px(4.0))
+                    .gap(crate::typography::ui_rems(6.0))
                     .overflow_hidden()
-                    // 8 + the trigger's own 8px pad = the pane's 16px
-                    // text gutter. The 4px right padding is the stable
-                    // gap before the fixed toggle.
-                    .pl(px(8.0))
-                    .pr(px(4.0))
+                    .pl(crate::typography::ui_rems(8.0))
                     .child(
                         div()
                             .flex_1()
@@ -339,13 +338,13 @@ impl Shell {
                         .flex()
                         .flex_row()
                         .items_center()
-                        .gap(px(6.0))
+                        .gap(crate::typography::ui_rems(6.0))
                         .when_some(
                             harness.map(crate::pickers::harness_brand_icon),
                             |el, (path, tint)| {
                                 el.child(
                                     icon(path)
-                                        .size(px(14.0))
+                                        .size(crate::typography::ui_rems(14.0))
                                         .flex_none()
                                         .text_color(tint.unwrap_or(theme.text_muted)),
                                 )
@@ -377,13 +376,16 @@ impl Shell {
                 )
             })
             .child(div().flex_1())
-            .children(actions)
+            .children(actions.map(|a| div().mr(crate::typography::ui_rems(12.0)).child(a)))
             .children(trailing);
 
         // The unified window titlebar: full-width on the glass shell, ABOVE
         // the inset card. No bottom border — the card's own hairline is the
         // separation; the glass gutter shows between.
-        let bar = div().h(px(Theme::TITLEBAR_HEIGHT)).flex_none().child(inner);
+        let bar = div()
+            .h(crate::typography::ui_rems(Theme::TITLEBAR_HEIGHT))
+            .flex_none()
+            .child(inner);
         self.titlebar_drag_region("chat-titlebar", bar, cx)
             .into_any_element()
     }

@@ -257,12 +257,12 @@ impl Transcript {
             .flex()
             .flex_row()
             .items_center()
-            .gap(px(6.0))
-            .pr(px(4.0))
-            .h(px(TOOL_GROUP_HEADER_HEIGHT))
+            .gap(crate::typography::ui_rems(6.0))
+            .pr(crate::typography::ui_rems(4.0))
+            .h(crate::typography::ui_rems(TOOL_GROUP_HEADER_HEIGHT))
             .cursor_pointer()
-            .text_size(px(TOOL_LABEL_SIZE))
-            .line_height(px(TOOL_LABEL_LINE_HEIGHT))
+            .text_size(crate::typography::ui_rems(TOOL_LABEL_SIZE))
+            .line_height(crate::typography::ui_rems(TOOL_LABEL_LINE_HEIGHT))
             .text_color(theme.text_muted)
             .hover(|s| s.text_color(theme.text))
             .on_click(cx.listener(move |this, _, _, cx| {
@@ -437,11 +437,11 @@ impl Transcript {
                         );
                         let mut row = div()
                             .id(SharedString::from(format!("{key}-blob")))
-                            .h(px(BLOB_AFFORDANCE_HEIGHT))
+                            .h(crate::typography::ui_rems(BLOB_AFFORDANCE_HEIGHT))
                             .flex_none()
                             .flex()
                             .items_center()
-                            .text_size(px(TOOL_TEXT_SIZE))
+                            .text_size(crate::typography::ui_rems(TOOL_TEXT_SIZE))
                             .text_color(theme.text_faint)
                             .child(label);
                         if !loading {

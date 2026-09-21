@@ -234,7 +234,10 @@ fn definition_asset(definition: &str) -> Option<&'static str> {
         .strip_prefix("./icons/")
 }
 
-fn resolve_directory(name: &str, _expanded: bool) -> &'static str {
+fn resolve_directory(name: &str, expanded: bool) -> &'static str {
+    if expanded {
+        return "folders/folder-open.svg";
+    }
     MANIFEST
         .folder_names
         .get(name)

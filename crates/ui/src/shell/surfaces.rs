@@ -270,8 +270,9 @@ impl Shell {
 
         self.file_surface_seq += 1;
         let id = self.file_surface_seq;
+        let existing_tree = self.files.get(&panel_key).map(|f| f.read(cx).tree().clone());
         let file = cx.new(|cx| {
-            FilesSurface::new_editor(
+            let mut surface = FilesSurface::new_editor(
                 self.state.clone(),
                 self.active_chat.clone(),
                 path.clone(),
@@ -281,7 +282,11 @@ impl Shell {
                 self.settings.files_word_wrap,
                 self.settings.files_show_all,
                 cx,
-            )
+            );
+            if let Some(tree) = existing_tree {
+                surface.set_tree(tree);
+            }
+            surface
         });
         let event_panel_key = panel_key.clone();
         let sub = cx.subscribe_in(

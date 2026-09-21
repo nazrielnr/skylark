@@ -47,9 +47,9 @@ impl Render for SidebarViewOptionsTooltip {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = Theme::of(cx);
         div()
-            .px(px(8.0))
-            .py(px(6.0))
-            .rounded(px(6.0))
+            .px(crate::typography::ui_rems(8.0))
+            .py(crate::typography::ui_rems(6.0))
+            .rounded(crate::typography::ui_rems(6.0))
             .border_1()
             .border_color(theme.border_strong)
             .bg(theme.surface_raised)
@@ -491,15 +491,15 @@ impl Shell {
                 }))
                 .child(
                     icon(icons[ix])
-                        .size(px(15.0))
+                        .size(crate::typography::ui_rems(15.0))
                         .flex_none()
                         .text_color(theme.text_muted),
                 )
                 .child(div().flex_1().child(SharedString::from(labels[ix])))
-                .child(div().w(px(14.0)).flex_none().when(selected[ix], |el| {
+                .child(div().w(crate::typography::ui_rems(14.0)).flex_none().when(selected[ix], |el| {
                     el.child(
                         icon(icons::CHECK)
-                            .size(px(14.0))
+                            .size(crate::typography::ui_rems(14.0))
                             .text_color(theme.text_muted),
                     )
                 }))
@@ -514,7 +514,7 @@ impl Shell {
         let organization_rows = rows;
 
         popover::popover_card(theme)
-            .w(px(self.settings.sidebar_width - 2.0 * Theme::SPACE_SM))
+            .w(px((self.settings.sidebar_width - 2.0 * Theme::SPACE_SM) * self.ui_scale()))
             .track_focus(&focus)
             .on_key_down(cx.listener(|this, event: &gpui::KeyDownEvent, _, cx| {
                 this.sidebar_view_menu_key(event, cx)
@@ -527,18 +527,18 @@ impl Shell {
                 div()
                     .flex()
                     .flex_col()
-                    .gap(px(2.0))
+                    .gap(crate::typography::ui_rems(2.0))
                     .children(organization_rows),
             )
             .child(popover::menu_separator())
             .child(popover::menu_heading(theme, "Sort"))
-            .child(div().flex().flex_col().gap(px(2.0)).children(sort_rows))
+            .child(div().flex().flex_col().gap(crate::typography::ui_rems(2.0)).children(sort_rows))
             .child(popover::menu_separator())
             .child(popover::menu_heading(theme, "Show"))
-            .child(div().flex().flex_col().gap(px(2.0)).children(show_rows))
+            .child(div().flex().flex_col().gap(crate::typography::ui_rems(2.0)).children(show_rows))
             .child(popover::menu_separator())
             .child(popover::menu_heading(theme, "Layout"))
-            .child(div().flex().flex_col().gap(px(2.0)).children(layout_rows))
+            .child(div().flex().flex_col().gap(crate::typography::ui_rems(2.0)).children(layout_rows))
             .into_any_element()
     }
 
@@ -572,13 +572,13 @@ impl Shell {
             .id("spaces-filter")
             .flex_1()
             .min_w_0()
-            .h(px(29.0))
+            .h(crate::typography::ui_rems(29.0))
             .flex()
             .flex_row()
             .items_center()
-            .gap(px(Theme::SPACE_SM))
-            .rounded(px(8.0))
-            .px(px(Theme::SPACE_SM))
+            .gap(crate::typography::ui_rems(Theme::SPACE_SM))
+            .rounded(crate::typography::ui_rems(8.0))
+            .px(crate::typography::ui_rems(Theme::SPACE_SM))
             .text_size(crate::typography::ui_rems(13.0))
             .font_weight(gpui::FontWeight::MEDIUM)
             .text_color(motion::hover_blend(
@@ -612,7 +612,7 @@ impl Shell {
             }))
             .child(
                 icon(icons::FOLDER)
-                    .size(px(16.0))
+                    .size(crate::typography::ui_rems(16.0))
                     .flex_none()
                     .text_color(theme.text_muted),
             )
@@ -626,7 +626,7 @@ impl Shell {
                     .flex()
                     .flex_row()
                     .items_center()
-                    .gap(px(6.0))
+                    .gap(crate::typography::ui_rems(6.0))
                     .child(super::sidebar_faded_label(
                         "spaces-filter-label".into(),
                         false,
@@ -646,7 +646,7 @@ impl Shell {
                         .when(offline, |el| {
                             el.child(
                                 icon(icons::WIFI_OFF)
-                                    .size(px(12.0))
+                                    .size(crate::typography::ui_rems(12.0))
                                     .flex_none()
                                     .text_color(theme.warning.opacity(0.8)),
                             )
@@ -655,7 +655,7 @@ impl Shell {
             )
             .child(
                 icon(icons::ALT_ARROW_DOWN)
-                    .size(px(14.0))
+                    .size(crate::typography::ui_rems(14.0))
                     .flex_none()
                     .text_color(theme.text_muted.opacity(0.6)),
             );
@@ -679,12 +679,12 @@ impl Shell {
             .aria_label("Sidebar view options")
             .aria_expanded(view_open)
             .track_focus(&view_focus)
-            .size(px(29.0))
+            .size(crate::typography::ui_rems(29.0))
             .flex_none()
             .flex()
             .items_center()
             .justify_center()
-            .rounded(px(8.0))
+            .rounded(crate::typography::ui_rems(8.0))
             .border_1()
             .border_color(theme.border.opacity(0.0))
             .focus_visible(|el| el.border_color(theme.border_strong))
@@ -726,7 +726,7 @@ impl Shell {
             .tooltip_show_delay(std::time::Duration::from_millis(350))
             .child(
                 icon(icons::SORT)
-                    .size(px(16.0))
+                    .size(crate::typography::ui_rems(16.0))
                     .text_color(theme.text_muted.opacity(0.6)),
             );
         let view_trigger = if self.sidebar_view_menu.get().is_some() {
@@ -746,10 +746,10 @@ impl Shell {
             .flex()
             .flex_row()
             .items_center()
-            .gap(px(4.0))
-            .px(px(Theme::SPACE_SM))
-            .pt(px(8.0))
-            .pb(px(4.0))
+            .gap(crate::typography::ui_rems(4.0))
+            .px(crate::typography::ui_rems(Theme::SPACE_SM))
+            .pt(crate::typography::ui_rems(8.0))
+            .pb(crate::typography::ui_rems(4.0))
             .child(trigger)
             .child(view_trigger)
             .into_any_element()
@@ -831,9 +831,9 @@ impl Shell {
                 popover::menu_scroll_list("spaces-menu-list", &list_scroll)
                     .flex()
                     .flex_col()
-                    .gap(px(2.0))
+                    .gap(crate::typography::ui_rems(2.0))
                     // Same scroll budget as the composer project menu.
-                    .max_h(px(224.0))
+                    .max_h(crate::typography::ui_rems(224.0))
                     .children(details.into_iter().enumerate().map(
                         |(ix, (row, label, tag, offline, selected))| {
                             let menu_space = match &row {
@@ -877,7 +877,7 @@ impl Shell {
                             .when(offline, |el| {
                                 el.child(
                                     icon(icons::WIFI_OFF)
-                                        .size(px(12.0))
+                                        .size(crate::typography::ui_rems(12.0))
                                         .flex_none()
                                         .text_color(theme.warning.opacity(0.8)),
                                 )
@@ -892,7 +892,7 @@ impl Shell {
         popover::popover_card(theme)
             // Match the trigger row as the sidebar is resized. Both live
             // inside the same SPACE_SM horizontal gutters.
-            .w(px(self.settings.sidebar_width - 2.0 * Theme::SPACE_SM))
+            .w(px((self.settings.sidebar_width - 2.0 * Theme::SPACE_SM) * self.ui_scale()))
             .track_focus(&focus)
             .on_key_down(cx.listener(|this, event: &gpui::KeyDownEvent, _, cx| {
                 this.spaces_menu_key(event, cx)
@@ -903,7 +903,7 @@ impl Shell {
             .flex()
             .flex_col()
             // Same 2px rhythm as the composer project menu's root.
-            .gap(px(2.0))
+            .gap(crate::typography::ui_rems(2.0))
             .child(popover::search_input_frame(
                 theme,
                 search.into_any_element(),
@@ -918,8 +918,8 @@ impl Shell {
                 // stopping short of the edges reads as a mistake (the
                 // composer project menu's treatment).
                 div()
-                    .my(px(2.0))
-                    .mx(px(-popover::CARD_INSET))
+                    .my(crate::typography::ui_rems(2.0))
+                    .mx(crate::typography::ui_rems(-popover::CARD_INSET))
                     .h(px(1.0))
                     .flex_none()
                     .bg(theme.border.opacity(0.6)),
@@ -937,7 +937,7 @@ impl Shell {
                 }))
                 .child(
                     icon(icons::PLUS)
-                        .size(px(12.0))
+                        .size(crate::typography::ui_rems(12.0))
                         .flex_none()
                         .text_color(theme.text_muted),
                 )

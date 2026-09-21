@@ -258,21 +258,21 @@ impl GitHistory {
             };
             let button = div()
                 .id("history-load-older")
-                .h(px(28.0))
-                .px(px(11.0))
+                .h(crate::typography::ui_rems(28.0))
+                .px(crate::typography::ui_rems(12.0))
                 .flex()
                 .items_center()
                 .justify_center()
-                .gap(px(6.0))
-                .rounded(px(7.0))
+                .gap(crate::typography::ui_rems(6.0))
+                .rounded(crate::typography::ui_rems(7.0))
                 .border_1()
                 .border_color(theme.border.opacity(0.85))
                 .bg(theme.surface_raised.opacity(0.72))
-                .text_size(px(11.0))
+                .text_size(crate::typography::ui_rems(13.0))
                 .text_color(if pending {
-                    theme.text_faint
-                } else {
                     theme.text_muted
+                } else {
+                    theme.text
                 })
                 .when(!pending, |element| {
                     element

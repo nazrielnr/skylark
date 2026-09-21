@@ -37,8 +37,14 @@ pub(crate) fn conversation_width(viewport: f32, sidebar: f32, right: f32) -> f32
 /// floor. On unusually small windows this deliberately falls below the right
 /// pane's preferred minimum: the chat remains usable and the side surface
 /// yields the scarce space.
+#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn right_pane_max_width(viewport: f32, sidebar: f32) -> f32 {
-    (viewport - sidebar - CHAT_PANEL_MIN).max(0.0)
+    right_pane_max_width_scaled(viewport, sidebar, 1.0)
+}
+
+pub(crate) fn right_pane_max_width_scaled(viewport: f32, sidebar: f32, scale: f32) -> f32 {
+    let scale = if scale <= 0.0 { 1.0 } else { scale };
+    (viewport - sidebar - CHAT_PANEL_MIN * scale).max(0.0)
 }
 
 /// Width used by right-pane takeover. Unlike manual resizing, takeover is
@@ -65,6 +71,7 @@ pub(crate) enum PaneResizeKind {
 /// Resolve one pointer sample while keeping the persisted width legal. The
 /// edge is latched by the caller, so a held pointer produces one nudge rather
 /// than restarting the animation for every drag event.
+#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn sidebar_drag_sample(
     pointer_x: f32,
     latched_edge: Option<motion::ResizeEdge>,
@@ -106,11 +113,20 @@ impl WidthTween {
 impl Shell {
     // ---- layout state ----
 
+    pub(crate) fn ui_scale(&self) -> f32 {
+        let px = self.settings.ui_font_size.pixels();
+        if px <= 0.0 {
+            1.0
+        } else {
+            px / 16.0
+        }
+    }
+
     pub(crate) fn sidebar_target(&self) -> f32 {
         if self.settings.sidebar_collapsed {
             0.0
         } else {
-            self.settings.sidebar_width
+            self.settings.sidebar_width * self.ui_scale()
         }
     }
 
@@ -165,9 +181,9 @@ impl Shell {
             if self.right_pane_expanded {
                 right_pane_takeover_width(self.viewport_width, sidebar_now)
             } else {
-                self.settings
-                    .right_pane_width
-                    .min(right_pane_max_width(self.viewport_width, sidebar_now))
+                let scale = self.ui_scale();
+                (self.settings.right_pane_width * scale)
+                    .min(right_pane_max_width_scaled(self.viewport_width, sidebar_now, scale))
             }
         }
     }
@@ -389,8 +405,15 @@ impl Shell {
         cx: &mut Context<Self>,
     ) {
         let x = f32::from(event.event.position.x);
-        let sample = sidebar_drag_sample(x, self.sidebar_resize_edge, self.reduced_motion);
-        self.settings.sidebar_width = sample.width;
+        let scale = self.ui_scale();
+        let sample = motion::resize_drag_sample(
+            x,
+            settings::SIDEBAR_MIN * scale,
+            settings::SIDEBAR_MAX * scale,
+            self.sidebar_resize_edge,
+            self.reduced_motion,
+        );
+        self.settings.sidebar_width = sample.width / scale;
         self.settings.sidebar_collapsed = false;
         self.pane_resize_dragging = Some(PaneResizeKind::Sidebar);
         self.sidebar_tween = None; // live drag tracks the pointer directly
@@ -427,13 +450,15 @@ impl Shell {
     ) {
         let viewport = f32::from(window.viewport_size().width);
         let width = viewport - f32::from(event.event.position.x);
-        // No arbitrary percentage ceiling, but retain the chat's usable 300px
-        // floor instead of allowing the conversation to collapse to zero.
-        let max = right_pane_max_width(viewport, self.sidebar_target());
-        let sample = if max >= RIGHT_PANE_MIN {
+        let scale = self.ui_scale();
+        let min_w = RIGHT_PANE_MIN * scale;
+        // No arbitrary percentage ceiling, but retain the chat's usable floor
+        // instead of allowing the conversation to collapse to zero.
+        let max = right_pane_max_width_scaled(viewport, self.sidebar_target(), scale);
+        let sample = if max >= min_w {
             motion::resize_drag_sample(
                 width,
-                RIGHT_PANE_MIN,
+                min_w,
                 max,
                 self.right_resize_edge,
                 self.reduced_motion,
@@ -445,7 +470,7 @@ impl Shell {
                 starts_bounce: false,
             }
         };
-        self.settings.right_pane_width = sample.width;
+        self.settings.right_pane_width = sample.width / scale;
         self.pane_resize_dragging = Some(PaneResizeKind::Right);
         if sample.starts_bounce {
             self.right_edge_bounce = sample.edge.map(motion::ResizeEdgeBounce::new);
@@ -616,7 +641,7 @@ impl Shell {
         // activity/glyph personality independently of the selected variant.
         let inner = self.sidebar_pane.clone().cached(
             gpui::StyleRefinement::default()
-                .w(px(self.settings.sidebar_width))
+                .w(px(self.settings.sidebar_width * self.ui_scale()))
                 .h_full()
                 .flex_none(),
         );
@@ -629,7 +654,7 @@ impl Shell {
             .flex_none()
             .overflow_hidden()
             .w(px(self.sidebar_now()))
-            .child(div().h_full().pt(px(Theme::TITLEBAR_HEIGHT)).child(inner))
+            .child(div().h_full().pt(crate::typography::ui_rems(Theme::TITLEBAR_HEIGHT)).child(inner))
             .into_any_element()
     }
 
@@ -666,7 +691,7 @@ impl Shell {
         div()
             .id(id)
             .absolute()
-            .top(px(PANE_RESIZE_HITBOX_TOP))
+            .top(crate::typography::ui_rems(PANE_RESIZE_HITBOX_TOP))
             .bottom_0()
             .w(px(PANE_RESIZE_HITBOX_HALF_WIDTH * 2.0))
             .flex_none()

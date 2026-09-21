@@ -238,9 +238,9 @@ impl Transcript {
                         .flex()
                         .flex_row()
                         .items_center()
-                        .gap(px(Theme::SPACE_SM))
-                        .pt(px(Theme::SPACE_LG))
-                        .text_size(crate::typography::ui_rems(12.0))
+                        .gap(crate::typography::ui_rems(Theme::SPACE_SM))
+                        .pt(crate::typography::ui_rems(Theme::SPACE_MD))
+                        .text_size(crate::typography::ui_rems(13.5))
                         .text_color(theme.danger)
                         .cursor_pointer()
                         .on_click(cx.listener(|this, _, _, cx| this.retry_send(cx)))
@@ -287,19 +287,19 @@ impl Transcript {
                 .flex()
                 .flex_row()
                 .items_center()
-                .gap(px(Theme::SPACE_SM))
-                .pt(px(Theme::SPACE_LG))
-                .text_size(crate::typography::ui_rems(11.0))
+                .gap(crate::typography::ui_rems(Theme::SPACE_SM))
+                .pt(crate::typography::ui_rems(Theme::SPACE_MD))
+                .text_size(crate::typography::ui_rems(14.0))
                 .child(crate::loaders::gradient_spinner(
                     "working-indicator",
                     &theme,
-                    2.5,
+                    3.5,
                     cx.entity_id(),
                     cx,
                 ))
                 .child(
                     div()
-                        .text_size(crate::typography::ui_rems(12.0))
+                        .text_size(crate::typography::ui_rems(14.0))
                         .text_color(if queued {
                             theme.warning
                         } else {
@@ -315,7 +315,8 @@ impl Transcript {
                     el.child(
                         div()
                             .relative()
-                            .top(px(1.0))
+                            .top(px(0.5))
+                            .text_size(crate::typography::ui_rems(13.0))
                             .text_color(theme.text_faint)
                             .child(SharedString::from(format_elapsed(elapsed_secs))),
                     )

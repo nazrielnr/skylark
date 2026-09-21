@@ -22,8 +22,14 @@ use crate::{
 };
 
 pub const SEARCH_ROW_HEIGHT: f32 = 28.0;
-const SEARCH_TREE_INDENT: f32 = 14.0;
+const SEARCH_TREE_INDENT: f32 = 16.0;
+const SEARCH_BASE_PAD: f32 = 8.0;
 const SEARCH_RESULT_LIMIT: usize = 200;
+
+pub fn search_row_height(cx: &gpui::App) -> gpui::Pixels {
+    let scale = crate::typography::font_size(cx).pixels() / 16.0;
+    px((SEARCH_ROW_HEIGHT * scale).round())
+}
 
 #[derive(Debug, Clone)]
 struct SearchTreeNode {
@@ -338,7 +344,7 @@ impl FilesSurface {
                 }
                 surface.search_list.reset_with_uniform_height(
                     surface.search_state.tree.rows().len(),
-                    px(SEARCH_ROW_HEIGHT),
+                    search_row_height(cx),
                 );
                 let has_results = !surface.search_state.tree.rows().is_empty();
                 surface.search.update(cx, |search, cx| {
@@ -370,7 +376,7 @@ impl FilesSurface {
         {
             self.search_list.reset_with_uniform_height(
                 self.search_state.tree.rows().len(),
-                px(SEARCH_ROW_HEIGHT),
+                search_row_height(cx),
             );
             self.search_state.active = self
                 .search_state
@@ -465,6 +471,14 @@ impl FilesSurface {
 
     pub(super) fn render_search_results(&mut self, cx: &mut Context<Self>) -> AnyElement {
         let theme = Theme::of(cx).clone();
+        let typography_generation = crate::typography::generation(cx);
+        if self.search_typography_generation != typography_generation {
+            self.search_typography_generation = typography_generation;
+            self.search_list.reset_with_uniform_height(
+                self.search_state.tree.rows().len(),
+                search_row_height(cx),
+            );
+        }
         if let Some(error) = self.search_state.error.clone() {
             return centered_search_message(error, theme.danger.opacity(0.82));
         }
@@ -489,13 +503,13 @@ impl FilesSurface {
                 |element| {
                     element.child(
                         div()
-                            .h(px(24.0))
+                            .h(crate::typography::ui_rems(24.0))
                             .flex_none()
-                            .px(px(10.0))
+                            .px(crate::typography::ui_rems(10.0))
                             .flex()
                             .items_center()
                             .font_family(theme.font_sans.clone())
-                            .text_size(px(10.0))
+                            .text_size(crate::typography::ui_rems(10.5))
                             .text_color(theme.text_faint)
                             .child("Showing the first 200 matches"),
                     )
@@ -526,27 +540,22 @@ impl FilesSurface {
         let selected = self.search_state.active == index;
         let expanded = row.has_children && self.search_state.tree.is_expanded(&row.path);
         let is_directory = row.kind == WorkspaceEntryKind::Directory;
-        let padding = 8.0 + row.depth as f32 * SEARCH_TREE_INDENT;
+        let scale = crate::typography::font_size(cx).pixels() / 16.0;
+        let indent = SEARCH_TREE_INDENT * scale;
+        let base_pad = SEARCH_BASE_PAD * scale;
+        let padding = base_pad + row.depth as f32 * indent;
         let drag_payload = WorkspacePathDrag::new(row.path.clone(), is_directory);
-        div()
+        let row_el = div()
             .id(("files-search-result", index))
             .role(gpui::Role::TreeItem)
             .aria_label(row.name.clone())
             .aria_selected(selected)
             .when(row.has_children, |element| element.aria_expanded(expanded))
-            .h(px(SEARCH_ROW_HEIGHT))
+            .h(crate::typography::ui_rems(SEARCH_ROW_HEIGHT))
             .w_full()
             .flex_none()
-            .pl(px(padding))
-            .pr(px(8.0))
-            .flex()
-            .items_center()
-            .gap(px(4.0))
+            .px(crate::typography::ui_rems(8.0))
             .cursor_pointer()
-            .when(selected, |element| element.bg(crate::theme::wash(0.1)))
-            .when(!selected, |element| {
-                element.hover(|style| style.bg(crate::theme::wash(0.055)))
-            })
             .on_click(cx.listener(move |this, _, _, cx| {
                 this.search_state.active = index;
                 this.activate_search_result(cx);
@@ -556,52 +565,77 @@ impl FilesSurface {
                     cx.stop_propagation();
                     workspace_path_drag_ghost(payload, cx)
                 })
+            });
+
+        let mut inner = div()
+            .relative()
+            .size_full()
+            .rounded(crate::typography::ui_rems(6.0))
+            .border_1()
+            .when(selected, |element| {
+                element
+                    .border_color(theme.accent)
+                    .bg(theme.accent.opacity(0.12))
             })
-            .child(
-                div()
-                    .size(px(14.0))
-                    .flex_none()
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    .when(row.has_children, |element| {
-                        element.child(
-                            icon(if expanded {
-                                icons::ALT_ARROW_DOWN
-                            } else {
-                                icons::ALT_ARROW_RIGHT
-                            })
-                            .size(px(11.0))
-                            .text_color(theme.text_faint),
-                        )
-                    }),
-            )
-            .child({
-                let identity = match row.kind {
-                    WorkspaceEntryKind::Directory => {
-                        FileIconIdentity::directory(&row.name, expanded)
-                    }
-                    WorkspaceEntryKind::File => FileIconIdentity::file(&row.name),
-                    WorkspaceEntryKind::Symlink => FileIconIdentity::symlink(&row.name),
-                };
-                file_icons::icon(identity, theme.appearance)
-                    .size(px(14.0))
-                    .flex_none()
+            .when(!selected, |element| {
+                element
+                    .border_color(gpui::transparent_black())
+                    .hover(|style| style.bg(crate::theme::wash(0.055)))
             })
-            .child(
-                div()
-                    .min_w_0()
-                    .truncate()
-                    .font_family(theme.font_sans.clone())
-                    .text_size(crate::typography::ui_rems(12.0))
-                    .text_color(if is_directory {
-                        theme.text_muted
-                    } else {
-                        theme.text
-                    })
-                    .child(row.name),
-            )
-            .into_any_element()
+            .pl(px(padding))
+            .pr(crate::typography::ui_rems(10.0))
+            .flex()
+            .items_center()
+            .gap(crate::typography::ui_rems(6.0));
+
+        inner = inner
+                .child(
+                    div()
+                        .size(crate::typography::ui_rems(16.0))
+                        .flex_none()
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .when(row.has_children, |element| {
+                            element.child(
+                                icon(if expanded {
+                                    icons::ALT_ARROW_DOWN
+                                } else {
+                                    icons::ALT_ARROW_RIGHT
+                                })
+                                .size(crate::typography::ui_rems(11.0))
+                                .text_color(theme.text_faint),
+                            )
+                        }),
+                )
+                .child({
+                    let identity = match row.kind {
+                        WorkspaceEntryKind::Directory => {
+                            FileIconIdentity::directory(&row.name, expanded)
+                        }
+                        WorkspaceEntryKind::File => FileIconIdentity::file(&row.name),
+                        WorkspaceEntryKind::Symlink => FileIconIdentity::symlink(&row.name),
+                    };
+                    file_icons::icon(identity, theme.appearance)
+                        .size(crate::typography::ui_rems(15.0))
+                        .flex_none()
+                })
+                .child(
+                    div()
+                        .min_w_0()
+                        .truncate()
+                        .font_family(theme.font_sans.clone())
+                        .text_size(crate::typography::ui_rems(12.5))
+                        .when(selected, |el| el.font_weight(gpui::FontWeight::MEDIUM))
+                        .text_color(if is_directory {
+                            theme.text_muted
+                        } else {
+                            theme.text
+                        })
+                        .child(row.name),
+                );
+
+            row_el.child(inner).into_any_element()
     }
 }
 

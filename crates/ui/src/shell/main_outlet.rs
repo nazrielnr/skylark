@@ -124,7 +124,7 @@ impl Shell {
                 .flex_1()
                 .min_w_0()
                 .h_full()
-                .pt(px(Theme::TITLEBAR_HEIGHT))
+                .pt(crate::typography::ui_rems(Theme::TITLEBAR_HEIGHT))
                 .flex()
                 .flex_col()
                 .child(div().flex_1().min_h_0().child(outlet))
@@ -356,7 +356,7 @@ impl Shell {
                         // Fully faded BY the titlebar's bottom edge (the
                         // title text is opaque — overlap read as collision),
                         // ramping in the band just below it.
-                        .inset_top(Theme::TITLEBAR_HEIGHT)
+                        .inset_top(Theme::TITLEBAR_HEIGHT * self.ui_scale())
                         .band_top(Theme::TRANSCRIPT_FADE_BAND)
                         .band_bottom(bottom_band),
                     )
@@ -564,16 +564,16 @@ impl Shell {
         // Aligned with the composer column: centered, same max width, small
         // inner gutter (zeron's `mx-auto h-6 max-w-3xl px-2`).
         let strip = div()
-            .h(px(Theme::STATUS_STRIP_HEIGHT))
+            .h(crate::typography::ui_rems(Theme::STATUS_STRIP_HEIGHT + 2.0))
             .flex_none()
             .w_full()
             .max_w(px(768.0))
             .mx_auto()
             .flex()
             .items_center()
-            .gap(px(Theme::SPACE_SM))
-            .px(px(Theme::SPACE_LG + 8.0))
-            .text_size(crate::typography::ui_rems(11.0));
+            .gap(crate::typography::ui_rems(Theme::SPACE_SM))
+            .px(crate::typography::ui_rems(Theme::SPACE_LG + 8.0))
+            .text_size(crate::typography::ui_rems(13.5));
 
         let Some(chat_id) = state.selected_chat.clone() else {
             return strip.into_any_element();
@@ -613,13 +613,13 @@ impl Shell {
                 .child(loaders::gradient_spinner(
                     "sending-indicator",
                     &theme,
-                    2.5,
+                    3.5,
                     cx.entity_id(),
                     cx,
                 ))
                 .child(
                     div()
-                        .text_size(crate::typography::ui_rems(12.0))
+                        .text_size(crate::typography::ui_rems(13.5))
                         .text_color(theme.text_muted)
                         .child(SharedString::from("Sending…")),
                 )

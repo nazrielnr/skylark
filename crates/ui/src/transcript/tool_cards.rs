@@ -39,11 +39,11 @@ pub const ACTIVITY_BRANCH_END_X: f32 = 28.0;
 pub const ACTIVITY_ICON_LEFT: f32 = 32.0;
 pub const ACTIVITY_ICON_SIZE: f32 = 16.0;
 
-pub const TOOL_TEXT_SIZE: f32 = 12.0;
+pub const TOOL_TEXT_SIZE: f32 = 13.5;
 pub const TOOL_LABEL_SIZE: f32 = TOOL_TEXT_SIZE;
-pub const TOOL_LABEL_LINE_HEIGHT: f32 = 18.0;
-pub const TOOL_GROUP_HEADER_HEIGHT: f32 = 26.0;
-pub const TOOL_TREE_ROW_HEIGHT: f32 = 32.0;
+pub const TOOL_LABEL_LINE_HEIGHT: f32 = 20.0;
+pub const TOOL_GROUP_HEADER_HEIGHT: f32 = 28.0;
+pub const TOOL_TREE_ROW_HEIGHT: f32 = 34.0;
 
 pub const TOOL_FOLD: motion::MotionSpec = motion::MotionSpec::new(140, motion::EASE_OUT);
 
@@ -412,8 +412,8 @@ pub fn input_chip(header: SharedString, resolved: bool, theme: &Theme) -> AnyEle
                 .border_1()
                 .border_color(crate::theme::hairline(0.08))
                 .bg(crate::theme::ink(0.045))
-                .px(px(8.0))
-                .text_size(px(12.0))
+                .px(crate::typography::ui_rems(8.0))
+                .text_size(crate::typography::ui_rems(13.0))
                 .child(
                     div()
                         .flex_none()
@@ -485,23 +485,23 @@ pub fn detail_body(
             ))
             .into_any_element(),
         ToolDetail::Stats { stats } => body
-            .py(px(6.0))
+            .py(crate::typography::ui_rems(6.0))
             .font_family(theme.font_mono.clone())
-            .text_size(px(TOOL_TEXT_SIZE))
+            .text_size(crate::typography::ui_rems(TOOL_TEXT_SIZE))
             .children(stats.iter().map(|stat| {
                 div()
-                    .h(px(OUTPUT_LINE_HEIGHT))
+                    .h(crate::typography::ui_rems(OUTPUT_LINE_HEIGHT))
                     .w_full()
                     .min_w_0()
                     .flex()
                     .items_center()
-                    .gap(px(8.0))
+                    .gap(crate::typography::ui_rems(8.0))
                     .child(
                         crate::file_icons::icon(
                             crate::file_icons::FileIconIdentity::file(&stat.path),
                             theme.appearance,
                         )
-                        .size(px(14.0))
+                        .size(crate::typography::ui_rems(14.0))
                         .flex_none(),
                     )
                     .child(
@@ -530,12 +530,12 @@ pub fn detail_body(
             lines,
             truncated_by,
         } => body
-            .py(px(6.0))
+            .py(crate::typography::ui_rems(6.0))
             .font_family(theme.font_mono.clone())
-            .text_size(px(TOOL_TEXT_SIZE))
+            .text_size(crate::typography::ui_rems(TOOL_TEXT_SIZE))
             .children(lines.iter().map(|line| {
                 div()
-                    .h(px(OUTPUT_LINE_HEIGHT))
+                    .h(crate::typography::ui_rems(OUTPUT_LINE_HEIGHT))
                     .w_full()
                     .min_w_0()
                     .flex()
@@ -551,11 +551,11 @@ pub fn detail_body(
             lines,
             truncated_by,
         } => body
-            .py(px(6.0))
-            .text_size(px(TOOL_TEXT_SIZE))
+            .py(crate::typography::ui_rems(6.0))
+            .text_size(crate::typography::ui_rems(TOOL_TEXT_SIZE))
             .children(lines.iter().map(|line| {
                 let row = div()
-                    .h(px(OUTPUT_LINE_HEIGHT))
+                    .h(crate::typography::ui_rems(OUTPUT_LINE_HEIGHT))
                     .w_full()
                     .min_w_0()
                     .flex()
@@ -580,10 +580,10 @@ pub fn detail_body(
 
 pub fn more_lines_row(truncated_by: usize, theme: &Theme) -> gpui::Div {
     div()
-        .h(px(OUTPUT_LINE_HEIGHT))
+        .h(crate::typography::ui_rems(OUTPUT_LINE_HEIGHT))
         .flex()
         .items_center()
-        .text_size(px(TOOL_TEXT_SIZE))
+        .text_size(crate::typography::ui_rems(TOOL_TEXT_SIZE))
         .text_color(theme.text_faint)
         .child(SharedString::from(format!("… {truncated_by} more lines")))
 }
@@ -677,8 +677,8 @@ pub(crate) fn chip_header_row(
         .items_center()
         .gap(px(8.0))
         .px(px(if activity { 0.0 } else { 8.0 }))
-        .text_size(px(TOOL_LABEL_SIZE))
-        .line_height(px(TOOL_LABEL_LINE_HEIGHT))
+        .text_size(crate::typography::ui_rems(TOOL_LABEL_SIZE))
+        .line_height(crate::typography::ui_rems(TOOL_LABEL_LINE_HEIGHT))
         .when(!activity, |row| {
             row.child(
                 div()
@@ -820,7 +820,7 @@ pub(crate) fn chip_header_row(
                     .h(px(18.0))
                     .flex()
                     .items_center()
-                    .text_size(px(11.0))
+                    .text_size(crate::typography::ui_rems(12.5))
                     .text_color(theme.text_faint)
                     .child(SharedString::from(model.to_owned())),
             )

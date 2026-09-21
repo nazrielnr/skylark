@@ -146,7 +146,7 @@ pub(super) struct FilePreviewState {
     images_visible: bool,
     documents: HashMap<String, FileDocument>,
     document_recency: VecDeque<String>,
-    active: Option<String>,
+    pub(super) active: Option<String>,
     highlights: HashMap<String, HighlightedFile>,
     syntax_cache: SyntaxHighlightCache,
     list: ListState,

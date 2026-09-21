@@ -70,7 +70,9 @@ impl Render for MarkdownPreview {
             .when(self.loading, |el| {
                 el.child(
                     div()
-                        .px(px(24.0))
+                        .px(crate::typography::ui_rems(24.0))
+                        .py(crate::typography::ui_rems(8.0))
+                        .text_size(crate::typography::ui_rems(14.0))
                         .text_color(theme.text_muted)
                         .child("Loading preview…"),
                 )
@@ -78,7 +80,9 @@ impl Render for MarkdownPreview {
             .when(self.truncated, |el| {
                 el.child(
                     div()
-                        .px(px(24.0))
+                        .px(crate::typography::ui_rems(24.0))
+                        .py(crate::typography::ui_rems(8.0))
+                        .text_size(crate::typography::ui_rems(13.0))
                         .text_color(theme.warning_muted)
                         .child("Large file preview is truncated and read-only."),
                 )

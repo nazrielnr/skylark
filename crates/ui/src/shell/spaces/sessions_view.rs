@@ -69,9 +69,9 @@ fn sidebar_disclosure_header(theme: &Theme, label: SharedString, chevron: AnyEle
         .flex()
         .flex_row()
         .items_center()
-        .gap(px(8.0))
-        .h(px(SIDEBAR_DISCLOSURE_HEADER_HEIGHT))
-        .px(px(Theme::SPACE_SM))
+        .gap(crate::typography::ui_rems(8.0))
+        .h(crate::typography::ui_rems(SIDEBAR_DISCLOSURE_HEADER_HEIGHT))
+        .px(crate::typography::ui_rems(Theme::SPACE_SM))
         .cursor_pointer()
         .child(super::sidebar_faded_label(
             "sidebar-disclosure-label".into(),
@@ -132,28 +132,32 @@ impl Shell {
         full_height: f32,
         content: AnyElement,
     ) -> AnyElement {
-        let target = if open { full_height } else { 0.0 };
         let frame = div().w_full().flex_none().overflow_hidden().child(content);
+        let scale = self.ui_scale();
         let Some(tween) = self
             .sidebar_disclosure_motion
             .get(key)
             .copied()
             .filter(|motion| motion.animating())
         else {
-            return frame.h(px(target)).into_any_element();
+            if open {
+                return frame.into_any_element();
+            } else {
+                return frame.h(px(0.0)).into_any_element();
+            }
         };
-        let denominator = full_height.max(1.0);
+        let denominator = (full_height * scale).max(1.0);
         frame
             .with_animation(
                 SharedString::from(format!("sidebar-disclosure-{key}-{}", tween.epoch)),
                 motion::COLLAPSE.animation(),
                 move |el, t| {
-                    let height = motion::lerp(tween.from, tween.to, t);
+                    let height = motion::lerp(tween.from * scale, tween.to * scale, t);
                     let reveal = (height / denominator).clamp(0.0, 1.0);
                     el.h(px(height))
                         .opacity(0.35 + 0.65 * reveal)
                         .relative()
-                        .top(px(-3.0 * (1.0 - reveal)))
+                        .top(px(-3.0 * scale * (1.0 - reveal)))
                 },
             )
             .into_any_element()
@@ -162,7 +166,7 @@ impl Shell {
     fn sidebar_disclosure_chevron(&self, key: &str, open: bool, theme: &Theme) -> AnyElement {
         let resting_reveal = if open { 1.0 } else { 0.0 };
         let chevron = icon(icons::ALT_ARROW_RIGHT)
-            .size(px(12.0))
+            .size(crate::typography::ui_rems(12.0))
             .text_color(theme.text_muted.opacity(0.5));
         if let Some(tween) = self
             .sidebar_disclosure_motion
@@ -175,7 +179,7 @@ impl Shell {
             let to = (tween.to / denominator).clamp(0.0, 1.0);
             div()
                 .flex_none()
-                .size(px(12.0))
+                .size(crate::typography::ui_rems(12.0))
                 .child(chevron.with_animation(
                     SharedString::from(format!("sidebar-chevron-{key}-{}", tween.epoch)),
                     motion::COLLAPSE.animation(),
@@ -190,7 +194,7 @@ impl Shell {
         } else {
             div()
                 .flex_none()
-                .size(px(12.0))
+                .size(crate::typography::ui_rems(12.0))
                 .child(
                     chevron.with_transformation(gpui::Transformation::rotate(gpui::percentage(
                         resting_reveal * 0.25,
@@ -630,7 +634,7 @@ impl Shell {
                 let element = if let Some(origin) = origin {
                     moving_row = Some((element, height));
                     div()
-                        .child(div().h(px(slot_height.max(0.0))))
+                        .child(div().h(crate::typography::ui_rems(slot_height.max(0.0))))
                         .on_children_prepainted(move |bounds, _, _| {
                             if let Some(bounds) = bounds.first() {
                                 origin.set(bounds.origin);
@@ -649,8 +653,8 @@ impl Shell {
                         let id = chat.id.clone();
                         move || format!("session-slot-{id}")
                     })
-                    .h(px(slot_height.max(0.0)))
-                    .mb(px(slot_height.min(0.0)))
+                    .h(crate::typography::ui_rems(slot_height.max(0.0)))
+                    .mb(crate::typography::ui_rems(slot_height.min(0.0)))
                     .flex_none()
                     .child(element)
                     .on_drag_move::<SidebarSessionDrag>(cx.listener(
@@ -662,6 +666,7 @@ impl Shell {
                             }
                             let scroll_top = -f32::from(this.sidebar_scroll.offset().y);
                             let viewport_top = this.sidebar_scroll.bounds().top();
+                            let scale = this.ui_scale();
                             let Some(drag) = this.sidebar_session_transfer.as_mut() else {
                                 return;
                             };
@@ -669,7 +674,7 @@ impl Shell {
                             let index = group_index + usize::from(after);
                             let mut top = f32::from(
                                 if after {
-                                    event.bounds.bottom() + px(SIDEBAR_LIST_GAP)
+                                    event.bounds.bottom() + px(SIDEBAR_LIST_GAP * scale)
                                 } else {
                                     event.bounds.top()
                                 } - viewport_top,
@@ -700,8 +705,8 @@ impl Shell {
                             extra - SIDEBAR_LIST_GAP,
                             div()
                                 .flex_none()
-                                .h(px((extra - SIDEBAR_LIST_GAP).max(0.0)))
-                                .mb(px((extra - SIDEBAR_LIST_GAP).min(0.0)))
+                                .h(crate::typography::ui_rems((extra - SIDEBAR_LIST_GAP).max(0.0)))
+                                .mb(crate::typography::ui_rems((extra - SIDEBAR_LIST_GAP).min(0.0)))
                                 .into_any_element(),
                         ));
                     }
@@ -729,15 +734,15 @@ impl Shell {
                 .w_full()
                 .flex()
                 .flex_col()
-                .pt(px(SIDEBAR_DISCLOSURE_BODY_INSET))
-                .gap(px(SIDEBAR_LIST_GAP))
+                .pt(crate::typography::ui_rems(SIDEBAR_DISCLOSURE_BODY_INSET))
+                .gap(crate::typography::ui_rems(SIDEBAR_LIST_GAP))
                 .children(rendered_rows.into_iter().map(|(_, _, row)| row))
                 .when(extra_gap > 0.0, |el| {
                     el.child(
                         div()
                             .flex_none()
-                            .h(px((extra_gap - SIDEBAR_LIST_GAP).max(0.0)))
-                            .mb(px((extra_gap - SIDEBAR_LIST_GAP).min(0.0))),
+                            .h(crate::typography::ui_rems((extra_gap - SIDEBAR_LIST_GAP).max(0.0)))
+                            .mb(crate::typography::ui_rems((extra_gap - SIDEBAR_LIST_GAP).min(0.0))),
                     )
                 });
             let visible_label: SharedString = if collapsed {
@@ -776,7 +781,7 @@ impl Shell {
                 .w_full()
                 .flex()
                 .flex_col()
-                .pt(px(SIDEBAR_SECTION_GAP))
+                .pt(crate::typography::ui_rems(SIDEBAR_SECTION_GAP))
                 .child(header)
                 .child(body)
                 .into_any_element();
@@ -847,7 +852,7 @@ impl Shell {
                 cx.notify();
             }));
         let content = div()
-            .pt(px(SIDEBAR_DISCLOSURE_BODY_INSET))
+            .pt(crate::typography::ui_rems(SIDEBAR_DISCLOSURE_BODY_INSET))
             .child(Self::render_pinned_session_group(
                 items,
                 self.sidebar_transfer_extra_gap("pinned"),
@@ -924,7 +929,7 @@ impl Shell {
                 cx.notify();
             }));
         let content = div()
-            .pt(px(SIDEBAR_DISCLOSURE_BODY_INSET))
+            .pt(crate::typography::ui_rems(SIDEBAR_DISCLOSURE_BODY_INSET))
             .child(content)
             .into_any_element();
         let body = self.render_sidebar_disclosure_body("sessions", open, body_height, content);
@@ -933,7 +938,7 @@ impl Shell {
             .debug_selector(|| "sidebar-sessions-section".into())
             .flex()
             .flex_col()
-            .pt(px(if follows_pinned {
+            .pt(crate::typography::ui_rems(if follows_pinned {
                 SIDEBAR_SECTION_GAP
             } else {
                 0.0
@@ -1037,8 +1042,8 @@ impl Shell {
             let mut list = div()
                 .flex()
                 .flex_col()
-                .pt(px(SIDEBAR_DISCLOSURE_BODY_INSET))
-                .gap(px(SIDEBAR_LIST_GAP));
+                .pt(crate::typography::ui_rems(SIDEBAR_DISCLOSURE_BODY_INSET))
+                .gap(crate::typography::ui_rems(SIDEBAR_LIST_GAP));
             for row in rows.into_iter().take(shown) {
                 let chat = row.chat;
                 let is_selected = selected.as_deref() == Some(chat.id.as_str());
@@ -1080,14 +1085,14 @@ impl Shell {
                         .id("archived-more")
                         // Sits outside the rows' gapped column â€” match the
                         // list's 2px row gap or it fuses with the last row.
-                        .mt(px(2.0))
-                        .h(px(more_height))
+                        .mt(crate::typography::ui_rems(2.0))
+                        .h(crate::typography::ui_rems(more_height))
                         .flex()
                         .flex_row()
                         .items_center()
-                        .gap(px(10.0))
-                        .px(px(Theme::SPACE_SM))
-                        .rounded(px(6.0))
+                        .gap(crate::typography::ui_rems(10.0))
+                        .px(crate::typography::ui_rems(Theme::SPACE_SM))
+                        .rounded(crate::typography::ui_rems(6.0))
                         .text_size(crate::typography::ui_rems(13.0))
                         .text_color(theme.text_muted.opacity(0.55))
                         .cursor_pointer()
@@ -1098,7 +1103,7 @@ impl Shell {
                         }))
                         .child(
                             crate::icons::icon(crate::icons::PLUS)
-                                .size(px(14.0))
+                                .size(crate::typography::ui_rems(14.0))
                                 .flex_none(),
                         )
                         .child(SharedString::from(format!("Show {remaining} more"))),

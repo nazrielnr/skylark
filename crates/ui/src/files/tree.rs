@@ -10,13 +10,15 @@ use super::{
 };
 use crate::{
     file_icons::{self, FileIconIdentity},
-    icons::{self, icon},
     popover,
     theme::Theme,
 };
 
-pub const TREE_ROW_HEIGHT: f32 = 27.0;
-const TREE_INDENT: f32 = 14.0;
+pub const TREE_ROW_HEIGHT: f32 = 31.0;
+const TREE_ROW_PAD_Y: f32 = 1.5;
+const TREE_INDENT: f32 = 16.0;
+const TREE_BASE_PAD: f32 = 8.0;
+const ICON_SIZE: f32 = 15.0;
 
 /// Keep the viewport attached to a path rather than an index when rows move.
 pub(super) fn sync_list_rows(
@@ -140,15 +142,10 @@ impl FilesSurface {
         cx.notify();
     }
 
-    fn on_tree_hovered(&mut self, hovered: &bool, _: &mut Window, cx: &mut Context<Self>) {
-        if self.tree_bar.set_list_hovered(*hovered) {
-            cx.notify();
-        }
-    }
-
     pub(super) fn render_tree(&mut self, cx: &mut Context<Self>) -> AnyElement {
         let theme = Theme::of(cx).clone();
         let scrollbar = popover::rail(self, "files-tree-scrollbar", &theme, cx);
+
         div()
             .id("files-tree")
             .role(gpui::Role::Tree)
@@ -158,8 +155,8 @@ impl FilesSurface {
             .min_h_0()
             .flex()
             .flex_col()
+            .py(crate::typography::ui_rems(6.0))
             .track_focus(&self.tree_focus)
-            .on_hover(cx.listener(Self::on_tree_hovered))
             .on_mouse_down(
                 MouseButton::Left,
                 cx.listener(|this, _, window, cx| this.tree_focus.focus(window, cx)),
@@ -183,91 +180,125 @@ impl FilesSurface {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> AnyElement {
-        let Some(row) = self.tree.visible_rows().get(index).cloned() else {
+        let Some(row) = self.tree.visible_rows().get(index) else {
             return gpui::Empty.into_any_element();
         };
         let theme = Theme::of(cx).clone();
-        let padding = 8.0 + row.depth as f32 * TREE_INDENT;
-        match row.kind {
+        let scale = crate::typography::font_size(cx).pixels() / 16.0;
+        let indent = TREE_INDENT * scale;
+        let base_pad = TREE_BASE_PAD * scale;
+
+        match &row.kind {
             VisibleRowKind::Entry => {
-                let Some(node) = self.tree.node(&row.path).cloned() else {
+                let Some((name, kind, ignored)) = self
+                    .tree
+                    .node(&row.path)
+                    .map(|n| (n.entry.name.clone(), n.entry.kind, n.entry.ignored))
+                else {
                     return gpui::Empty.into_any_element();
                 };
                 let path = row.path.clone();
                 let selected = self.tree.selected() == Some(path.as_str());
                 let focused = self.tree_focus.is_focused(window);
-                let is_directory = node.entry.kind == WorkspaceEntryKind::Directory;
-                let drag_payload = WorkspacePathDrag::new(path.clone(), is_directory);
+                let is_directory = kind == WorkspaceEntryKind::Directory;
+                let drag_payload = if crate::click_activation_drag_enabled() {
+                    Some(WorkspacePathDrag::new(path.clone(), is_directory))
+                } else {
+                    None
+                };
                 let expanded = is_directory && self.tree.is_expanded(&path);
                 let text_color = if selected {
                     theme.text
+                } else if is_directory {
+                    theme.text.opacity(0.92)
                 } else {
                     theme.text_muted
                 };
-                let file_identity = match node.entry.kind {
+                let file_identity = match kind {
                     WorkspaceEntryKind::Directory => {
-                        FileIconIdentity::directory(&node.entry.name, expanded)
+                        FileIconIdentity::directory(&name, expanded)
                     }
-                    WorkspaceEntryKind::File => FileIconIdentity::file(&node.entry.name),
-                    WorkspaceEntryKind::Symlink => FileIconIdentity::symlink(&node.entry.name),
+                    WorkspaceEntryKind::File => FileIconIdentity::file(&name),
+                    WorkspaceEntryKind::Symlink => FileIconIdentity::symlink(&name),
                 };
-                div()
-                    .id(gpui::SharedString::from(format!(
-                        "files-tree-entry:{}",
-                        row.path
-                    )))
+
+                let content_left = base_pad + (row.depth as f32 * indent);
+
+                let row_el = div()
+                    .id(("files-tree-entry", index))
                     .role(gpui::Role::TreeItem)
-                    .aria_label(node.entry.name.clone())
+                    .aria_label(name.clone())
                     .aria_selected(selected)
                     .when(is_directory, |element| element.aria_expanded(expanded))
-                    .h(px(TREE_ROW_HEIGHT))
+                    .h(crate::typography::ui_rems(TREE_ROW_HEIGHT))
                     .w_full()
                     .flex_none()
-                    .pl(px(padding))
-                    .pr(px(8.0))
-                    .flex()
-                    .items_center()
-                    .gap(px(4.0))
+                    .px(crate::typography::ui_rems(8.0))
                     .cursor_pointer()
-                    .when(node.entry.ignored, |element| element.opacity(0.52))
-                    .when(selected, |element| {
-                        element.bg(crate::theme::wash(if focused { 0.12 } else { 0.08 }))
-                    })
-                    .when(!selected, |element| {
-                        element.hover(|style| style.bg(crate::theme::wash(0.055)))
-                    })
                     .on_click(cx.listener(move |this, _, window, cx| {
                         this.tree_focus.focus(window, cx);
                         this.activate_tree_path(path.clone(), cx);
                     }))
-                    .when(crate::click_activation_drag_enabled(), |element| {
-                        element.on_drag(drag_payload, |payload, _, _, cx| {
+                    .when_some(drag_payload, |element, payload| {
+                        element.on_drag(payload, |payload, _, _, cx| {
                             cx.stop_propagation();
                             workspace_path_drag_ghost(payload, cx)
                         })
+                    });
+
+                let mut inner = div()
+                    .relative()
+                    .size_full()
+                    .rounded(crate::typography::ui_rems(6.0))
+                    .when(selected, |element| {
+                        element
+                            .border_1()
+                            .border_color(if focused {
+                                theme.accent
+                            } else {
+                                theme.accent.opacity(0.45)
+                            })
+                            .bg(if focused {
+                                theme.accent.opacity(0.12)
+                            } else {
+                                theme.accent.opacity(0.06)
+                            })
                     })
-                    .child(
+                    .when(!selected, |element| {
+                        element.hover(|style| style.bg(crate::theme::wash(0.055)))
+                    })
+                    .pl(px(content_left))
+                    .pr(crate::typography::ui_rems(10.0))
+                    .flex()
+                    .items_center()
+                    .gap(crate::typography::ui_rems(6.0))
+                    .when(ignored, |element| element.opacity(0.52));
+
+                // Tree indentation guidelines: 1px vertical line for each ancestor level
+                let guide_color = if selected {
+                    theme.accent.opacity(0.45)
+                } else if theme.appearance.is_dark() {
+                    theme.text_faint.opacity(0.28)
+                } else {
+                    theme.border_strong
+                };
+                for level in 0..row.depth {
+                    let line_x = base_pad + (level as f32 * indent) + (ICON_SIZE * 0.5 * scale);
+                    inner = inner.child(
                         div()
-                            .size(px(14.0))
-                            .flex_none()
-                            .flex()
-                            .items_center()
-                            .justify_center()
-                            .when(is_directory, |element| {
-                                element.child(
-                                    icon(if expanded {
-                                        icons::ALT_ARROW_DOWN
-                                    } else {
-                                        icons::ALT_ARROW_RIGHT
-                                    })
-                                    .size(px(11.0))
-                                    .text_color(theme.text_faint),
-                                )
-                            }),
-                    )
+                            .absolute()
+                            .top_0()
+                            .bottom_0()
+                            .left(px(line_x))
+                            .w(px(1.0))
+                            .bg(guide_color),
+                    );
+                }
+
+                inner = inner
                     .child(
                         file_icons::icon(file_identity, theme.appearance)
-                            .size(px(14.0))
+                            .size(crate::typography::ui_rems(ICON_SIZE))
                             .flex_none(),
                     )
                     .child(
@@ -275,78 +306,138 @@ impl FilesSurface {
                             .min_w_0()
                             .truncate()
                             .font_family(theme.font_sans.clone())
-                            .text_size(px(11.5))
+                            .text_size(crate::typography::ui_rems(13.0))
+                            .when(selected, |el| el.font_weight(gpui::FontWeight::MEDIUM))
                             .text_color(text_color)
-                            .child(node.entry.name),
-                    )
-                    .into_any_element()
+                            .child(name),
+                    );
+
+                row_el.child(inner).into_any_element()
             }
-            VisibleRowKind::Loading { .. } => status_row(
-                index,
-                padding + TREE_INDENT,
-                "Loading…",
-                theme.text_faint,
-                &theme,
-            ),
+            VisibleRowKind::Loading { .. } => {
+                status_row(index, row.depth, "Loading…", theme.text_faint, scale, &theme)
+            }
             VisibleRowKind::Empty { .. } => status_row(
                 index,
-                padding + TREE_INDENT,
+                row.depth,
                 "Empty folder",
                 theme.text_faint.opacity(0.7),
+                scale,
                 &theme,
             ),
-            VisibleRowKind::Error { directory, message } => div()
-                .id(("files-tree-error", index))
-                .h(px(TREE_ROW_HEIGHT))
-                .w_full()
-                .flex_none()
-                .pl(px(padding + TREE_INDENT))
-                .pr(px(8.0))
-                .flex()
-                .items_center()
-                .gap(px(6.0))
-                .cursor_pointer()
-                .hover(|style| style.bg(crate::theme::wash(0.055)))
-                .on_click(cx.listener(move |this, _, _, cx| {
-                    let cursor = this
-                        .tree
-                        .node(&directory)
-                        .and_then(|node| match &node.load {
-                            DirectoryLoadState::Error { cursor, .. } => cursor.clone(),
-                            _ => None,
-                        });
-                    this.load_directory(directory.clone(), cursor, cx);
-                }))
-                .child(
+            VisibleRowKind::Error { directory, message } => {
+                let directory = directory.clone();
+                let content_left = base_pad + (row.depth as f32 * indent);
+                let row_el = div()
+                    .id(("files-tree-error", index))
+                    .h(crate::typography::ui_rems(TREE_ROW_HEIGHT))
+                    .w_full()
+                    .flex_none()
+                    .px(crate::typography::ui_rems(8.0))
+                    .cursor_pointer()
+                    .hover(|style| style.bg(crate::theme::wash(0.055)))
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        let cursor = this
+                            .tree
+                            .node(&directory)
+                            .and_then(|node| match &node.load {
+                                DirectoryLoadState::Error { cursor, .. } => cursor.clone(),
+                                _ => None,
+                            });
+                        this.load_directory(directory.clone(), cursor, cx);
+                    }));
+
+                let mut inner = div()
+                    .relative()
+                    .size_full()
+                    .rounded(crate::typography::ui_rems(6.0))
+                    .pl(px(content_left))
+                    .pr(crate::typography::ui_rems(10.0))
+                    .flex()
+                    .items_center()
+                    .gap(crate::typography::ui_rems(6.0));
+
+                let guide_color = if theme.appearance.is_dark() {
+                    theme.text_faint.opacity(0.28)
+                } else {
+                    theme.border_strong
+                };
+                for level in 0..row.depth {
+                    let line_x = base_pad + (level as f32 * indent) + (ICON_SIZE * 0.5 * scale);
+                    inner = inner.child(
+                        div()
+                            .absolute()
+                            .top_0()
+                            .bottom_0()
+                            .left(px(line_x))
+                            .w(px(1.0))
+                            .bg(guide_color),
+                    );
+                }
+
+                inner = inner.child(
                     div()
                         .min_w_0()
                         .truncate()
-                        .text_size(px(10.5))
+                        .text_size(crate::typography::ui_rems(11.0))
                         .text_color(theme.danger.opacity(0.82))
                         .child(format!("{message} — Retry")),
-                )
-                .into_any_element(),
-            VisibleRowKind::LoadMore { directory, cursor } => div()
-                .id(("files-tree-more", index))
-                .h(px(TREE_ROW_HEIGHT))
-                .w_full()
-                .flex_none()
-                .pl(px(padding + TREE_INDENT))
-                .pr(px(8.0))
-                .flex()
-                .items_center()
-                .cursor_pointer()
-                .hover(|style| style.bg(crate::theme::wash(0.055)))
-                .on_click(cx.listener(move |this, _, _, cx| {
-                    this.load_directory(directory.clone(), Some(cursor.clone()), cx);
-                }))
-                .child(
+                );
+
+                row_el.child(inner).into_any_element()
+            }
+            VisibleRowKind::LoadMore { directory, cursor } => {
+                let directory = directory.clone();
+                let cursor = cursor.clone();
+                let content_left = base_pad + (row.depth as f32 * indent);
+                let row_el = div()
+                    .id(("files-tree-more", index))
+                    .h(crate::typography::ui_rems(TREE_ROW_HEIGHT))
+                    .w_full()
+                    .flex_none()
+                    .px(crate::typography::ui_rems(8.0))
+                    .cursor_pointer()
+                    .hover(|style| style.bg(crate::theme::wash(0.055)))
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        this.load_directory(directory.clone(), Some(cursor.clone()), cx);
+                    }));
+
+                let mut inner = div()
+                    .relative()
+                    .size_full()
+                    .rounded(crate::typography::ui_rems(6.0))
+                    .pl(px(content_left))
+                    .pr(crate::typography::ui_rems(10.0))
+                    .flex()
+                    .items_center();
+
+                let guide_color = if theme.appearance.is_dark() {
+                    theme.text_faint.opacity(0.28)
+                } else {
+                    theme.border_strong
+                };
+                for level in 0..row.depth {
+                    let line_x = base_pad + (level as f32 * indent) + (ICON_SIZE * 0.5 * scale);
+                    inner = inner.child(
+                        div()
+                            .absolute()
+                            .top_0()
+                            .bottom_0()
+                            .left(px(line_x))
+                            .w(px(1.0))
+                            .bg(guide_color),
+                    );
+                }
+
+                inner = inner.child(
                     div()
-                        .text_size(px(10.5))
+                        .text_size(crate::typography::ui_rems(11.0))
                         .text_color(theme.text_muted)
                         .child("Load more…"),
-                )
-                .into_any_element(),
+                );
+
+                row_el.child(inner).into_any_element()
+            }
         }
     }
 
@@ -458,24 +549,57 @@ impl FilesSurface {
 
 fn status_row(
     index: usize,
-    padding: f32,
+    depth: usize,
     label: &'static str,
     color: gpui::Hsla,
+    scale: f32,
     theme: &Theme,
 ) -> AnyElement {
+    let base_pad = TREE_BASE_PAD * scale;
+    let indent = TREE_INDENT * scale;
+    let content_left = base_pad + (depth as f32 * indent);
+    let mut inner = div()
+        .relative()
+        .size_full()
+        .rounded(crate::typography::ui_rems(6.0))
+        .pl(px(content_left))
+        .pr(crate::typography::ui_rems(10.0))
+        .flex()
+        .items_center();
+
+    let guide_color = if theme.appearance.is_dark() {
+        theme.text_faint.opacity(0.28)
+    } else {
+        theme.border_strong
+    };
+    for level in 0..depth {
+        let line_x = base_pad + (level as f32 * indent) + (ICON_SIZE * 0.5 * scale);
+        inner = inner.child(
+            div()
+                .absolute()
+                .top_0()
+                .bottom_0()
+                .left(px(line_x))
+                .w(px(1.0))
+                .bg(guide_color),
+        );
+    }
+
+    inner = inner.child(
+        div()
+            .font_family(theme.font_sans.clone())
+            .text_size(crate::typography::ui_rems(13.0))
+            .text_color(color)
+            .child(label),
+    );
+
     div()
         .id(("files-tree-status", index))
-        .h(px(TREE_ROW_HEIGHT))
+        .h(crate::typography::ui_rems(TREE_ROW_HEIGHT))
         .w_full()
         .flex_none()
-        .pl(px(padding))
-        .pr(px(8.0))
-        .flex()
-        .items_center()
-        .font_family(theme.font_sans.clone())
-        .text_size(px(10.5))
-        .text_color(color)
-        .child(label)
+        .px(crate::typography::ui_rems(8.0))
+        .child(inner)
         .into_any_element()
 }
 

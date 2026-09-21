@@ -181,9 +181,21 @@ impl FilePreviewState {
         self.tree_sidebar_visible || (self.is_wide() && !self.tree_sidebar_dismissed)
     }
 
-    pub(super) fn show_tree_sidebar(&mut self) {
+    pub(crate) fn show_tree_sidebar(&mut self) {
+        let previous = self.tree_sidebar_visible();
         self.tree_sidebar_visible = true;
         self.tree_sidebar_dismissed = false;
+        if !previous {
+            self.tree_motion
+                .animate_to(previous, true, Instant::now());
+        }
+    }
+
+    pub(crate) fn show_tree_sidebar_animated(&mut self) {
+        self.tree_sidebar_visible = true;
+        self.tree_sidebar_dismissed = false;
+        self.tree_motion
+            .animate_to(false, true, Instant::now());
     }
 
     pub(super) fn toggle_tree_sidebar(&mut self) {

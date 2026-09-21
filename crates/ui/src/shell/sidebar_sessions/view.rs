@@ -113,12 +113,12 @@ impl Shell {
                 .into_any_element()
             } else if status == zeron_proto::ChatIndicator::Completed && !queued && !undelivered {
                 icon(icons::CHECK)
-                    .size(px(11.0))
+                    .size(crate::typography::ui_rems(11.0))
                     .text_color(status_color)
                     .into_any_element()
             } else {
                 div()
-                    .size(px(6.0))
+                    .size(crate::typography::ui_rems(6.0))
                     .rounded_full()
                     .bg(status_color)
                     .into_any_element()
@@ -129,7 +129,7 @@ impl Shell {
                     let id = id.clone();
                     move || format!("chat-status-{id}")
                 })
-                .size(px(13.0))
+                .size(crate::typography::ui_rems(14.0))
                 .flex_none()
                 .flex()
                 .items_center()
@@ -149,13 +149,13 @@ impl Shell {
             {
                 let tone = theme.text_muted;
                 div()
-                    .h(px(16.0))
+                    .h(crate::typography::ui_rems(16.0))
                     .flex_none()
                     .flex()
                     .flex_row()
                     .items_center()
-                    .px(px(4.0))
-                    .rounded(px(4.0))
+                    .px(crate::typography::ui_rems(4.0))
+                    .rounded(crate::typography::ui_rems(4.0))
                     .bg(tone.opacity(0.08))
                     .text_size(crate::typography::ui_rems(10.0))
                     .font_weight(gpui::FontWeight::MEDIUM)
@@ -169,12 +169,12 @@ impl Shell {
                 .flex()
                 .flex_row()
                 .items_center()
-                .gap(px(4.0))
-                .h(px(18.0))
+                .gap(crate::typography::ui_rems(4.0))
+                .h(crate::typography::ui_rems(18.0))
                 .when(!compact, |el| {
-                    el.px(px(4.0))
-                        .mr(px(-4.0))
-                        .rounded(px(5.0))
+                    el.px(crate::typography::ui_rems(4.0))
+                        .mr(crate::typography::ui_rems(-4.0))
+                        .rounded(crate::typography::ui_rems(5.0))
                         .bg(crate::theme::wash(0.10))
                         .hover(|s| s.bg(crate::theme::wash(0.18)))
                 })
@@ -184,7 +184,7 @@ impl Shell {
                     } else {
                         icons::ARCHIVE_MINIMALISTIC
                     })
-                    .size(px(if compact {
+                    .size(crate::typography::ui_rems(if compact {
                         SIDEBAR_ACTIVE_HARNESS_ICON_SIZE
                     } else {
                         11.0
@@ -208,7 +208,7 @@ impl Shell {
         } else if compact {
             if remote {
                 icon(icons::REMOTE_SERVER)
-                    .size(px(SIDEBAR_ACTIVE_HARNESS_ICON_SIZE))
+                    .size(crate::typography::ui_rems(SIDEBAR_ACTIVE_HARNESS_ICON_SIZE))
                     .text_color(theme.text_muted.opacity(0.5))
                     .into_any_element()
             } else {
@@ -222,7 +222,7 @@ impl Shell {
                     // remaining statuses use a compact dot.
                     let glyph: AnyElement = if status == zeron_proto::ChatIndicator::Completed {
                         icon(icons::CHECK)
-                            .size(px(11.0))
+                            .size(crate::typography::ui_rems(11.0))
                             .flex_none()
                             .text_color(status_color)
                             .into_any_element()
@@ -237,7 +237,7 @@ impl Shell {
                         .into_any_element()
                     } else {
                         div()
-                            .size(px(6.0))
+                            .size(crate::typography::ui_rems(6.0))
                             .flex_none()
                             .rounded_full()
                             .bg(status_color)
@@ -247,7 +247,7 @@ impl Shell {
                         .flex()
                         .flex_row()
                         .items_center()
-                        .gap(px(4.0))
+                        .gap(crate::typography::ui_rems(4.0))
                         .child(glyph)
                         .child(
                             div()
@@ -287,7 +287,7 @@ impl Shell {
                         status_label.unwrap_or("Idle")
                     }
                 })
-                .when(compact, |el| el.w(px(18.0)).justify_center())
+                .when(compact, |el| el.w(crate::typography::ui_rems(20.0)).justify_center())
                 .flex_none()
                 // Pin the corner to line 1's text height so the archive pill
                 // (taller, padded) overflows vertically instead of growing the
@@ -297,7 +297,7 @@ impl Shell {
                 // pill mounts, steals the pointer, row un-hovers, pill
                 // unmounts, repeat (user-reported flicker). The pill's
                 // stop_propagation click is separation enough.
-                .h(px(14.0))
+                .h(crate::typography::ui_rems(16.0))
                 .flex()
                 .items_center()
                 .when(!preview, |el| el.cursor_pointer())
@@ -348,7 +348,7 @@ impl Shell {
                 let row_id = row_id.clone();
                 move || row_id.clone()
             })
-            .h(px(sidebar_row_height(
+            .h(crate::typography::ui_rems(sidebar_row_height(
                 compact,
                 show_label,
                 branch.is_some(),
@@ -356,14 +356,14 @@ impl Shell {
             )))
             .flex()
             .flex_col()
-            .gap(px(2.0))
-            .rounded(px(if search_query.is_some() {
+            .gap(crate::typography::ui_rems(2.0))
+            .rounded(crate::typography::ui_rems(if search_query.is_some() {
                 popover::PALETTE_ITEM_RADIUS
             } else {
                 8.0
             }))
-            .px(px(Theme::SPACE_SM))
-            .py(px(6.0))
+            .px(crate::typography::ui_rems(Theme::SPACE_SM))
+            .py(crate::typography::ui_rems(6.0))
             .text_color(motion::hover_blend(&fade_key, rest_text, text))
             .bg(motion::hover_blend(&fade_key, rest_bg, hover_bg))
             // No selection ring (user request) — the wash alone marks the
@@ -422,13 +422,13 @@ impl Shell {
                         .flex()
                         .flex_row()
                         .items_center()
-                        .gap(px(Theme::SPACE_SM))
+                        .gap(crate::typography::ui_rems(Theme::SPACE_SM))
                         .child(sidebar_faded_label(
                             format!("chat-device-{content_id}").into(),
                             true,
                             div()
                                 .text_size(crate::typography::ui_rems(11.0))
-                                .line_height(px(14.0))
+                                .line_height(crate::typography::ui_rems(14.0))
                                 .text_color(subline)
                                 .child(popover::search_highlight(space_name, search_query, theme)),
                         ))
@@ -443,7 +443,7 @@ impl Shell {
                     .flex()
                     .flex_row()
                     .items_center()
-                    .gap(px(if compact {
+                    .gap(crate::typography::ui_rems(if compact {
                         4.0
                     } else {
                         SIDEBAR_ACTIVE_HARNESS_TITLE_GAP
@@ -454,7 +454,7 @@ impl Shell {
                         |el, (path, tint)| {
                             el.child(
                                 icon(path)
-                                    .size(px(SIDEBAR_ACTIVE_HARNESS_ICON_SIZE))
+                                    .size(crate::typography::ui_rems(SIDEBAR_ACTIVE_HARNESS_ICON_SIZE))
                                     .flex_none()
                                     .text_color(
                                         tint.unwrap_or(subline).opacity(if archived_muted {
@@ -472,13 +472,13 @@ impl Shell {
                         true,
                         div()
                             .text_size(crate::typography::ui_rems(13.0))
-                            .line_height(px(17.0))
+                            .line_height(crate::typography::ui_rems(17.0))
                             .child(popover::search_highlight(title, search_query, theme)),
                     ))
                     .when(!compact && !show_label && remote, |el| {
                         el.child(
                             icon(icons::REMOTE_SERVER)
-                                .size(px(SIDEBAR_ACTIVE_HARNESS_ICON_SIZE))
+                                .size(crate::typography::ui_rems(SIDEBAR_ACTIVE_HARNESS_ICON_SIZE))
                                 .flex_none()
                                 .text_color(subline),
                         )
@@ -524,7 +524,7 @@ impl Shell {
                                     let id = id.clone();
                                     move || format!("chat-time-{id}")
                                 })
-                                .w(px(30.0))
+                                .w(crate::typography::ui_rems(36.0))
                                 .flex_none()
                                 .text_right()
                                 .text_size(crate::typography::ui_rems(11.0))
@@ -542,11 +542,11 @@ impl Shell {
                         .flex()
                         .flex_row()
                         .items_center()
-                        .gap(px(4.0))
+                        .gap(crate::typography::ui_rems(4.0))
                         .when_some(branch, |el, branch| {
                             el.child(
                                 icon(icons::GIT_BRANCH)
-                                    .size(px(11.0))
+                                    .size(crate::typography::ui_rems(11.0))
                                     .flex_none()
                                     .text_color(subline),
                             )
@@ -555,7 +555,7 @@ impl Shell {
                                 false,
                                 div()
                                     .text_size(crate::typography::ui_rems(11.0))
-                                    .line_height(px(14.0))
+                                    .line_height(crate::typography::ui_rems(14.0))
                                     .text_color(subline)
                                     .child(popover::search_highlight(branch, search_query, theme)),
                             ))
@@ -603,7 +603,7 @@ impl Shell {
             .id("sidebar-pinned-sessions")
             .flex()
             .flex_col()
-            .gap(px(SIDEBAR_LIST_GAP))
+            .gap(crate::typography::ui_rems(SIDEBAR_LIST_GAP))
             .on_drag_move::<SidebarSessionDrag>(cx.listener(
                 move |this, event: &gpui::DragMoveEvent<SidebarSessionDrag>, _, cx| {
                     let payload = event.drag(cx).clone();
@@ -613,7 +613,7 @@ impl Shell {
                     {
                         return;
                     }
-                    let rel_y = f32::from(event.event.position.y) - f32::from(event.bounds.top());
+                    let rel_y = (f32::from(event.event.position.y) - f32::from(event.bounds.top())) / this.ui_scale();
                     if !payload.visible_ids.contains(&payload.chat_id) {
                         let top =
                             f32::from(event.bounds.bottom() - this.sidebar_scroll.bounds().top())
@@ -699,7 +699,7 @@ impl Shell {
             S::Offline => (
                 "Offline — sends are saved".into(),
                 div()
-                    .size(px(5.0))
+                    .size(crate::typography::ui_rems(5.0))
                     .rounded_full()
                     .bg(theme.warning)
                     .into_any_element(),
@@ -721,11 +721,11 @@ impl Shell {
                 "connection-pill",
                 div()
                     .id("connection-pill")
-                    .mx(px(Theme::SPACE_SM + 4.0))
-                    .mb(px(Theme::SPACE_SM))
+                    .mx(crate::typography::ui_rems(Theme::SPACE_SM + 4.0))
+                    .mb(crate::typography::ui_rems(Theme::SPACE_SM))
                     .flex()
                     .items_center()
-                    .gap(px(6.0))
+                    .gap(crate::typography::ui_rems(6.0))
                     .child(glyph)
                     .child(
                         div()
@@ -892,20 +892,23 @@ impl Shell {
                     if ix == from {
                         return element;
                     }
+                    let scale = self.ui_scale();
                     let start = crate::terminal::panel::slide_offset(ix, from, prev_over)
                         * (self
                             .sidebar_pinned_heights
                             .get(from)
                             .copied()
                             .unwrap_or(61.0)
-                            + SIDEBAR_LIST_GAP);
+                            + SIDEBAR_LIST_GAP)
+                        * scale;
                     let target = crate::terminal::panel::slide_offset(ix, from, over)
                         * (self
                             .sidebar_pinned_heights
                             .get(from)
                             .copied()
                             .unwrap_or(61.0)
-                            + SIDEBAR_LIST_GAP);
+                            + SIDEBAR_LIST_GAP)
+                        * scale;
                     if self.reduced_motion {
                         return div()
                             .relative()
@@ -930,10 +933,11 @@ impl Shell {
                 }
                 if let Some(dy) = self.sidebar_resort.get(&key).copied() {
                     let id = SharedString::from(format!("resort-{epoch}-{key}"));
+                    let scale = self.ui_scale();
                     div()
                         .child(element)
                         .with_animation(id, RESORT.animation(), move |el, t| {
-                            el.relative().top(px(dy * (1.0 - t)))
+                            el.relative().top(px(dy * scale * (1.0 - t)))
                         })
                         .into_any_element()
                 } else if self.sidebar_new_keys.contains(&key) {
@@ -994,8 +998,8 @@ impl Shell {
                 .id("sidebar-active-sessions")
                 .flex()
                 .flex_col()
-                .gap(px(SIDEBAR_LIST_GAP))
-                .pb(px(Theme::SPACE_SM))
+                .gap(crate::typography::ui_rems(SIDEBAR_LIST_GAP))
+                .pb(crate::typography::ui_rems(Theme::SPACE_SM))
                 .when_some(pinned_group, |el, group| el.child(group))
                 .when(
                     !regular_items.is_empty() || self.sidebar_session_transfer.is_some(),
@@ -1053,11 +1057,11 @@ impl Shell {
                                     ))
                                     .flex()
                                     .flex_col()
-                                    .gap(px(SIDEBAR_LIST_GAP))
+                                    .gap(crate::typography::ui_rems(SIDEBAR_LIST_GAP))
                                     .when(regular_items.is_empty(), |el| {
                                         el.h(px(48.0 + self.sidebar_transfer_extra_gap("regular")))
                                             .justify_center()
-                                            .px(px(10.0))
+                                            .px(crate::typography::ui_rems(10.0))
                                             .text_color(theme.text_muted)
                                             .text_size(crate::typography::ui_rems(12.0))
                                             .child("Drop here to unpin")
@@ -1076,8 +1080,8 @@ impl Shell {
                 .into_any_element()
         } else {
             div()
-                .px(px(Theme::SPACE_SM))
-                .pb(px(Theme::SPACE_SM))
+                .px(crate::typography::ui_rems(Theme::SPACE_SM))
+                .pb(crate::typography::ui_rems(Theme::SPACE_SM))
                 .text_size(crate::typography::ui_rems(12.0))
                 .text_color(theme.text_faint)
                 .child(SharedString::from("No sessions yet"))
@@ -1131,12 +1135,12 @@ impl Shell {
                             this.cancel_sidebar_session_transfer(cx);
                         },
                     ))
-                    .px(px(Theme::SPACE_SM))
+                    .px(crate::typography::ui_rems(Theme::SPACE_SM))
                     .flex()
                     .flex_col()
                     // No "Sessions" header (user request) — the list
                     // is the whole column; a little air stands in.
-                    .pt(px(SIDEBAR_LIST_PAD_TOP))
+                    .pt(crate::typography::ui_rems(SIDEBAR_LIST_PAD_TOP))
                     .child(active_list)
                     .children(archived_section)
                     .children(moving_row),
@@ -1145,7 +1149,7 @@ impl Shell {
         .fade_overflow_y(&self.sidebar_scroll);
 
         div()
-            .w(px(self.settings.sidebar_width))
+            .w_full()
             .h_full()
             .flex()
             .flex_col()
@@ -1168,11 +1172,11 @@ impl Shell {
                 el.child(
                     div()
                         .id("sidebar-notice")
-                        .mx(px(Theme::SPACE_SM))
-                        .mb(px(Theme::SPACE_SM))
-                        .px(px(Theme::SPACE_SM))
-                        .py(px(4.0))
-                        .rounded(px(Theme::CONTROL_RADIUS))
+                        .mx(crate::typography::ui_rems(Theme::SPACE_SM))
+                        .mb(crate::typography::ui_rems(Theme::SPACE_SM))
+                        .px(crate::typography::ui_rems(Theme::SPACE_SM))
+                        .py(crate::typography::ui_rems(4.0))
+                        .rounded(crate::typography::ui_rems(Theme::CONTROL_RADIUS))
                         .border_1()
                         .border_color(theme.danger)
                         .text_size(crate::typography::ui_rems(11.0))
@@ -1185,7 +1189,7 @@ impl Shell {
                         .child(notice),
                 )
             })
-            .child(div().p(px(Theme::SPACE_SM)).flex_none().child(user_menu))
+            .child(div().p(crate::typography::ui_rems(Theme::SPACE_SM)).flex_none().child(user_menu))
             .into_any_element()
     }
 }

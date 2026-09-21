@@ -457,7 +457,7 @@ impl Transcript {
                     AttachmentSnapshot::Loading => card.child(
                         image_frame.child(
                             div()
-                                .text_size(px(11.0))
+                                .text_size(crate::typography::ui_rems(13.0))
                                 .text_color(theme.text_muted)
                                 .child(if sending {
                                     "Uploading Appshot…"
@@ -469,7 +469,7 @@ impl Transcript {
                     AttachmentSnapshot::Error { .. } => card.child(
                         image_frame.child(
                             div()
-                                .text_size(px(11.0))
+                                .text_size(crate::typography::ui_rems(13.0))
                                 .text_color(theme.text_muted)
                                 .child(if sending {
                                     "Uploading Appshot…"
@@ -508,7 +508,7 @@ impl Transcript {
                             .child(
                                 div()
                                     .truncate()
-                                    .text_size(px(11.0))
+                                    .text_size(crate::typography::ui_rems(12.5))
                                     .text_color(theme.text_muted)
                                     .child(SharedString::from(format!(
                                         "{} · Appshot",
@@ -521,14 +521,14 @@ impl Transcript {
                             .w_full()
                             .truncate()
                             .text_center()
-                            .text_size(px(12.0))
+                            .text_size(crate::typography::ui_rems(13.5))
                             .text_color(theme.text)
                             .child(SharedString::from(appshot.title().to_string())),
                     );
                 if sending && (has_image || uploading.is_some()) {
                     card = card.child(
                         div()
-                            .text_size(px(11.0))
+                            .text_size(crate::typography::ui_rems(13.0))
                             .text_color(theme.text_muted)
                             .child(SharedString::from(
                                 uploading

@@ -32,16 +32,18 @@ impl Render for SurfaceTabGhost {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = Theme::of(cx);
         div()
-            .h(px(24.0))
-            .w(px(112.0))
-            .px(px(8.0))
+            .h(crate::typography::ui_rems(28.0))
+            .min_w(crate::typography::ui_rems(52.0))
+            .max_w(crate::typography::ui_rems(180.0))
+            .pl(crate::typography::ui_rems(6.0))
+            .pr(crate::typography::ui_rems(8.0))
             .flex()
             .items_center()
-            .rounded(px(6.0))
+            .rounded(crate::typography::ui_rems(6.0))
             .bg(theme.surface_raised)
             .border_1()
             .border_color(theme.border_strong)
-            .text_size(crate::typography::ui_rems(11.5))
+            .text_size(crate::typography::ui_rems(12.0))
             .text_color(theme.text)
             .opacity(0.85)
             .child(div().truncate().child(self.title.clone()))
@@ -74,6 +76,46 @@ pub(crate) fn workspace_file_title(path: &str) -> SharedString {
     path.rsplit('/').next().unwrap_or(path).to_string().into()
 }
 
+pub(crate) fn estimated_tab_width(title: &str, dirty: bool, scale: f32) -> f32 {
+    let scale = if scale <= 0.0 { 1.0 } else { scale };
+    let base = (if dirty { 42.0 + 10.0 } else { 42.0 }) * scale;
+    let text_w = title.chars().count() as f32 * (7.2 * scale);
+    (base + text_w).clamp(56.0 * scale, 200.0 * scale)
+}
+
+pub(crate) fn right_tab_drop_index(rel_x: f32, widths: &[f32], gap: f32) -> usize {
+    if widths.is_empty() {
+        return 0;
+    }
+    let mut cursor = 0.0;
+    for (i, &w) in widths.iter().enumerate() {
+        let center = cursor + w * 0.5;
+        if rel_x < center {
+            return i;
+        }
+        cursor += w + gap;
+    }
+    widths.len() - 1
+}
+
+pub(crate) fn right_tab_slide_offset(
+    ix: usize,
+    from: usize,
+    over: usize,
+    widths: &[f32],
+    gap: f32,
+) -> f32 {
+    if ix == from {
+        0.0
+    } else if from < over && ix > from && ix <= over {
+        -(widths[from] + gap)
+    } else if from > over && ix >= over && ix < from {
+        widths[from] + gap
+    } else {
+        0.0
+    }
+}
+
 impl Shell {
     pub(super) fn right_surface_rows(
         &self,
@@ -99,7 +141,7 @@ impl Shell {
                         *surface,
                         files.tab_title(),
                         files.has_unsaved_changes(),
-                        None,
+                        files.attachment_path().map(SharedString::from),
                     )
                 }),
                 RightSurface::File(id) => self.file_surfaces.get(id).map(|file| {
@@ -212,11 +254,6 @@ impl Shell {
     /// (icon · title · ✕) plus the `+` menu — the t3code RightPanelTabs bar,
     /// living in the top row; the diff options moved into the pane below.
     pub(crate) fn render_right_tab_strip(&mut self, cx: &mut Context<Self>) -> AnyElement {
-        /// Fixed chip slot — the terminal drawer's drag mechanics (drop-index
-        /// quantisation + slide offsets) assume uniform widths.
-        const CHIP_W: f32 = 112.0;
-        const CHIP_SLOT: f32 = CHIP_W + 4.0; // + the strip's own gap
-
         let theme = Theme::of(cx).clone();
         // Heal drag state if the pointer was released outside the strip.
         if self.right_tab_drag.is_some() && !cx.has_active_drag() {
@@ -224,6 +261,12 @@ impl Shell {
         }
         let rows = self.right_surface_rows(cx);
         let count = rows.len();
+        let scale = crate::typography::font_size(cx).pixels() / 16.0;
+        let tab_widths: Vec<f32> = rows
+            .iter()
+            .map(|(_, title, dirty, _)| estimated_tab_width(title, *dirty, scale))
+            .collect();
+        let widths_for_drag = tab_widths.clone();
         let active = self.resolved_right_active(cx);
         let drag = self
             .right_tab_drag
@@ -248,7 +291,7 @@ impl Shell {
             .flex()
             .flex_row()
             .items_center()
-            .gap(px(4.0))
+            .gap(crate::typography::ui_rems(6.0))
             .min_w_0()
             .overflow_x_scroll()
             .track_scroll(&self.right_tab_scroll)
@@ -266,7 +309,7 @@ impl Shell {
                     let rel_x = f32::from(event.event.position.x)
                         - f32::from(event.bounds.left())
                         - f32::from(scroll_for_drag.offset().x);
-                    let over = crate::terminal::panel::drop_index(rel_x, CHIP_SLOT, count);
+                    let over = right_tab_drop_index(rel_x, &widths_for_drag, 4.0);
                     this.update_right_tab_drag_over(from, over, cx);
                 },
             ))
@@ -287,8 +330,16 @@ impl Shell {
         for (ix, (surface, title, dirty, detail)) in rows.into_iter().enumerate() {
             let is_active = surface == active;
             let file_identity_path = detail.as_ref().cloned().unwrap_or_else(|| title.clone());
+            let is_file = matches!(surface, RightSurface::File(_))
+                || (matches!(surface, RightSurface::Files) && detail.is_some());
             let icon_path = match surface {
-                RightSurface::Files => icons::FOLDER_WITH_FILES,
+                RightSurface::Files => {
+                    if is_file {
+                        icons::DOCUMENT
+                    } else {
+                        icons::FOLDER_WITH_FILES
+                    }
+                }
                 RightSurface::File(_) => icons::DOCUMENT,
                 RightSurface::Diff(id) => self
                     .diffs
@@ -347,16 +398,17 @@ impl Shell {
                 .id(("right-surface-tab", ix))
                 .debug_selector(|| format!("right-surface-tab-{ix}"))
                 .group(group.clone())
-                .h(px(24.0))
-                .w(px(CHIP_W))
+                .h(crate::typography::ui_rems(28.0))
+                .min_w(crate::typography::ui_rems(52.0))
+                .max_w(crate::typography::ui_rems(200.0))
                 .flex_none()
-                .pl(px(4.0))
-                .pr(px(8.0))
-                .rounded(px(6.0))
+                .pl(crate::typography::ui_rems(8.0))
+                .pr(crate::typography::ui_rems(10.0))
+                .rounded(crate::typography::ui_rems(6.0))
                 .flex()
                 .flex_row()
                 .items_center()
-                .gap(px(3.0))
+                .gap(crate::typography::ui_rems(6.0))
                 .cursor_pointer()
                 .role(gpui::Role::Button)
                 .aria_label(accessible_label)
@@ -418,8 +470,8 @@ impl Shell {
                         .id(("right-surface-close", ix))
                         .debug_selector(|| format!("right-surface-close-{ix}"))
                         .flex_none()
-                        .size(px(18.0))
-                        .rounded(px(4.0))
+                        .size(crate::typography::ui_rems(18.0))
+                        .rounded(crate::typography::ui_rems(4.0))
                         .relative()
                         .hover(|s| s.bg(crate::theme::wash(0.12)))
                         // The tab owns a drag payload. Claim the close press
@@ -451,20 +503,20 @@ impl Shell {
                                     )
                                     .into_any_element()
                                 } else if let Some(favicon) = browser_favicon {
-                                    gpui::img(favicon).size(px(12.0)).into_any_element()
-                                } else if matches!(surface, RightSurface::File(_)) {
+                                    gpui::img(favicon).size(crate::typography::ui_rems(13.0)).into_any_element()
+                                } else if is_file {
                                     crate::file_icons::icon(
                                         crate::file_icons::FileIconIdentity::file(
                                             file_identity_path.as_ref(),
                                         ),
                                         theme.appearance,
                                     )
-                                    .size(px(14.0))
+                                    .size(crate::typography::ui_rems(15.0))
                                     .when(!is_active, |icon| icon.opacity(0.78))
                                     .into_any_element()
                                 } else {
                                     icon(icon_path)
-                                        .size(px(12.0))
+                                        .size(crate::typography::ui_rems(13.0))
                                         .text_color(if is_active {
                                             theme.text_muted
                                         } else {
@@ -484,16 +536,16 @@ impl Shell {
                                 .group_hover(group.clone(), |s| s.opacity(1.0))
                                 .child(
                                     icon(icons::CLOSE)
-                                        .size(px(12.0))
+                                        .size(crate::typography::ui_rems(12.0))
                                         .text_color(theme.text_muted),
-                                ),
+                                 ),
                         ),
                 )
                 .child(
                     div()
                         .min_w_0()
                         .truncate()
-                        .text_size(crate::typography::ui_rems(11.5))
+                        .text_size(crate::typography::ui_rems(12.0))
                         .text_color(if is_active {
                             theme.text
                         } else {
@@ -505,7 +557,7 @@ impl Shell {
                     chip.child(
                         div()
                             .flex_none()
-                            .size(px(6.0))
+                            .size(crate::typography::ui_rems(6.0))
                             .rounded_full()
                             .bg(theme.text_muted),
                     )
@@ -516,9 +568,8 @@ impl Shell {
             // ghost carries it.
             let wrapped: AnyElement = match drag {
                 Some((from, over, epoch, prev_over)) if ix != from => {
-                    let target = crate::terminal::panel::slide_offset(ix, from, over) * CHIP_SLOT;
-                    let start =
-                        crate::terminal::panel::slide_offset(ix, from, prev_over) * CHIP_SLOT;
+                    let target = right_tab_slide_offset(ix, from, over, &tab_widths, 4.0);
+                    let start = right_tab_slide_offset(ix, from, prev_over, &tab_widths, 4.0);
                     div()
                         .relative()
                         .child(chip.with_animation(
@@ -529,26 +580,27 @@ impl Shell {
                         .into_any_element()
                 }
                 Some((from, ..)) if ix == from => div()
-                    .w(px(CHIP_W))
-                    .h(px(24.0))
+                    .w(px(tab_widths[ix]))
+                    .h(crate::typography::ui_rems(28.0))
                     .flex_none()
                     .into_any_element(),
                 _ => chip.into_any_element(),
             };
             strip = strip.child(wrapped);
         }
+
         // The `+` — a small menu offering the available surfaces (t3 "Add panel
         // surface"); mirrors the picker cards.
         let plus_open = self.right_plus.get().is_some();
         let plus_fade = "right-surface-add-fade";
         let mut plus = div()
             .id("right-surface-add")
-            .size(px(24.0))
+            .size(crate::typography::ui_rems(28.0))
             .flex_none()
             .flex()
             .items_center()
             .justify_center()
-            .rounded(px(6.0))
+            .rounded(crate::typography::ui_rems(6.0))
             .cursor_pointer()
             .bg(motion::hover_blend(
                 plus_fade,
@@ -575,7 +627,7 @@ impl Shell {
             }))
             .child(
                 icon(icons::PLUS)
-                    .size(px(13.0))
+                    .size(crate::typography::ui_rems(14.0))
                     .text_color(theme.text_muted),
             );
         if plus_open {
@@ -745,5 +797,54 @@ impl Shell {
             conversation_width(self.viewport_width, sidebar_now, to),
         ));
         cx.notify();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn tab_width_adapts_to_content_and_clamps() {
+        let files_w = estimated_tab_width("Files", false, 1.0);
+        assert!(files_w < 100.0, "Files tab should be compact: {files_w}");
+        assert!(files_w >= 52.0, "Files tab should respect minimum width: {files_w}");
+
+        let dirty_files_w = estimated_tab_width("Files", true, 1.0);
+        assert!(dirty_files_w > files_w, "Dirty tab should account for dirty indicator");
+
+        let long_w = estimated_tab_width("a_very_long_file_name_that_exceeds_max_width_here.rs", false, 1.0);
+        assert_eq!(long_w, 200.0, "Long tab should be capped at max width");
+    }
+
+    #[test]
+    fn drop_index_calculates_correct_slot_with_variable_widths() {
+        let widths = [60.0, 120.0, 80.0];
+        let gap = 4.0;
+        // Item 0: center = 30.0
+        assert_eq!(right_tab_drop_index(10.0, &widths, gap), 0);
+        assert_eq!(right_tab_drop_index(29.0, &widths, gap), 0);
+        // Item 1: starts at 64.0, center = 64 + 60 = 124.0
+        assert_eq!(right_tab_drop_index(50.0, &widths, gap), 1);
+        assert_eq!(right_tab_drop_index(120.0, &widths, gap), 1);
+        // Item 2: starts at 64 + 124 = 188.0, center = 188 + 40 = 228.0
+        assert_eq!(right_tab_drop_index(150.0, &widths, gap), 2);
+        assert_eq!(right_tab_drop_index(300.0, &widths, gap), 2);
+    }
+
+    #[test]
+    fn slide_offset_shifts_affected_tabs_correctly() {
+        let widths = [60.0, 120.0, 80.0];
+        let gap = 4.0;
+
+        // Drag from 0 to 1 (left to right): item 1 shifts left by (widths[0] + gap) = -64
+        assert_eq!(right_tab_slide_offset(1, 0, 1, &widths, gap), -64.0);
+        assert_eq!(right_tab_slide_offset(2, 0, 1, &widths, gap), 0.0);
+        assert_eq!(right_tab_slide_offset(0, 0, 1, &widths, gap), 0.0);
+
+        // Drag from 2 to 0 (right to left): items 0 and 1 shift right by (widths[2] + gap) = +84
+        assert_eq!(right_tab_slide_offset(0, 2, 0, &widths, gap), 84.0);
+        assert_eq!(right_tab_slide_offset(1, 2, 0, &widths, gap), 84.0);
+        assert_eq!(right_tab_slide_offset(2, 2, 0, &widths, gap), 0.0);
     }
 }

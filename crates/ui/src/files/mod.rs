@@ -43,9 +43,9 @@ use crate::surface_chrome::{
 pub(super) fn toolbar_button(id: &'static str, label: &'static str) -> gpui::Stateful<gpui::Div> {
     div()
         .id(id)
-        .size(px(TOOLBAR_BUTTON_SIZE))
+        .size(crate::typography::ui_rems(TOOLBAR_BUTTON_SIZE))
         .flex_none()
-        .rounded(px(TOOLBAR_BUTTON_RADIUS))
+        .rounded(crate::typography::ui_rems(TOOLBAR_BUTTON_RADIUS))
         .flex()
         .items_center()
         .justify_center()
@@ -194,14 +194,17 @@ pub struct FilesSurface {
     search: Entity<ComposerInput>,
     search_state: FileSearchState,
     search_list: ListState,
+    search_typography_generation: u32,
     watch_task: Option<Task<()>>,
     watch_sequence: Option<u64>,
     watch_error: Option<SharedString>,
     preview: FilePreviewState,
     editor_context_menu: crate::popover::Popup<EditorContextMenu>,
+    actions_menu: crate::popover::Popup<()>,
     loads: HashMap<(String, Option<String>), Task<()>>,
     error: Option<SharedString>,
     started: bool,
+    pub(super) search_open: bool,
     _observe: Subscription,
     _search_events: Subscription,
 }
@@ -241,7 +244,7 @@ impl Render for FilesSurface {
                         .cursor_pointer()
                         .flex()
                         .items_center()
-                        .text_size(px(11.5))
+                        .text_size(crate::typography::ui_rems(13.0))
                         .text_color(theme.text)
                         .child("Retry")
                         .on_click(cx.listener(|this, _, _, cx| this.retry_root(cx))),
@@ -257,7 +260,7 @@ impl Render for FilesSurface {
         } else {
             self.render_tree(cx)
         };
-        let split_editor = self.presentation.is_editor() && self.preview.has_active();
+        let split_editor = self.presentation.is_editor();
         let watch_error = self.watch_error.clone();
         let tree_pane = div()
             .size_full()
@@ -265,40 +268,41 @@ impl Render for FilesSurface {
             .flex()
             .flex_col()
             .when(!split_editor, |pane| {
-                pane.child(self.render_header(&theme, cx))
+                pane.child(self.render_header(&theme, false, cx))
             })
             .when_some(watch_error, |element, error| {
                 element.child(
                     div()
-                        .h(px(27.0))
+                        .h(crate::typography::ui_rems(30.0))
                         .flex_none()
-                        .px(px(10.0))
+                        .px(crate::typography::ui_rems(10.0))
                         .border_b_1()
                         .border_color(theme.warning.opacity(0.22))
                         .bg(theme.warning.opacity(0.045))
                         .flex()
                         .items_center()
-                        .gap(px(6.0))
-                        .text_size(px(10.0))
+                        .gap(crate::typography::ui_rems(6.0))
+                        .text_size(crate::typography::ui_rems(12.5))
                         .text_color(theme.warning_muted)
                         .child(
                             crate::icons::icon(crate::icons::REFRESH)
-                                .size(px(10.5))
+                                .size(crate::typography::ui_rems(13.0))
                                 .flex_none(),
                         )
                         .child(div().min_w_0().flex_1().truncate().child(error))
                         .child(
                             div()
                                 .id("files-watch-refresh-now")
-                                .h(px(20.0))
+                                .h(crate::typography::ui_rems(22.0))
                                 .flex_none()
-                                .px(px(6.0))
-                                .rounded(px(5.0))
+                                .px(crate::typography::ui_rems(8.0))
+                                .rounded(crate::typography::ui_rems(5.0))
                                 .flex()
                                 .items_center()
                                 .cursor_pointer()
                                 .role(gpui::Role::Button)
                                 .aria_label("Refresh workspace files now")
+                                .text_size(crate::typography::ui_rems(12.0))
                                 .text_color(theme.text_muted)
                                 .hover(|style| style.bg(crate::theme::wash(0.07)))
                                 .child("Refresh now")
@@ -327,17 +331,22 @@ impl Render for FilesSurface {
             }
             // Same arrangement as the outer right-sidebar toggle: the trigger
             // is outside the animated controls, in a permanently mounted slot.
-            let toggle_width =
-                crate::surface_chrome::CONTROL_SIZE + crate::surface_chrome::EDGE_INSET;
+            let toggle_width = f32::from(
+                crate::typography::ui_rems(
+                    crate::surface_chrome::CONTROL_SIZE + crate::surface_chrome::EDGE_INSET,
+                )
+                .to_pixels(window.rem_size()),
+            );
             let tree_header = self
-                .render_header(&theme, cx)
-                .pr(px(crate::surface_chrome::CONTROL_GAP))
+                .render_header(&theme, true, cx)
+                .h_full()
+                .pr(crate::typography::ui_rems(crate::surface_chrome::CONTROL_GAP))
                 .border_l_1()
                 .border_color(theme.border);
             header = Some(
                 div()
                     .w_full()
-                    .h(px(crate::surface_chrome::HEADER_HEIGHT))
+                    .h(crate::typography::ui_rems(crate::surface_chrome::HEADER_HEIGHT))
                     .flex_none()
                     .flex()
                     .child(
@@ -356,6 +365,8 @@ impl Render for FilesSurface {
                                 div()
                                     .w(px(tree_width - toggle_width))
                                     .h_full()
+                                    .relative()
+                                    .left(px((tree_width - toggle_width) * (openness - 1.0)))
                                     .child(tree_header),
                             ),
                     )
@@ -384,6 +395,7 @@ impl Render for FilesSurface {
                                     .w(px(tree_width))
                                     .h_full()
                                     .relative()
+                                    .left(px(tree_width * (openness - 1.0)))
                                     .border_l_1()
                                     .border_color(theme.border)
                                     .child(tree_pane),
@@ -501,7 +513,7 @@ impl FilesSurface {
         let search = cx.new(|cx| {
             ComposerInput::new("Search files", cx)
                 .with_accessibility_role(gpui::Role::SearchInput)
-                .with_text_metrics(11.0, 16.0)
+                .with_text_metrics(12.0, 18.0)
         });
         let search_events = cx.subscribe(&search, |this: &mut Self, _, event, cx| match event {
             ComposerInputEvent::Edited => this.on_search_edited(cx),
@@ -562,6 +574,7 @@ impl FilesSurface {
             search,
             search_state: FileSearchState::default(),
             search_list: ListState::new(0, ListAlignment::Top, px(420.0)),
+            search_typography_generation: 0,
             watch_task: None,
             watch_sequence: None,
             watch_error: None,
@@ -572,9 +585,11 @@ impl FilesSurface {
                 editor_font_size,
             ),
             editor_context_menu: crate::popover::Popup::default(),
+            actions_menu: crate::popover::Popup::default(),
             loads: HashMap::new(),
             error: None,
             started: false,
+            search_open: false,
             _observe: observe,
             _search_events: search_events,
         };
@@ -785,8 +800,21 @@ impl FilesSurface {
         self.editor_path.as_deref()
     }
 
+    pub(crate) fn close_actions_menu(&mut self, cx: &mut Context<Self>) {
+        if self.actions_menu.begin_close() {
+            crate::popover::reap_popup(cx, |this: &mut Self| &mut this.actions_menu);
+        }
+    }
+
+    pub fn set_tree(&mut self, tree: FileTreeModel) {
+        self.tree = tree;
+        self.sync_tree_list();
+    }
+
     pub(super) fn open_tree_file(&mut self, path: String, cx: &mut Context<Self>) {
         if self.presentation.is_editor() {
+            self.open_file(path.clone(), cx);
+            self.preview.show_tree_sidebar();
             cx.emit(FilesEvent::OpenFile(path));
             return;
         }
@@ -794,6 +822,7 @@ impl FilesSurface {
         self.presentation = FilesPresentation::Editor;
         self.editor_path = Some(path.clone());
         self.open_file(path, cx);
+        self.preview.show_tree_sidebar_animated();
         cx.emit(FilesEvent::TitleChanged);
     }
 
@@ -984,45 +1013,401 @@ impl FilesSurface {
         self.tree_list_rows = self.tree.visible_rows().to_vec();
     }
 
-    fn render_header(&mut self, theme: &crate::theme::Theme, cx: &mut Context<Self>) -> gpui::Div {
+    pub fn workspace_name(&self, cx: &Context<Self>) -> String {
+        if let Some(ctx) = &self.request_context {
+            let name = ctx
+                .cwd
+                .trim_end_matches(['/', '\\'])
+                .rsplit(['/', '\\'])
+                .next()
+                .unwrap_or("");
+            if !name.is_empty() {
+                return name.to_string();
+            }
+        }
+        let state = self.state.read(cx);
+        if let Some(chat) = state.chats.iter().find(|c| c.id == self.chat_id) {
+            if let Some(cwd) = &chat.cwd {
+                let name = cwd
+                    .trim_end_matches(['/', '\\'])
+                    .rsplit(['/', '\\'])
+                    .next()
+                    .unwrap_or("");
+                if !name.is_empty() {
+                    return name.to_string();
+                }
+            }
+        }
+        "workspace".to_string()
+    }
+
+    pub fn workspace_branch(&self, cx: &Context<Self>) -> Option<String> {
+        let state = self.state.read(cx);
+        let chat = state.chats.iter().find(|c| c.id == self.chat_id)?;
+        if let Some(branch) = &chat.branch {
+            let trimmed = branch.trim();
+            if !trimmed.is_empty() {
+                return Some(trimmed.to_string());
+            }
+        }
+        if let Some(source) = &chat.source_context {
+            let trimmed = source.branch.trim();
+            if !trimmed.is_empty() {
+                return Some(trimmed.to_string());
+            }
+        }
+        None
+    }
+
+    pub(super) fn toggle_search(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.search_open = !self.search_open;
+        if self.search_open {
+            self.search.update(cx, |input, cx| {
+                input.focus_handle.focus(window, cx);
+            });
+        }
+        cx.notify();
+    }
+
+    pub(super) fn collapse_all(&mut self, cx: &mut Context<Self>) {
+        let expanded = self.tree.expanded_directories();
+        for dir in expanded {
+            self.tree.toggle_expanded(&dir);
+        }
+        self.sync_tree_list();
+        cx.notify();
+    }
+
+    fn render_header(
+        &mut self,
+        theme: &crate::theme::Theme,
+        is_split: bool,
+        cx: &mut Context<Self>,
+    ) -> gpui::Div {
         let include_ignored = self.tree.include_ignored();
-        toolbar(theme)
-            .child(
-                crate::surface_chrome::input()
+        let ws_name = self.workspace_name(cx);
+        let branch = self.workspace_branch(cx);
+        let is_search_open = self.search_open || !self.search_state.query.is_empty();
+
+        let trailing_actions = if is_split {
+            let is_menu_open = self.actions_menu.get().is_some();
+            let mut menu_trigger = toolbar_button("files-action-menu-trigger", "Workspace options")
+                .on_mouse_down(gpui::MouseButton::Left, cx.listener(|this, _, _, _| {
+                    this.actions_menu.note_trigger_press();
+                }))
+                .on_click(cx.listener(|this, _, _, cx| {
+                    if this.actions_menu.take_press_was_open() {
+                        this.close_actions_menu(cx);
+                    } else {
+                        this.actions_menu.open(());
+                        cx.notify();
+                    }
+                }))
+                .child(
+                    crate::icons::icon(crate::icons::LIST)
+                        .size(crate::typography::ui_rems(crate::surface_chrome::ICON_SIZE))
+                        .text_color(if is_menu_open {
+                            theme.text
+                        } else {
+                            theme.text_muted
+                        }),
+                );
+
+            if is_menu_open {
+                let closing = self.actions_menu.closing_since();
+                let menu_card = crate::popover::popover_card(&theme.for_popup())
+                    .w(crate::typography::ui_rems(210.0))
+                    .p(crate::typography::ui_rems(4.0))
+                    .on_mouse_down_out(cx.listener(|this, _, _, cx| {
+                        this.close_actions_menu(cx);
+                    }))
+                    .flex()
+                    .flex_col()
+                    .gap(crate::typography::ui_rems(2.0))
+                    .child(
+                        crate::popover::menu_row(&theme.for_popup(), false, "files-menu-search")
+                            .id("files-menu-search")
+                            .child(
+                                crate::icons::icon(crate::icons::MAGNIFER)
+                                    .size(crate::typography::ui_rems(13.5))
+                                    .flex_none()
+                                    .text_color(theme.text_muted),
+                            )
+                            .child(
+                                div()
+                                    .flex_1()
+                                    .min_w_0()
+                                    .truncate()
+                                    .font_family(theme.font_sans.clone())
+                                    .text_size(crate::typography::ui_rems(12.5))
+                                    .child(if is_search_open {
+                                        "Close file search"
+                                    } else {
+                                        "Search files"
+                                    }),
+                            )
+                            .on_click(cx.listener(|this, _, window, cx| {
+                                this.close_actions_menu(cx);
+                                this.toggle_search(window, cx);
+                            })),
+                    )
+                    .child(
+                        crate::popover::menu_row(&theme.for_popup(), false, "files-menu-ignored")
+                            .id("files-menu-ignored")
+                            .child(
+                                crate::icons::icon(if include_ignored {
+                                    crate::icons::EYE
+                                } else {
+                                    crate::icons::EYE_CLOSED
+                                })
+                                .size(crate::typography::ui_rems(13.5))
+                                .flex_none()
+                                .text_color(theme.text_muted),
+                            )
+                            .child(
+                                div()
+                                    .flex_1()
+                                    .min_w_0()
+                                    .truncate()
+                                    .font_family(theme.font_sans.clone())
+                                    .text_size(crate::typography::ui_rems(12.5))
+                                    .child(if include_ignored {
+                                        "Hide hidden and ignored files"
+                                    } else {
+                                        "Show all files (even hidden)"
+                                    }),
+                            )
+                            .on_click(cx.listener(|this, _, _, cx| {
+                                this.close_actions_menu(cx);
+                                this.toggle_ignored(cx);
+                            })),
+                    )
+                    .child(
+                        crate::popover::menu_row(&theme.for_popup(), false, "files-menu-collapse")
+                            .id("files-menu-collapse")
+                            .child(
+                                crate::icons::icon(crate::icons::ALT_ARROW_UP)
+                                    .size(crate::typography::ui_rems(13.5))
+                                    .flex_none()
+                                    .text_color(theme.text_muted),
+                            )
+                            .child(
+                                div()
+                                    .flex_1()
+                                    .min_w_0()
+                                    .truncate()
+                                    .font_family(theme.font_sans.clone())
+                                    .text_size(crate::typography::ui_rems(12.5))
+                                    .child("Collapse all folders"),
+                            )
+                            .on_click(cx.listener(|this, _, _, cx| {
+                                this.close_actions_menu(cx);
+                                this.collapse_all(cx);
+                            })),
+                    )
+                    .child(crate::popover::menu_separator())
+                    .child(
+                        crate::popover::menu_row(&theme.for_popup(), false, "files-menu-refresh")
+                            .id("files-menu-refresh")
+                            .child(
+                                crate::icons::icon(crate::icons::REFRESH)
+                                    .size(crate::typography::ui_rems(13.5))
+                                    .flex_none()
+                                    .text_color(theme.text_muted),
+                            )
+                            .child(
+                                div()
+                                    .flex_1()
+                                    .min_w_0()
+                                    .truncate()
+                                    .font_family(theme.font_sans.clone())
+                                    .text_size(crate::typography::ui_rems(12.5))
+                                    .child("Refresh workspace"),
+                            )
+                            .on_click(cx.listener(|this, _, _, cx| {
+                                this.close_actions_menu(cx);
+                                this.refresh(cx);
+                                this.reconcile_open_documents(cx);
+                            })),
+                    )
+                    .into_any_element();
+
+                menu_trigger = menu_trigger.relative().child(
+                    crate::popover::anchored_menu_below_end(
+                        "files-actions-menu-popover",
+                        menu_card,
+                        closing,
+                    ),
+                );
+            }
+
+            div()
+                .flex_none()
+                .flex()
+                .items_center()
+                .child(menu_trigger)
+                .into_any_element()
+        } else {
+            div()
+                .flex_none()
+                .flex()
+                .items_center()
+                .gap(crate::typography::ui_rems(2.0))
+                .child(
+                    toolbar_button(
+                        "files-toggle-search",
+                        if is_search_open {
+                            "Close file search"
+                        } else {
+                            "Search files"
+                        },
+                    )
+                    .when(is_search_open, |el| el.bg(crate::theme::wash(0.12)))
+                    .on_click(cx.listener(|this, _, window, cx| {
+                        this.toggle_search(window, cx)
+                    }))
                     .child(
                         crate::icons::icon(crate::icons::MAGNIFER)
-                            .size(px(12.0))
-                            .flex_none()
-                            .text_color(theme.text_faint),
-                    )
-                    .child(div().min_w_0().flex_1().child(self.search.clone())),
-            )
-            .child(
-                toolbar_button(
-                    "files-toggle-ignored",
-                    if include_ignored {
-                        "Hide hidden and ignored files"
-                    } else {
-                        "Show all files (even hidden)"
-                    },
+                            .size(crate::typography::ui_rems(crate::surface_chrome::ICON_SIZE))
+                            .text_color(if is_search_open {
+                                theme.text
+                            } else {
+                                theme.text_muted
+                            }),
+                    ),
                 )
-                .when(include_ignored, |element| {
-                    element.bg(crate::theme::wash(0.1))
-                })
-                .on_click(cx.listener(|this, _, _, cx| this.toggle_ignored(cx)))
                 .child(
-                    crate::icons::icon(if include_ignored {
-                        crate::icons::EYE
-                    } else {
-                        crate::icons::EYE_CLOSED
+                    toolbar_button(
+                        "files-toggle-ignored",
+                        if include_ignored {
+                            "Hide hidden and ignored files"
+                        } else {
+                            "Show all files (even hidden)"
+                        },
+                    )
+                    .when(include_ignored, |element| {
+                        element.bg(crate::theme::wash(0.1))
                     })
-                    .size(px(crate::surface_chrome::ICON_SIZE))
-                    .text_color(if include_ignored {
-                        theme.text
-                    } else {
-                        theme.text_muted
-                    }),
-                ),
+                    .on_click(cx.listener(|this, _, _, cx| this.toggle_ignored(cx)))
+                    .child(
+                        crate::icons::icon(if include_ignored {
+                            crate::icons::EYE
+                        } else {
+                            crate::icons::EYE_CLOSED
+                        })
+                        .size(crate::typography::ui_rems(crate::surface_chrome::ICON_SIZE))
+                        .text_color(if include_ignored {
+                            theme.text
+                        } else {
+                            theme.text_muted
+                        }),
+                    ),
+                )
+                .child(
+                    toolbar_button("files-collapse-all", "Collapse all folders")
+                        .on_click(cx.listener(|this, _, _, cx| this.collapse_all(cx)))
+                        .child(
+                            crate::icons::icon(crate::icons::ALT_ARROW_UP)
+                                .size(crate::typography::ui_rems(crate::surface_chrome::ICON_SIZE))
+                                .text_color(theme.text_muted),
+                        ),
+                )
+                .child(
+                    toolbar_button("files-refresh-button", "Refresh workspace")
+                        .on_click(cx.listener(|this, _, _, cx| {
+                            this.refresh(cx);
+                            this.reconcile_open_documents(cx);
+                        }))
+                        .child(
+                            crate::icons::icon(crate::icons::REFRESH)
+                                .size(crate::typography::ui_rems(crate::surface_chrome::ICON_SIZE))
+                                .text_color(theme.text_muted),
+                        ),
+                )
+                .into_any_element()
+        };
+
+        div()
+            .w_full()
+            .flex()
+            .flex_col()
+            .child(
+                toolbar(theme)
+                    .pl(crate::typography::ui_rems(16.0))
+                    .pr(crate::typography::ui_rems(8.0))
+                    .child(
+                        div()
+                            .flex_1()
+                            .min_w_0()
+                            .flex()
+                            .items_center()
+                            .gap(crate::typography::ui_rems(6.0))
+                            .overflow_hidden()
+                            .child(
+                                crate::file_icons::icon(
+                                    crate::file_icons::FileIconIdentity::directory(&ws_name, true),
+                                    theme.appearance,
+                                )
+                                .size(crate::typography::ui_rems(15.0))
+                                .flex_none(),
+                            )
+                            .child(
+                                div()
+                                    .truncate()
+                                    .font_family(theme.font_sans.clone())
+                                    .text_size(crate::typography::ui_rems(12.0))
+                                    .font_weight(gpui::FontWeight::MEDIUM)
+                                    .text_color(theme.text)
+                                    .child(ws_name),
+                            )
+                            .when_some(branch, |parent, b| {
+                                parent
+                                    .child(
+                                        div()
+                                            .flex_none()
+                                            .text_size(crate::typography::ui_rems(11.0))
+                                            .text_color(theme.text_faint)
+                                            .child("/"),
+                                    )
+                                    .child(
+                                        crate::icons::icon(crate::icons::GIT_BRANCH)
+                                            .size(crate::typography::ui_rems(11.5))
+                                            .flex_none()
+                                            .text_color(theme.text_muted),
+                                    )
+                                    .child(
+                                        div()
+                                            .flex_none()
+                                            .truncate()
+                                            .font_family(theme.font_sans.clone())
+                                            .text_size(crate::typography::ui_rems(11.5))
+                                            .text_color(theme.text_muted)
+                                            .child(b),
+                                    )
+                            }),
+                    )
+                    .child(trailing_actions),
             )
+            .when(is_search_open, |parent| {
+                parent.child(
+                    div()
+                        .w_full()
+                        .px(crate::typography::ui_rems(8.0))
+                        .py(crate::typography::ui_rems(4.0))
+                        .border_b_1()
+                        .border_color(theme.border)
+                        .bg(crate::theme::wash(0.02))
+                        .child(
+                            crate::surface_chrome::input()
+                                .child(
+                                    crate::icons::icon(crate::icons::MAGNIFER)
+                                        .size(crate::typography::ui_rems(13.0))
+                                        .flex_none()
+                                        .text_color(theme.text_faint),
+                                )
+                                .child(div().min_w_0().flex_1().child(self.search.clone())),
+                        ),
+                )
+            })
     }
 }

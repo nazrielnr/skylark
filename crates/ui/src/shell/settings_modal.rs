@@ -277,112 +277,143 @@ impl Shell {
             SettingsSection::Appshots => icons::MONITOR,
             SettingsSection::Archived => icons::ARCHIVE_MINIMALISTIC,
         };
-        // Match the user's dragged sidebar width — the pane container clips to
-        // it, so a hardcoded default here left hover washes stopping short of
-        // the sidebar's right edge (user-reported). Device identity lives on
-        // the Accounts page now — the one surface where the device matters.
+        // Match the full sidebar width — the pane container clips to it and expands
+        // dynamically with UI scale.
         div()
-            .w(px(self.settings.sidebar_width))
+            .w_full()
             .h_full()
             .flex()
             .flex_col()
             .child(
+                // Header section: identical vertical geometry & alignment to filter_row in session sidebar
                 div()
-                    .flex_1()
-                    .px(px(Theme::SPACE_SM))
+                    .flex_none()
                     .flex()
-                    .flex_col()
+                    .flex_row()
+                    .items_center()
+                    .px(crate::typography::ui_rems(Theme::SPACE_SM))
+                    .pt(crate::typography::ui_rems(8.0))
+                    .pb(crate::typography::ui_rems(4.0))
                     .child(
                         div()
-                            .px(px(Theme::SPACE_SM))
-                            .pt(px(12.0))
-                            .pb(px(4.0))
-                            .text_size(crate::typography::ui_rems(11.0))
+                            .h(crate::typography::ui_rems(29.0))
+                            .px(crate::typography::ui_rems(Theme::SPACE_SM))
+                            .flex()
+                            .items_center()
+                            .text_size(crate::typography::ui_rems(12.0))
                             .font_weight(gpui::FontWeight::MEDIUM)
                             .text_color(theme.text_muted.opacity(0.6))
                             .child(SharedString::from("Settings")),
-                    )
-                    .child(
-                        div().flex().flex_col().gap(px(2.0)).children(
-                            SettingsSection::ALL
-                                .into_iter()
-                                .filter(|item| {
-                                    *item != SettingsSection::Appshots
-                                        || crate::appshots::is_desktop()
-                                })
-                                .map(|item| {
-                                    let selected = item == section;
-                                    div()
-                                        .id(SharedString::from(format!(
-                                            "settings-nav-{}",
-                                            item.label()
-                                        )))
-                                        .flex()
-                                        .flex_row()
-                                        .items_center()
-                                        .gap(px(8.0))
-                                        .rounded(px(8.0))
-                                        .border_1()
-                                        .border_color(if selected && theme.appearance.is_light() {
-                                            crate::theme::hairline(0.12)
-                                        } else {
-                                            gpui::transparent_black()
-                                        })
-                                        .px(px(Theme::SPACE_SM))
-                                        .py(px(6.0))
-                                        .text_size(crate::typography::ui_rems(13.0))
-                                        .when(selected, |el| {
-                                            // Same tokens as the main sidebar's session
-                                            // rows — the two sidebars must feel alike.
-                                            el.bg(crate::theme::glass_selected_bg())
-                                                .font_weight(gpui::FontWeight::MEDIUM)
-                                        })
-                                        .text_color(if selected {
-                                            theme.text
-                                        } else {
-                                            theme.text_muted
-                                        })
-                                        .cursor_pointer()
-                                        .hover(|s| s.bg(theme.glass_hover()).text_color(theme.text))
-                                        .on_click(cx.listener(move |this, _, _, cx| {
-                                            this.open_settings(item, cx)
-                                        }))
-                                        .child(
-                                            icon(section_icon(item))
-                                                .size(px(16.0))
-                                                .text_color(theme.text_muted),
-                                        )
-                                        .child(SharedString::from(item.label()))
-                                }),
-                        ),
                     ),
             )
-            // Back pinned to the bottom (zeron settings-sidebar.tsx).
             .child(
-                div().px(px(Theme::SPACE_SM)).pb(px(12.0)).child(
-                    div()
-                        .id("settings-back")
-                        .flex()
-                        .flex_row()
-                        .items_center()
-                        .gap(px(6.0))
-                        .rounded(px(8.0))
-                        .px(px(Theme::SPACE_SM))
-                        .py(px(6.0))
-                        .text_size(crate::typography::ui_rems(13.0))
-                        .text_color(theme.text_muted)
-                        .cursor_pointer()
-                        .hover(|s| s.bg(theme.glass_hover()).text_color(theme.text))
-                        .on_click(cx.listener(|this, _, _, cx| this.close_settings(cx)))
-                        .child(
-                            // AltArrowLeft chevron (zeron settings-sidebar.tsx),
-                            // not the straight history arrow.
-                            icon(icons::ALT_ARROW_LEFT)
-                                .size(px(16.0))
-                                .text_color(theme.text_muted),
-                        )
-                        .child(SharedString::from("Back")),
-                ),
+                // List of settings navigation items: matches sidebar-lists in session sidebar
+                div()
+                    .id("settings-nav-list")
+                    .flex_1()
+                    .min_h_0()
+                    .overflow_y_scroll()
+                    .px(crate::typography::ui_rems(Theme::SPACE_SM))
+                    .pt(crate::typography::ui_rems(sidebar_sessions::SIDEBAR_LIST_PAD_TOP))
+                    .flex()
+                    .flex_col()
+                    .gap(crate::typography::ui_rems(sidebar_sessions::SIDEBAR_LIST_GAP))
+                    .children(
+                        SettingsSection::ALL
+                            .into_iter()
+                            .filter(|item| {
+                                *item != SettingsSection::Appshots
+                                    || crate::appshots::is_desktop()
+                            })
+                            .map(|item| {
+                                let selected = item == section;
+                                div()
+                                    .id(SharedString::from(format!(
+                                        "settings-nav-{}",
+                                        item.label()
+                                    )))
+                                    .h(crate::typography::ui_rems(30.0))
+                                    .flex()
+                                    .flex_row()
+                                    .items_center()
+                                    .gap(crate::typography::ui_rems(8.0))
+                                    .rounded(crate::typography::ui_rems(8.0))
+                                    .border_1()
+                                    .border_color(if selected && theme.appearance.is_light() {
+                                        crate::theme::hairline(0.12)
+                                    } else {
+                                        gpui::transparent_black()
+                                    })
+                                    .px(crate::typography::ui_rems(Theme::SPACE_SM))
+                                    .text_size(crate::typography::ui_rems(13.0))
+                                    .line_height(crate::typography::ui_rems(17.0))
+                                    .when(selected, |el| {
+                                        // Same tokens as the main sidebar's session
+                                        // rows — the two sidebars feel alike.
+                                        el.bg(crate::theme::glass_selected_bg())
+                                            .font_weight(gpui::FontWeight::MEDIUM)
+                                    })
+                                    .text_color(if selected {
+                                        theme.text
+                                    } else {
+                                        theme.text_muted
+                                    })
+                                    .cursor_pointer()
+                                    .hover(|s| s.bg(theme.glass_hover()).text_color(theme.text))
+                                    .on_click(cx.listener(move |this, _, _, cx| {
+                                        this.open_settings(item, cx)
+                                    }))
+                                    .child(
+                                        icon(section_icon(item))
+                                            .size(crate::typography::ui_rems(16.0))
+                                            .flex_none()
+                                            .text_color(if selected {
+                                                theme.text
+                                            } else {
+                                                theme.text_muted
+                                            }),
+                                    )
+                                    .child(
+                                        div()
+                                            .flex_1()
+                                            .overflow_hidden()
+                                            .text_ellipsis()
+                                            .child(SharedString::from(item.label())),
+                                    )
+                            }),
+                    ),
+            )
+            // Back pinned to the bottom (zeron settings-sidebar.tsx), matching user_menu container padding.
+            .child(
+                div()
+                    .p(crate::typography::ui_rems(Theme::SPACE_SM))
+                    .flex_none()
+                    .child(
+                        div()
+                            .id("settings-back")
+                            .h(crate::typography::ui_rems(30.0))
+                            .flex()
+                            .flex_row()
+                            .items_center()
+                            .gap(crate::typography::ui_rems(8.0))
+                            .rounded(crate::typography::ui_rems(8.0))
+                            .px(crate::typography::ui_rems(Theme::SPACE_SM))
+                            .text_size(crate::typography::ui_rems(13.0))
+                            .line_height(crate::typography::ui_rems(17.0))
+                            .text_color(theme.text_muted)
+                            .cursor_pointer()
+                            .hover(|s| s.bg(theme.glass_hover()).text_color(theme.text))
+                            .on_click(cx.listener(|this, _, _, cx| this.close_settings(cx)))
+                            .child(
+                                // AltArrowLeft chevron (zeron settings-sidebar.tsx),
+                                // not the straight history arrow.
+                                icon(icons::ALT_ARROW_LEFT)
+                                    .size(crate::typography::ui_rems(16.0))
+                                    .flex_none()
+                                    .text_color(theme.text_muted),
+                            )
+                            .child(SharedString::from("Back")),
+                    ),
             )
             .into_any_element()
     }

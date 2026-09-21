@@ -675,18 +675,18 @@ impl Render for Changes {
                     .flex_col()
                     .items_center()
                     .justify_center()
-                    .gap(px(Theme::SPACE_SM))
+                    .gap(crate::typography::ui_rems(Theme::SPACE_SM))
                     .child(crate::loaders::gradient_spinner(
                         "changes-preparing",
                         &theme,
-                        3.0,
+                        3.5,
                         cx.entity_id(),
                         cx,
                     ))
                     .child(
                         div()
-                            .text_size(px(12.0))
-                            .text_color(theme.text_faint)
+                            .text_size(crate::typography::ui_rems(14.0))
+                            .text_color(theme.text_muted)
                             .child(SharedString::from("Preparing diff…")),
                     )
                     .into_any_element(),
@@ -695,8 +695,8 @@ impl Render for Changes {
                     .flex()
                     .items_center()
                     .justify_center()
-                    .text_size(px(12.0))
-                    .text_color(theme.text_faint)
+                    .text_size(crate::typography::ui_rems(13.5))
+                    .text_color(theme.text_muted)
                     .child(SharedString::from(clean_message(scope, base.as_deref())))
                     .into_any_element(),
                 DiffPhase::List => {
@@ -732,7 +732,7 @@ impl Render for Changes {
                             .child(crate::loaders::gradient_spinner(
                                 "changes-parsing",
                                 &theme,
-                                3.0,
+                                3.5,
                                 cx.entity_id(),
                                 cx,
                             ))

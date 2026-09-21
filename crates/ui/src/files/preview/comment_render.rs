@@ -16,14 +16,16 @@ impl FilesSurface {
             .iter()
             .map(|comment| (comment.line, comment.clone()))
             .collect::<HashMap<_, _>>();
-        let (card_left, card_width) = editor_comment_overlay_horizontal(&layout);
+        let scale = crate::typography::font_size(cx).pixels() / 16.0;
+        let base_pad = 8.0 * scale;
+        let (card_left, card_width) = editor_comment_overlay_horizontal(&layout, base_pad);
         let mut overlays = Vec::with_capacity(layout.rows.len() + 1);
         for row in &layout.rows {
             let group: SharedString = format!("file-comment-gutter-{}-{}", path, row.line).into();
             let cell = div()
                 .id(("file-comment-gutter", row.line as usize))
                 .absolute()
-                .left(px(0.0))
+                .left(px(base_pad))
                 .top(px(row.top))
                 .w(px(layout.gutter_width))
                 .h(px(layout.line_height))
@@ -292,9 +294,9 @@ fn editor_comment_overlay_top(
     Some(preferred.clamp(0.0, (layout.viewport_height - card_height).max(0.0)))
 }
 
-fn editor_comment_overlay_horizontal(layout: &EditorOverlayLayout) -> (f32, f32) {
+fn editor_comment_overlay_horizontal(layout: &EditorOverlayLayout, base_pad: f32) -> (f32, f32) {
     let anchored_left =
-        (layout.gutter_width - EDITOR_COMMENT_CARD_MARGIN).max(EDITOR_COMMENT_CARD_MARGIN);
+        (layout.gutter_width + base_pad - EDITOR_COMMENT_CARD_MARGIN).max(EDITOR_COMMENT_CARD_MARGIN + base_pad);
     let anchored_width = (layout.viewport_width - anchored_left - EDITOR_COMMENT_CARD_MARGIN)
         .min(EDITOR_COMMENT_CARD_WIDTH)
         .max(0.0);
@@ -302,8 +304,8 @@ fn editor_comment_overlay_horizontal(layout: &EditorOverlayLayout) -> (f32, f32)
         (anchored_left, anchored_width)
     } else {
         (
-            EDITOR_COMMENT_CARD_MARGIN,
-            (layout.viewport_width - EDITOR_COMMENT_CARD_MARGIN * 2.0).max(0.0),
+            EDITOR_COMMENT_CARD_MARGIN + base_pad,
+            (layout.viewport_width - (EDITOR_COMMENT_CARD_MARGIN + base_pad) * 2.0).max(0.0),
         )
     }
 }

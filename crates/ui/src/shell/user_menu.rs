@@ -70,12 +70,12 @@ impl Shell {
 
         let mut strip = div()
             .id("update-strip")
-            .mx(px(Theme::SPACE_SM))
+            .mx(crate::typography::ui_rems(Theme::SPACE_SM))
             // No bottom margin: the user-menu block below carries its own
             // SPACE_SM padding — doubling it read as a hole (user report).
-            .px(px(Theme::SPACE_SM))
-            .py(px(6.0))
-            .rounded(px(Theme::CONTROL_RADIUS))
+            .px(crate::typography::ui_rems(Theme::SPACE_SM))
+            .py(crate::typography::ui_rems(6.0))
+            .rounded(crate::typography::ui_rems(Theme::CONTROL_RADIUS))
             .bg(chip_bg)
             .flex()
             .flex_row()
@@ -188,13 +188,13 @@ impl Shell {
         let mut trigger = div()
             .id("user-menu")
             .flex_none()
-            .rounded(px(8.0))
-            .px(px(Theme::SPACE_SM))
-            .py(px(Theme::SPACE_SM))
+            .rounded(crate::typography::ui_rems(8.0))
+            .px(crate::typography::ui_rems(Theme::SPACE_SM))
+            .py(crate::typography::ui_rems(Theme::SPACE_SM))
             .flex()
             .flex_row()
             .items_center()
-            .gap(px(10.0))
+            .gap(crate::typography::ui_rems(10.0))
             .cursor_pointer()
             // user-menu.tsx trigger: hover `bg-white/[0.04]`, open state
             // (`data-[state=open]`) the slightly stronger `bg-white/[0.06]`;
@@ -226,7 +226,7 @@ impl Shell {
             .child(
                 // Avatar: white circle, initial in near-black (zeron user-menu.tsx).
                 div()
-                    .size(px(28.0))
+                    .size(crate::typography::ui_rems(28.0))
                     .flex_none()
                     .rounded_full()
                     .bg(theme.text)
@@ -248,7 +248,7 @@ impl Shell {
                     .child(
                         div()
                             .text_size(crate::typography::ui_rems(13.0))
-                            .line_height(px(17.0))
+                            .line_height(crate::typography::ui_rems(17.0))
                             .font_weight(gpui::FontWeight::MEDIUM)
                             .text_color(theme.text)
                             .truncate()
@@ -258,7 +258,7 @@ impl Shell {
                         identity.child(
                             div()
                                 .text_size(crate::typography::ui_rems(11.0))
-                                .line_height(px(15.0))
+                                .line_height(crate::typography::ui_rems(15.0))
                                 .text_color(theme.text_muted)
                                 .child(subline),
                         )
@@ -272,18 +272,18 @@ impl Shell {
             // (`px-2 pb-1 pt-1.5 text-[11px] text-muted-foreground/70`),
             // the action selected by the runtime scope, then "Settings".
             let menu = popover::popover_card(theme)
-                .w(px(self.settings.sidebar_width - 2.0 * Theme::SPACE_SM))
+                .w(px((self.settings.sidebar_width - 2.0 * Theme::SPACE_SM) * self.ui_scale()))
                 .on_mouse_down_out(cx.listener(|this, _, _, cx| {
                     this.close_user_menu(cx);
                 }))
                 .flex()
                 .flex_col()
-                .gap(px(2.0))
+                .gap(crate::typography::ui_rems(2.0))
                 .child(
                     div()
-                        .px(px(8.0))
-                        .pt(px(6.0))
-                        .pb(px(4.0))
+                        .px(crate::typography::ui_rems(8.0))
+                        .pt(crate::typography::ui_rems(6.0))
+                        .pb(crate::typography::ui_rems(4.0))
                         .text_size(crate::typography::ui_rems(11.0))
                         .text_color(theme.text_muted)
                         .truncate()
@@ -297,7 +297,7 @@ impl Shell {
                                 .on_click(cx.listener(|this, _, _, cx| this.start_sign_in(cx)))
                                 .child(
                                     icon(icons::GLOBAL)
-                                        .size(px(16.0))
+                                        .size(crate::typography::ui_rems(16.0))
                                         .text_color(theme.text_muted),
                                 )
                                 .child(SharedString::from("Enable sync"))
@@ -309,7 +309,7 @@ impl Shell {
                                 .opacity(0.6)
                                 .child(
                                     icon(icons::GLOBAL)
-                                        .size(px(16.0))
+                                        .size(crate::typography::ui_rems(16.0))
                                         .text_color(theme.text_muted),
                                 )
                                 .child(SharedString::from("Sync setup in progress"))
@@ -321,7 +321,7 @@ impl Shell {
                                 .on_click(cx.listener(|this, _, _, cx| this.reopen_sync_notice(cx)))
                                 .child(
                                     icon(icons::RESTART)
-                                        .size(px(16.0))
+                                        .size(crate::typography::ui_rems(16.0))
                                         .text_color(theme.text_muted),
                                 )
                                 .child(SharedString::from("Finish sync setup"))
@@ -333,7 +333,7 @@ impl Shell {
                                 .on_click(cx.listener(|this, _, _, cx| this.request_sign_out(cx)))
                                 .child(
                                     icon(icons::LOGOUT_2)
-                                        .size(px(16.0))
+                                        .size(crate::typography::ui_rems(16.0))
                                         .text_color(theme.text_muted),
                                 )
                                 .child(SharedString::from("Sign out"))
@@ -350,7 +350,7 @@ impl Shell {
                         }))
                         .child(
                             icon(icons::SETTINGS_MINIMALISTIC)
-                                .size(px(16.0))
+                                .size(crate::typography::ui_rems(16.0))
                                 .text_color(theme.text_muted),
                         )
                         .child(SharedString::from("Settings")),

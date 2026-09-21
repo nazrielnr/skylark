@@ -17,8 +17,8 @@ impl FilesSurface {
             // `remeasure` re-derives them while holding the scroll position.
             self.preview.list.remeasure();
         }
-        let Some(active) = self.preview.active.clone() else {
-            return gpui::Empty.into_any_element();
+        let Some(active) = self.preview.active.clone().or_else(|| self.editor_path.clone()) else {
+            return centered_state("Loading file…", theme.text_faint);
         };
         let external = self.preview.documents.get(&active).is_some_and(|document| {
             matches!(
@@ -196,8 +196,8 @@ impl FilesSurface {
         cx: &mut Context<Self>,
     ) -> AnyElement {
         toolbar(theme)
-            .w(px(
-                crate::surface_chrome::CONTROL_SIZE + crate::surface_chrome::EDGE_INSET
+            .w(crate::typography::ui_rems(
+                crate::surface_chrome::CONTROL_SIZE + crate::surface_chrome::EDGE_INSET,
             ))
             .pl_0()
             .child(
@@ -212,7 +212,7 @@ impl FilesSurface {
                 .on_click(cx.listener(|this, _, window, cx| this.toggle_tree_sidebar(window, cx)))
                 .child(
                     icon(icons::SIDEBAR_MINIMALISTIC)
-                        .size(px(crate::surface_chrome::ICON_SIZE))
+                        .size(crate::typography::ui_rems(crate::surface_chrome::ICON_SIZE))
                         .text_color(theme.text_muted),
                 ),
             )
@@ -224,7 +224,7 @@ impl FilesSurface {
         theme: &Theme,
         cx: &mut Context<Self>,
     ) -> Option<AnyElement> {
-        let path = self.preview.active.clone()?;
+        let path = self.preview.active.clone().or_else(|| self.editor_path.clone())?;
         Some(self.render_breadcrumb(&path, theme, cx))
     }
 
@@ -240,9 +240,28 @@ impl FilesSurface {
             .documents
             .get(path)
             .is_some_and(|d| d.show_markdown);
-        let parts = path.split('/').collect::<Vec<_>>();
+
+        let state = self.state.read(cx);
+        let chat = state.chats.iter().find(|c| c.id == self.chat_id);
+        let project_name = chat
+            .and_then(|c| state.space_for_chat(c))
+            .map(|s| s.display_name().to_string())
+            .or_else(|| {
+                chat.and_then(|c| c.cwd.as_deref())
+                    .and_then(|cwd| std::path::Path::new(cwd).file_name()?.to_str())
+                    .map(str::to_string)
+            })
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(|| "Project".to_string());
+
+        let clean_path = path.trim_start_matches('/');
+        let mut parts: Vec<String> = vec![project_name.clone()];
+        if !clean_path.is_empty() {
+            parts.extend(clean_path.split('/').map(str::to_string));
+        }
+
         let reveal_path = path.to_string();
-        let tooltip_path: SharedString = path.to_string().into();
+        let tooltip_path: SharedString = format!("{project_name}/{clean_path}").into();
         let can_save = !self.target_change_pending
             && self
                 .preview
@@ -290,6 +309,7 @@ impl FilesSurface {
             .id("files-breadcrumb-path")
             .min_w_0()
             .flex_1()
+            .h_full()
             .flex()
             .items_center()
             .overflow_hidden();
@@ -297,24 +317,30 @@ impl FilesSurface {
             if index > 0 {
                 crumbs = crumbs.child(
                     div()
-                        .mx(px(4.0))
-                        .text_size(px(11.0))
+                        .mx(crate::typography::ui_rems(5.0))
+                        .text_size(crate::typography::ui_rems(11.0))
                         .text_color(theme.text_faint.opacity(0.65))
                         .child("›"),
                 );
             }
+            let is_last = index + 1 == parts.len();
             crumbs = crumbs.child(
                 div()
                     .min_w_0()
                     .truncate()
                     .font_family(theme.font_sans.clone())
-                    .text_size(px(11.0))
-                    .text_color(if index + 1 == parts.len() {
-                        theme.text_muted
+                    .text_size(if is_last {
+                        crate::typography::ui_rems(12.5)
                     } else {
-                        theme.text_faint
+                        crate::typography::ui_rems(12.0)
                     })
-                    .child((*part).to_string()),
+                    .when(is_last, |el| el.font_weight(gpui::FontWeight::MEDIUM))
+                    .text_color(if is_last {
+                        theme.text
+                    } else {
+                        theme.text_muted
+                    })
+                    .child(part.clone()),
             );
         }
         crumbs = crumbs
@@ -326,14 +352,18 @@ impl FilesSurface {
             })
             .tooltip_show_delay(Duration::from_millis(350));
         toolbar(theme)
-            .pr(px(crate::surface_chrome::CONTROL_GAP))
+            .h(crate::typography::ui_rems(crate::surface_chrome::HEADER_HEIGHT))
+            .pl(crate::typography::ui_rems(16.0))
+            .pr(crate::typography::ui_rems(8.0))
+            .gap(crate::typography::ui_rems(6.0))
             .child(
                 crate::file_icons::icon(
-                    crate::file_icons::FileIconIdentity::file(path),
+                    crate::file_icons::FileIconIdentity::directory(&project_name, false),
                     theme.appearance,
                 )
-                .size(px(14.0))
-                .flex_none(),
+                .size(crate::typography::ui_rems(15.0))
+                .flex_none()
+                .mr(crate::typography::ui_rems(2.0)),
             )
             .child(crumbs)
             .when(markdown, |element| {
@@ -375,7 +405,7 @@ impl FilesSurface {
                         } else {
                             icons::EYE
                         })
-                        .size(px(crate::surface_chrome::ICON_SIZE))
+                        .size(crate::typography::ui_rems(crate::surface_chrome::ICON_SIZE))
                         .text_color(theme.text_muted),
                     ),
                 )
@@ -384,14 +414,14 @@ impl FilesSurface {
                 element.child(
                     div()
                         .id("files-save-status")
-                        .h(px(crate::surface_chrome::CONTROL_SIZE))
-                        .px(px(6.0))
-                        .rounded(px(crate::surface_chrome::CONTROL_RADIUS))
+                        .h(crate::typography::ui_rems(crate::surface_chrome::CONTROL_SIZE))
+                        .px(crate::typography::ui_rems(8.0))
+                        .rounded(crate::typography::ui_rems(crate::surface_chrome::CONTROL_RADIUS))
                         .flex()
                         .items_center()
                         .flex_none()
                         .font_family(theme.font_sans.clone())
-                        .text_size(px(11.0))
+                        .text_size(crate::typography::ui_rems(11.5))
                         .text_color(color)
                         .when(retry, |element| {
                             element
@@ -439,7 +469,7 @@ impl FilesSurface {
                     }))
                     .child(
                         icon(icons::FOLDER)
-                            .size(px(crate::surface_chrome::ICON_SIZE))
+                            .size(crate::typography::ui_rems(crate::surface_chrome::ICON_SIZE))
                             .text_color(theme.text_muted),
                     ),
             )
@@ -458,7 +488,7 @@ impl FilesSurface {
                 .on_click(cx.listener(|this, _, window, cx| this.toggle_word_wrap(window, cx)))
                 .child(
                     icon(icons::LIST)
-                        .size(px(crate::surface_chrome::ICON_SIZE))
+                        .size(crate::typography::ui_rems(crate::surface_chrome::ICON_SIZE))
                         .text_color(if self.preview.word_wrap() {
                             theme.text
                         } else {
@@ -630,7 +660,7 @@ impl FilesSurface {
         }
 
         let Some(document) = self.preview.documents.get(path) else {
-            return gpui::Empty.into_any_element();
+            return centered_state("Loading file…", theme.text_faint);
         };
         if matches!(document.phase, DocumentPhase::Loading) {
             return centered_state("Loading file…", theme.text_faint);
@@ -655,6 +685,7 @@ impl FilesSurface {
                 .line_height(px(
                     (self.preview.editor_text_size() + 8.5).max(PREVIEW_LINE_HEIGHT)
                 ))
+                .pl(crate::typography::ui_rems(8.0))
                 .child(super::super::editor::editor_element(&editor))
                 .children(overlays)
                 .into_any_element();
@@ -674,6 +705,7 @@ impl FilesSurface {
                 .min_w_0()
                 .min_h_0()
                 .flex()
+                .pl(crate::typography::ui_rems(8.0))
                 .child(
                     list(
                         self.preview.list.clone(),
@@ -690,6 +722,7 @@ impl FilesSurface {
                 .min_w_0()
                 .min_h_0()
                 .flex()
+                .pl(crate::typography::ui_rems(8.0))
                 .overflow_x_scroll()
                 .track_scroll(&self.preview.horizontal_scroll)
                 .child(
