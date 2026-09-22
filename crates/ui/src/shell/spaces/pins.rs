@@ -1,26 +1,27 @@
 use std::collections::HashSet;
 
-use gpui::{div, px, AnyElement, Context, SharedString};
+use gpui::{AnyElement, Context, SharedString, div, px};
 
+use super::super::*;
 use crate::motion;
 use crate::theme::Theme;
-use super::super::*;
 
-// list items stay tightly related at 2px, while section boundaries use 12px
-// (well over 2x the intra-list gap). Disclosure content gets a small 4px
-// handoff from its header without leaving dead space while collapsed.
-pub(in crate::shell) const SIDEBAR_SECTION_GAP: f32 = 12.0;
-pub(in crate::shell) const SIDEBAR_DISCLOSURE_HEADER_HEIGHT: f32 = 28.0;
+// Keep disclosure sections separated from their rows, not detached from
+// adjacent sections. All sidebar section boundaries share this 4px rhythm.
+pub(in crate::shell) const SIDEBAR_SECTION_GAP: f32 = 4.0;
+pub(in crate::shell) const SIDEBAR_DISCLOSURE_HEADER_HEIGHT: f32 = 30.0;
 pub(in crate::shell) const SIDEBAR_DISCLOSURE_BODY_INSET: f32 = 4.0;
 pub(in crate::shell) const SIDEBAR_DISCLOSURE_SECTION_HEIGHT: f32 =
     SIDEBAR_SECTION_GAP + SIDEBAR_DISCLOSURE_HEADER_HEIGHT;
 pub(in crate::shell) const SIDEBAR_DISCLOSURE_TWEEN_GRACE: std::time::Duration =
     std::time::Duration::from_millis(120);
 
-
 /// Promote the user's ordered pins above the untouched activity projection.
 /// Every unpinned id keeps exactly the relative order supplied by recency.
-pub(in crate::shell) fn project_pinned_first(recency_ids: &[String], pinned_ids: &[String]) -> Vec<String> {
+pub(in crate::shell) fn project_pinned_first(
+    recency_ids: &[String],
+    pinned_ids: &[String],
+) -> Vec<String> {
     let active: HashSet<&str> = recency_ids.iter().map(String::as_str).collect();
     let pinned: HashSet<&str> = pinned_ids.iter().map(String::as_str).collect();
     let mut seen = HashSet::new();
@@ -112,7 +113,11 @@ pub(in crate::shell) fn retain_known_pins(
 }
 
 /// Convert viewport coordinates to the first pinned row, below its disclosure.
-pub(in crate::shell) fn pinned_session_pointer_y(pointer_y: f32, viewport_top: f32, scroll_top: f32) -> f32 {
+pub(in crate::shell) fn pinned_session_pointer_y(
+    pointer_y: f32,
+    viewport_top: f32,
+    scroll_top: f32,
+) -> f32 {
     pointer_y - viewport_top + scroll_top
         - super::SIDEBAR_LIST_PAD_TOP
         - SIDEBAR_DISCLOSURE_HEADER_HEIGHT
@@ -195,7 +200,12 @@ pub(in crate::shell) fn sidebar_session_drop_pins(
 }
 
 /// Preview geometry only: regular ordering is never persisted by a drag.
-pub(in crate::shell) fn sidebar_gap_offset(row: usize, source: Option<usize>, boundary: usize, height: f32) -> f32 {
+pub(in crate::shell) fn sidebar_gap_offset(
+    row: usize,
+    source: Option<usize>,
+    boundary: usize,
+    height: f32,
+) -> f32 {
     match source {
         Some(source) if row == source => 0.0,
         Some(source) if row < source && row >= boundary => height,
@@ -748,7 +758,11 @@ impl Shell {
         }
     }
 
-    pub(in crate::shell) fn start_pinned_session_autoscroll(&mut self, generation: u64, cx: &mut Context<Self>) {
+    pub(in crate::shell) fn start_pinned_session_autoscroll(
+        &mut self,
+        generation: u64,
+        cx: &mut Context<Self>,
+    ) {
         cx.spawn(async move |this, cx| {
             loop {
                 cx.background_executor()
@@ -769,7 +783,11 @@ impl Shell {
         .detach();
     }
 
-    pub(in crate::shell) fn pinned_session_autoscroll_tick(&mut self, generation: u64, cx: &mut Context<Self>) -> bool {
+    pub(in crate::shell) fn pinned_session_autoscroll_tick(
+        &mut self,
+        generation: u64,
+        cx: &mut Context<Self>,
+    ) -> bool {
         let Some(drag) = self.pinned_session_drag.as_ref() else {
             return false;
         };

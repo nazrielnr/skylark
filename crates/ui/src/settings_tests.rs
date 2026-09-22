@@ -482,6 +482,7 @@ fn round_trip() {
         window_geometry: None,
         sidebar_width: 300.0,
         sidebar_collapsed: true,
+        sidebar_layout_version: 1,
         sidebar_grouped: true,
         sidebar_organization: SidebarOrganization::ByDevice,
         sidebar_sort: SidebarSort::Created,
@@ -682,7 +683,11 @@ fn code_fence_generation_tracks_every_mode_transition_only() {
 #[test]
 fn sidebar_display_defaults_and_preferences_round_trip() {
     let settings: UiSettings = serde_json::from_str("{}").unwrap();
-    assert!(settings.sidebar_compact);
+    assert!(!settings.sidebar_compact);
+    assert_eq!(
+        settings.sidebar_organization,
+        SidebarOrganization::ByProject
+    );
     assert!(settings.sidebar_show_project_icon);
     assert!(settings.sidebar_show_project_label);
     let customized = UiSettings {

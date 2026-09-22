@@ -2,7 +2,7 @@
 //!
 //! Hosts the space-filter dropdown ("All projects", search input, space rows,
 //! and pinned "New project…" action) and the sidebar view options menu
-//! (organization, sorting, display toggles, compact mode).
+//! (organization, sorting, and display toggles).
 
 use super::*;
 use crate::composer::{ComposerInput, ComposerInputEvent};
@@ -13,8 +13,8 @@ use crate::shell::{SidebarOrganization, SidebarSort};
 use crate::theme::Theme;
 use chrono::Utc;
 use gpui::{
-    div, px, AnyElement, App, Context, Entity, FocusHandle, MouseButton, MouseDownEvent,
-    Render, SharedString, Subscription, Window,
+    AnyElement, App, Context, Entity, FocusHandle, MouseButton, MouseDownEvent, Render,
+    SharedString, Subscription, Window, div, px,
 };
 
 /// The space-filter dropdown, `Some` while open. The same searchable-menu
@@ -63,8 +63,6 @@ impl Render for SidebarViewOptionsTooltip {
 #[derive(Clone, Copy)]
 enum SidebarViewRow {
     ByProject,
-    Compact,
-    ShowProjectIcon,
     ShowProjectLabel,
     ByDevice,
     InOneList,
@@ -86,7 +84,7 @@ impl SidebarViewRow {
     }
 }
 
-const SIDEBAR_VIEW_ROWS: [SidebarViewRow; 11] = [
+const SIDEBAR_VIEW_ROWS: [SidebarViewRow; 9] = [
     SidebarViewRow::ByDevice,
     SidebarViewRow::ByProject,
     SidebarViewRow::InOneList,
@@ -95,9 +93,7 @@ const SIDEBAR_VIEW_ROWS: [SidebarViewRow; 11] = [
     SidebarViewRow::ShowBranch,
     SidebarViewRow::ShowPullRequest,
     SidebarViewRow::ShowHarness,
-    SidebarViewRow::ShowProjectIcon,
     SidebarViewRow::ShowProjectLabel,
-    SidebarViewRow::Compact,
 ];
 
 /// One activatable row of the open dropdown, in nav order. `AddSpace` names
@@ -353,12 +349,7 @@ impl Shell {
             SidebarViewRow::ShowProjectLabel => {
                 self.settings.sidebar_show_project_label = !self.settings.sidebar_show_project_label
             }
-            SidebarViewRow::Compact => {
-                self.settings.sidebar_compact = !self.settings.sidebar_compact
-            }
-            SidebarViewRow::ShowProjectIcon => {
-                self.settings.sidebar_show_project_icon = !self.settings.sidebar_show_project_icon
-            }
+
             SidebarViewRow::ByDevice => {
                 self.settings.sidebar_organization = SidebarOrganization::ByDevice
             }
@@ -441,9 +432,7 @@ impl Shell {
             "Branch",
             "Pull request",
             "Harness",
-            "Project icon",
             "Location",
-            "Compact mode",
         ];
         let icons = [
             icons::LAPTOP,
@@ -454,9 +443,7 @@ impl Shell {
             icons::GIT_BRANCH,
             icons::PULL_REQUEST,
             icons::BOT,
-            icons::PROJECT_DEFAULT,
             icons::FOLDER,
-            icons::LIST,
         ];
         let selected = [
             organization == SidebarOrganization::ByDevice,
@@ -467,9 +454,7 @@ impl Shell {
             show_branch,
             show_pr,
             show_harness,
-            self.settings.sidebar_show_project_icon,
             self.settings.sidebar_show_project_label,
-            self.settings.sidebar_compact,
         ];
         let mut rows: Vec<AnyElement> = SIDEBAR_VIEW_ROWS
             .iter()
@@ -496,25 +481,27 @@ impl Shell {
                         .text_color(theme.text_muted),
                 )
                 .child(div().flex_1().child(SharedString::from(labels[ix])))
-                .child(div().w(crate::typography::ui_rems(14.0)).flex_none().when(selected[ix], |el| {
-                    el.child(
-                        icon(icons::CHECK)
-                            .size(crate::typography::ui_rems(14.0))
-                            .text_color(theme.text_muted),
-                    )
-                }))
+                .child(div().w(crate::typography::ui_rems(14.0)).flex_none().when(
+                    selected[ix],
+                    |el| {
+                        el.child(
+                            icon(icons::CHECK)
+                                .size(crate::typography::ui_rems(14.0))
+                                .text_color(theme.text_muted),
+                        )
+                    },
+                ))
                 .into_any_element()
             })
             .collect();
-        // Compact mode is a layout choice, not a row-content toggle, so it
-        // gets its own section under Show.
-        let layout_rows = rows.split_off(10);
         let show_rows = rows.split_off(5);
         let sort_rows = rows.split_off(3);
         let organization_rows = rows;
 
         popover::popover_card(theme)
-            .w(px((self.settings.sidebar_width - 2.0 * Theme::SPACE_SM) * self.ui_scale()))
+            .w(px(
+                (self.settings.sidebar_width - 2.0 * Theme::SPACE_SM) * self.ui_scale()
+            ))
             .track_focus(&focus)
             .on_key_down(cx.listener(|this, event: &gpui::KeyDownEvent, _, cx| {
                 this.sidebar_view_menu_key(event, cx)
@@ -532,13 +519,22 @@ impl Shell {
             )
             .child(popover::menu_separator())
             .child(popover::menu_heading(theme, "Sort"))
-            .child(div().flex().flex_col().gap(crate::typography::ui_rems(2.0)).children(sort_rows))
+            .child(
+                div()
+                    .flex()
+                    .flex_col()
+                    .gap(crate::typography::ui_rems(2.0))
+                    .children(sort_rows),
+            )
             .child(popover::menu_separator())
             .child(popover::menu_heading(theme, "Show"))
-            .child(div().flex().flex_col().gap(crate::typography::ui_rems(2.0)).children(show_rows))
-            .child(popover::menu_separator())
-            .child(popover::menu_heading(theme, "Layout"))
-            .child(div().flex().flex_col().gap(crate::typography::ui_rems(2.0)).children(layout_rows))
+            .child(
+                div()
+                    .flex()
+                    .flex_col()
+                    .gap(crate::typography::ui_rems(2.0))
+                    .children(show_rows),
+            )
             .into_any_element()
     }
 
@@ -568,97 +564,68 @@ impl Shell {
         };
         let open = self.spaces_menu.is_open();
 
+        let is_all = filter.is_none();
+        let trigger_label = if is_all {
+            SharedString::from("Spaces")
+        } else {
+            label
+        };
+
         let trigger = div()
             .id("spaces-filter")
             .flex_1()
             .min_w_0()
-            .h(crate::typography::ui_rems(29.0))
+            .h(crate::typography::ui_rems(28.0))
             .flex()
             .flex_row()
             .items_center()
-            .gap(crate::typography::ui_rems(Theme::SPACE_SM))
-            .rounded(crate::typography::ui_rems(8.0))
-            .px(crate::typography::ui_rems(Theme::SPACE_SM))
-            .text_size(crate::typography::ui_rems(13.0))
-            .font_weight(gpui::FontWeight::MEDIUM)
-            .text_color(motion::hover_blend(
-                "spaces-filter",
-                theme.text.opacity(0.8),
-                theme.text,
-            ))
-            .bg(if open {
-                theme.glass_hover()
-            } else {
-                motion::hover_blend(
-                    "spaces-filter",
-                    theme.glass_hover().opacity(0.0),
-                    theme.glass_hover(),
-                )
-            })
-            .on_hover(motion::hover_listener("spaces-filter"))
+            .gap(crate::typography::ui_rems(6.0))
+            .rounded(crate::typography::ui_rems(6.0))
+            .px(crate::typography::ui_rems(4.0))
+            .text_size(crate::typography::ui_rems(if is_all { 13.0 } else { 12.0 }))
+            .font_weight(gpui::FontWeight::SEMIBOLD)
+            .text_color(theme.text.opacity(0.85))
+            .hover(|el| el.text_color(theme.text))
             .cursor_pointer()
             .on_mouse_down(
                 gpui::MouseButton::Left,
                 cx.listener(|this, _, _, _| this.spaces_menu.note_trigger_press()),
             )
             .on_click(cx.listener(|this, _, window, cx| {
-                // A press that found the menu open closes it (the card's
-                // mouse-down-out already began the close) — never reopen.
                 if this.spaces_menu.take_press_was_open() {
                     this.close_spaces_menu(cx);
                 } else {
                     this.open_spaces_menu(window, cx);
                 }
             }))
-            .child(
-                icon(icons::FOLDER)
-                    .size(crate::typography::ui_rems(16.0))
-                    .flex_none()
-                    .text_color(theme.text_muted),
-            )
-            // flex_1 pushes the caret to the trigger's right edge and gives
-            // long space names a bound to fade against; the "@ device"
-            // tag hugs the name inside it rather than sitting by the caret.
+            .when(!is_all, |el| {
+                el.child(
+                    icon(icons::FOLDER)
+                        .size(crate::typography::ui_rems(14.0))
+                        .flex_none()
+                        .text_color(theme.text_muted),
+                )
+            })
             .child(
                 div()
                     .flex_1()
                     .min_w_0()
-                    .flex()
-                    .flex_row()
-                    .items_center()
-                    .gap(crate::typography::ui_rems(6.0))
+                    .truncate()
                     .child(super::sidebar_faded_label(
                         "spaces-filter-label".into(),
                         false,
-                        label,
-                    ))
-                    .when_some(device_tag, |el, (tag, offline)| {
-                        el.child(super::sidebar_faded_label(
-                            "spaces-filter-device".into(),
-                            false,
-                            div()
-                                .text_size(crate::typography::ui_rems(10.0))
-                                .font_weight(gpui::FontWeight::NORMAL)
-                                .text_color(theme.text_muted.opacity(0.45))
-                                .child(tag),
-                        ))
-                        // Disconnected glyph, not the word (user request).
-                        .when(offline, |el| {
-                            el.child(
-                                icon(icons::WIFI_OFF)
-                                    .size(crate::typography::ui_rems(12.0))
-                                    .flex_none()
-                                    .text_color(theme.warning.opacity(0.8)),
-                            )
-                        })
-                    }),
+                        trigger_label,
+                    )),
             )
-            .child(
-                icon(icons::ALT_ARROW_DOWN)
-                    .size(crate::typography::ui_rems(14.0))
-                    .flex_none()
-                    .text_color(theme.text_muted.opacity(0.6)),
-            );
+            .when(!is_all, |el| {
+                el.child(
+                    icon(icons::ALT_ARROW_DOWN)
+                        .size(crate::typography::ui_rems(12.0))
+                        .flex_none()
+                        .text_color(theme.text_muted.opacity(0.6)),
+                )
+            });
+
         let trigger = if self.spaces_menu.get().is_some() {
             let closing = self.spaces_menu.closing_since();
             let menu = self.render_spaces_menu(theme, cx);
@@ -671,6 +638,78 @@ impl Shell {
             trigger
         };
 
+        let search_trigger = div()
+            .id("sidebar-spaces-search")
+            .role(gpui::Role::Button)
+            .aria_label("Search spaces")
+            .size(crate::typography::ui_rems(26.0))
+            .flex_none()
+            .flex()
+            .items_center()
+            .justify_center()
+            .rounded(crate::typography::ui_rems(6.0))
+            .cursor_pointer()
+            .text_color(theme.text_muted.opacity(0.8))
+            .hover(|el| el.bg(theme.glass_hover()).text_color(theme.text))
+            .on_click(cx.listener(|this, _, window, cx| {
+                this.open_spaces_menu(window, cx);
+            }))
+            .child(
+                icon(icons::MAGNIFER)
+                    .size(crate::typography::ui_rems(13.0))
+                    .text_color(theme.text_muted),
+            );
+
+        let add_or_clear_trigger = if filter.is_some() {
+            div()
+                .id("sidebar-spaces-clear")
+                .role(gpui::Role::Button)
+                .aria_label("Clear space filter")
+                .size(crate::typography::ui_rems(26.0))
+                .flex_none()
+                .flex()
+                .items_center()
+                .justify_center()
+                .rounded(crate::typography::ui_rems(6.0))
+                .cursor_pointer()
+                .text_color(theme.text_muted.opacity(0.8))
+                .hover(|el| el.bg(theme.glass_hover()).text_color(theme.text))
+                .on_click(cx.listener(|this, _, _, cx| {
+                    this.settings.space_filter = None;
+                    this.schedule_save(cx);
+                    cx.notify();
+                }))
+                .child(
+                    icon(icons::CLOSE)
+                        .size(crate::typography::ui_rems(12.0))
+                        .text_color(theme.text_muted),
+                )
+                .into_any_element()
+        } else {
+            div()
+                .id("sidebar-spaces-add")
+                .role(gpui::Role::Button)
+                .aria_label("New project")
+                .size(crate::typography::ui_rems(26.0))
+                .flex_none()
+                .flex()
+                .items_center()
+                .justify_center()
+                .rounded(crate::typography::ui_rems(6.0))
+                .cursor_pointer()
+                .text_color(theme.text_muted.opacity(0.8))
+                .hover(|el| el.bg(theme.glass_hover()).text_color(theme.text))
+                .on_click(cx.listener(|this, _, _, cx| {
+                    this.activate_spaces_menu_row(SpacesMenuRow::AddSpace, cx);
+                }))
+                .child(
+                    icon(icons::PLUS)
+                        .size(crate::typography::ui_rems(13.0))
+                        .text_color(theme.text_muted),
+                )
+                .into_any_element()
+        };
+
         let view_open = self.sidebar_view_menu.is_open();
         let view_focus = self.sidebar_view_trigger_focus.clone();
         let view_trigger = div()
@@ -679,23 +718,20 @@ impl Shell {
             .aria_label("Sidebar view options")
             .aria_expanded(view_open)
             .track_focus(&view_focus)
-            .size(crate::typography::ui_rems(29.0))
+            .size(crate::typography::ui_rems(26.0))
             .flex_none()
             .flex()
             .items_center()
             .justify_center()
-            .rounded(crate::typography::ui_rems(8.0))
-            .border_1()
-            .border_color(theme.border.opacity(0.0))
-            .focus_visible(|el| el.border_color(theme.border_strong))
+            .rounded(crate::typography::ui_rems(6.0))
             .cursor_pointer()
-            .text_color(theme.text_muted)
+            .text_color(theme.text_muted.opacity(0.8))
             .bg(if view_open {
                 theme.glass_hover()
             } else {
                 theme.glass_hover().opacity(0.0)
             })
-            .hover(|el| el.bg(theme.glass_hover()))
+            .hover(|el| el.bg(theme.glass_hover()).text_color(theme.text))
             .on_mouse_down(
                 gpui::MouseButton::Left,
                 cx.listener(|this, _, _, _| this.sidebar_view_menu.note_trigger_press()),
@@ -726,8 +762,8 @@ impl Shell {
             .tooltip_show_delay(std::time::Duration::from_millis(350))
             .child(
                 icon(icons::SORT)
-                    .size(crate::typography::ui_rems(16.0))
-                    .text_color(theme.text_muted.opacity(0.6)),
+                    .size(crate::typography::ui_rems(13.0))
+                    .text_color(theme.text_muted),
             );
         let view_trigger = if self.sidebar_view_menu.get().is_some() {
             let closing = self.sidebar_view_menu.closing_since();
@@ -746,12 +782,23 @@ impl Shell {
             .flex()
             .flex_row()
             .items_center()
+            .justify_between()
             .gap(crate::typography::ui_rems(4.0))
-            .px(crate::typography::ui_rems(Theme::SPACE_SM))
+            .px(crate::typography::ui_rems(Theme::SPACE_SM + 6.0))
             .pt(crate::typography::ui_rems(8.0))
             .pb(crate::typography::ui_rems(4.0))
             .child(trigger)
-            .child(view_trigger)
+            .child(
+                div()
+                    .flex_none()
+                    .flex()
+                    .flex_row()
+                    .items_center()
+                    .gap(crate::typography::ui_rems(2.0))
+                    .child(search_trigger)
+                    .child(view_trigger)
+                    .child(add_or_clear_trigger),
+            )
             .into_any_element()
     }
 
@@ -892,7 +939,9 @@ impl Shell {
         popover::popover_card(theme)
             // Match the trigger row as the sidebar is resized. Both live
             // inside the same SPACE_SM horizontal gutters.
-            .w(px((self.settings.sidebar_width - 2.0 * Theme::SPACE_SM) * self.ui_scale()))
+            .w(px(
+                (self.settings.sidebar_width - 2.0 * Theme::SPACE_SM) * self.ui_scale()
+            ))
             .track_focus(&focus)
             .on_key_down(cx.listener(|this, event: &gpui::KeyDownEvent, _, cx| {
                 this.spaces_menu_key(event, cx)

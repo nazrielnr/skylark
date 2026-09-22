@@ -2,13 +2,13 @@ use super::*;
 use crate::icons::{self, icon};
 use crate::motion;
 use crate::shell::{
-    format_time_ago, sidebar_row_height, SidebarOrganization, SidebarSessionDrag,
-    SidebarSessionDrop, SidebarSessionGap, SidebarSessionRows, SidebarSort, SIDEBAR_LIST_GAP,
+    SIDEBAR_LIST_GAP, SidebarOrganization, SidebarSessionDrag, SidebarSessionDrop,
+    SidebarSessionGap, SidebarSessionRows, SidebarSort, format_time_ago, sidebar_row_height,
 };
 use crate::theme::Theme;
 use crate::transcript;
 use chrono::Utc;
-use gpui::{div, px, AnyElement, Context, SharedString};
+use gpui::{AnyElement, Context, SharedString, div, px};
 use std::collections::HashSet;
 use zeron_proto::ChatIndicator;
 
@@ -64,28 +64,52 @@ pub(in crate::shell) fn sidebar_separator(theme: &Theme) -> gpui::Div {
     div().h(px(1.0)).bg(theme.border.opacity(0.6))
 }
 
-fn sidebar_disclosure_header(theme: &Theme, label: SharedString, chevron: AnyElement) -> gpui::Div {
+fn sidebar_disclosure_header(
+    theme: &Theme,
+    label: SharedString,
+    count: Option<usize>,
+    chevron: AnyElement,
+    group_icon: Option<&'static str>,
+) -> gpui::Div {
     div()
+        .w_full()
         .flex()
         .flex_row()
         .items_center()
         .gap(crate::typography::ui_rems(8.0))
         .h(crate::typography::ui_rems(SIDEBAR_DISCLOSURE_HEADER_HEIGHT))
-        .px(crate::typography::ui_rems(Theme::SPACE_SM))
+        .pl(crate::typography::ui_rems(Theme::SPACE_SM + 2.0))
+        .pr(crate::typography::ui_rems(Theme::SPACE_SM + 6.0))
         .cursor_pointer()
+        .when_some(group_icon, |el, icon_path| {
+            el.child(
+                icon(icon_path)
+                    .size(crate::typography::ui_rems(14.0))
+                    .flex_none()
+                    .text_color(theme.text_muted.opacity(0.6)),
+            )
+        })
         .child(super::sidebar_faded_label(
             "sidebar-disclosure-label".into(),
             false,
             div()
-                .text_size(crate::typography::ui_rems(12.0))
+                .text_size(crate::typography::ui_rems(13.0))
                 .font_weight(gpui::FontWeight::MEDIUM)
                 .text_color(theme.text_muted.opacity(0.5))
                 .child(label),
         ))
         .child(div().flex_1())
+        .when_some(count, |el, count| {
+            el.child(
+                div()
+                    .flex_none()
+                    .text_size(crate::typography::ui_rems(11.0))
+                    .text_color(theme.text_muted.opacity(0.45))
+                    .child(SharedString::from(count.to_string())),
+            )
+        })
         .child(chevron)
 }
-
 
 pub(in crate::shell) fn status_dot_color(status: ChatIndicator, theme: &Theme) -> gpui::Hsla {
     match status {
@@ -381,6 +405,12 @@ impl Shell {
                 .copied()
                 .unwrap_or(usize::MAX)
         });
+        // One selected space already scopes the list. Avoid nested group cards.
+        if filter.is_some() {
+            for row in &mut rows {
+                row.group = None;
+            }
+        }
         let active: HashSet<&str> = base_ids.iter().map(String::as_str).collect();
         let pinned_count = pinned_order
             .iter()
@@ -393,7 +423,7 @@ impl Shell {
             .iter()
             .map(|row| {
                 sidebar_row_height(
-                    self.settings.sidebar_compact,
+                    false,
                     self.settings.sidebar_show_project_label,
                     row.branch.is_some(),
                     row.change_request.is_some(),
@@ -451,7 +481,7 @@ impl Shell {
                 };
                 drag.source_index = index;
                 drag.row_height = sidebar_row_height(
-                    self.settings.sidebar_compact,
+                    false,
                     self.settings.sidebar_show_project_label,
                     rows[index].branch.is_some(),
                     rows[index].change_request.is_some(),
@@ -560,7 +590,7 @@ impl Shell {
                     .then(|| chat.config.as_ref().map(|c| c.harness))
                     .flatten();
                 let height = sidebar_row_height(
-                    self.settings.sidebar_compact,
+                    false,
                     self.settings.sidebar_show_project_label,
                     branch.is_some(),
                     change_request.is_some(),
@@ -705,8 +735,12 @@ impl Shell {
                             extra - SIDEBAR_LIST_GAP,
                             div()
                                 .flex_none()
-                                .h(crate::typography::ui_rems((extra - SIDEBAR_LIST_GAP).max(0.0)))
-                                .mb(crate::typography::ui_rems((extra - SIDEBAR_LIST_GAP).min(0.0)))
+                                .h(crate::typography::ui_rems(
+                                    (extra - SIDEBAR_LIST_GAP).max(0.0),
+                                ))
+                                .mb(crate::typography::ui_rems(
+                                    (extra - SIDEBAR_LIST_GAP).min(0.0),
+                                ))
                                 .into_any_element(),
                         ));
                     }
@@ -724,6 +758,7 @@ impl Shell {
             let row_count = rendered_rows.len();
             let extra_gap = self.sidebar_transfer_extra_gap(&drag_group);
             let body_height = SIDEBAR_DISCLOSURE_BODY_INSET
+                + Theme::SPACE_SM
                 + extra_gap
                 + rendered_rows
                     .iter()
@@ -734,41 +769,54 @@ impl Shell {
                 .w_full()
                 .flex()
                 .flex_col()
+                .px(crate::typography::ui_rems(Theme::SPACE_SM))
                 .pt(crate::typography::ui_rems(SIDEBAR_DISCLOSURE_BODY_INSET))
+                .pb(crate::typography::ui_rems(Theme::SPACE_SM))
                 .gap(crate::typography::ui_rems(SIDEBAR_LIST_GAP))
                 .children(rendered_rows.into_iter().map(|(_, _, row)| row))
                 .when(extra_gap > 0.0, |el| {
                     el.child(
                         div()
                             .flex_none()
-                            .h(crate::typography::ui_rems((extra_gap - SIDEBAR_LIST_GAP).max(0.0)))
-                            .mb(crate::typography::ui_rems((extra_gap - SIDEBAR_LIST_GAP).min(0.0))),
+                            .h(crate::typography::ui_rems(
+                                (extra_gap - SIDEBAR_LIST_GAP).max(0.0),
+                            ))
+                            .mb(crate::typography::ui_rems(
+                                (extra_gap - SIDEBAR_LIST_GAP).min(0.0),
+                            )),
                     )
                 });
-            let visible_label: SharedString = if collapsed {
-                format!("{label} ({row_count})").into()
-            } else {
-                label.into()
-            };
+            let visible_label: SharedString = label.into();
             let chevron = self.sidebar_disclosure_chevron(&motion_key, !collapsed, theme);
             let toggle_key = collapse_key.clone();
             let toggle_motion_key = motion_key.clone();
-            let header = sidebar_disclosure_header(theme, visible_label, chevron)
-                .id(SharedString::from(format!("sidebar-group-{collapse_key}")))
-                .on_click(cx.listener(move |this, _, _, cx| {
-                    let was_open = !this.sidebar_collapsed_groups.contains(&toggle_key);
-                    this.begin_sidebar_disclosure_motion(
-                        &toggle_motion_key,
-                        if was_open { body_height } else { 0.0 },
-                        if was_open { 0.0 } else { body_height },
-                    );
-                    if was_open {
-                        this.sidebar_collapsed_groups.insert(toggle_key.clone());
-                    } else {
-                        this.sidebar_collapsed_groups.remove(&toggle_key);
-                    }
-                    cx.notify();
-                }));
+            let group_icon = match self.settings.sidebar_organization {
+                SidebarOrganization::ByProject => Some(icons::FOLDER),
+                SidebarOrganization::ByDevice => Some(icons::MONITOR),
+                SidebarOrganization::InOneList => None,
+            };
+            let header = sidebar_disclosure_header(
+                theme,
+                visible_label,
+                Some(row_count),
+                chevron,
+                group_icon,
+            )
+            .id(SharedString::from(format!("sidebar-group-{collapse_key}")))
+            .on_click(cx.listener(move |this, _, _, cx| {
+                let was_open = !this.sidebar_collapsed_groups.contains(&toggle_key);
+                this.begin_sidebar_disclosure_motion(
+                    &toggle_motion_key,
+                    if was_open { body_height } else { 0.0 },
+                    if was_open { 0.0 } else { body_height },
+                );
+                if was_open {
+                    this.sidebar_collapsed_groups.insert(toggle_key.clone());
+                } else {
+                    this.sidebar_collapsed_groups.remove(&toggle_key);
+                }
+                cx.notify();
+            }));
             let body = self.render_sidebar_disclosure_body(
                 &motion_key,
                 !collapsed,
@@ -782,8 +830,19 @@ impl Shell {
                 .flex()
                 .flex_col()
                 .pt(crate::typography::ui_rems(SIDEBAR_SECTION_GAP))
-                .child(header)
-                .child(body)
+                .child(
+                    div()
+                        .w_full()
+                        .flex()
+                        .flex_col()
+                        .border_1()
+                        .border_color(theme.border)
+                        .bg(theme.surface_card)
+                        .rounded(crate::typography::ui_rems(10.0))
+                        .overflow_hidden()
+                        .child(header)
+                        .child(body),
+                )
                 .into_any_element();
             rendered.push((format!("g:{collapse_key}"), height, element));
         }
@@ -803,13 +862,9 @@ impl Shell {
         cx: &mut Context<Self>,
     ) -> AnyElement {
         let open = self.pinned_open;
-        let label = if open {
-            "Pinned".into()
-        } else {
-            format!("Pinned ({})", items.len()).into()
-        };
+        let label = "Pinned".into();
         let chevron = self.sidebar_disclosure_chevron("pinned", open, theme);
-        let header = sidebar_disclosure_header(theme, label, chevron)
+        let header = sidebar_disclosure_header(theme, label, Some(items.len()), chevron, None)
             .id("pinned-toggle")
             .debug_selector(|| "pinned-toggle".into())
             .on_drag_move::<SidebarSessionDrag>(cx.listener(
@@ -883,13 +938,9 @@ impl Shell {
             return content;
         }
         let open = self.sessions_open;
-        let label = if open {
-            "Sessions".into()
-        } else {
-            format!("Sessions ({count})").into()
-        };
+        let label = "Sessions".into();
         let chevron = self.sidebar_disclosure_chevron("sessions", open, theme);
-        let header = sidebar_disclosure_header(theme, label, chevron)
+        let header = sidebar_disclosure_header(theme, label, Some(count), chevron, None)
             .id("sessions-toggle")
             .debug_selector(|| "sessions-toggle".into())
             .on_drag_move::<SidebarSessionDrag>(cx.listener(
@@ -989,20 +1040,14 @@ impl Shell {
         let shown = self.archived_shown.max(INITIAL);
         let visible_count = total.min(shown);
         let has_more = total > shown;
-        // "Show more" matches the row slot: compact rows are 29px, so the
-        // button shrinks with them instead of towering over the list.
-        let more_height = if self.settings.sidebar_compact {
-            super::sidebar_row_height(true, true, false, false)
-        } else {
-            36.0
-        };
+        let more_height = 36.0;
         let body_height = SIDEBAR_DISCLOSURE_BODY_INSET
             + rows
                 .iter()
                 .take(shown)
                 .map(|row| {
                     sidebar_row_height(
-                        self.settings.sidebar_compact,
+                        false,
                         self.settings.sidebar_show_project_label,
                         row.branch.is_some(),
                         row.change_request.is_some(),
@@ -1017,13 +1062,9 @@ impl Shell {
             };
         // Match Pinned: a muted label with a right-aligned disclosure chevron.
         // The count only shows while collapsed.
-        let label: SharedString = if open {
-            "Archived".into()
-        } else {
-            format!("Archived ({total})").into()
-        };
+        let label: SharedString = "Archived".into();
         let chevron = self.sidebar_disclosure_chevron("archived", open, theme);
-        let header = sidebar_disclosure_header(theme, label, chevron)
+        let header = sidebar_disclosure_header(theme, label, Some(total), chevron, None)
             .id("archived-toggle")
             .on_click(cx.listener(move |this, _, _, cx| {
                 let was_open = this.archived_open;
@@ -1116,5 +1157,4 @@ impl Shell {
         let section = section.child(body);
         Some(section.into_any_element())
     }
-
 }

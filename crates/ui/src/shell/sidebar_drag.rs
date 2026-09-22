@@ -1,8 +1,8 @@
 //! Drag-and-drop state, animations, and render container for the sidebar.
 
 use gpui::{
-    div, prelude::*, AnyElement, Context, Empty, IntoElement, Pixels, Point, Render,
-    Subscription, Window,
+    AnyElement, Context, Empty, IntoElement, Pixels, Point, Render, Subscription, Window, div,
+    prelude::*,
 };
 
 use crate::motion::{self, TAB_SLIDE};

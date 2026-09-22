@@ -512,9 +512,9 @@ fn flush_latest(cx: &mut App) {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub enum SidebarOrganization {
+    #[default]
     ByProject,
     ByDevice,
-    #[default]
     InOneList,
 }
 
@@ -612,6 +612,9 @@ pub struct UiSettings {
     pub composer_send_behavior: ComposerSendBehavior,
     pub sidebar_width: f32,
     pub sidebar_collapsed: bool,
+    /// Persisted schema marker for sidebar information hierarchy.
+    #[serde(default)]
+    sidebar_layout_version: u8,
     /// Legacy: the grouped-by-project toggle predates spaces (which group by
     /// folder inherently). Kept for file compatibility; no longer read.
     pub sidebar_grouped: bool,
@@ -622,6 +625,8 @@ pub struct UiSettings {
     /// Optional harness branding and repository metadata shown below each
     /// session title.
     pub sidebar_show_project_label: bool,
+    /// Legacy persisted preference. Compact layout is no longer rendered.
+    #[serde(default)]
     pub sidebar_compact: bool,
     pub sidebar_show_project_icon: bool,
     pub sidebar_show_harness: bool,
@@ -755,11 +760,12 @@ impl Default for UiSettings {
             window_geometry: None,
             sidebar_width: SIDEBAR_DEFAULT,
             sidebar_collapsed: false,
+            sidebar_layout_version: 1,
             sidebar_grouped: false,
-            sidebar_organization: SidebarOrganization::InOneList,
+            sidebar_organization: SidebarOrganization::ByProject,
             sidebar_sort: SidebarSort::LastUpdated,
             sidebar_show_project_label: true,
-            sidebar_compact: true,
+            sidebar_compact: false,
             sidebar_show_project_icon: true,
             sidebar_show_harness: true,
             sidebar_show_branch: true,
@@ -986,6 +992,11 @@ impl UiSettings {
     }
 
     fn migrated(mut self) -> Self {
+        if self.sidebar_layout_version < 1 {
+            self.sidebar_organization = SidebarOrganization::ByProject;
+            self.sidebar_compact = false;
+            self.sidebar_layout_version = 1;
+        }
         if self.accent == zeron_theme::AccentSelection::ThemeDefault
             && let Some(accent) = self.legacy_accent_color.take()
         {

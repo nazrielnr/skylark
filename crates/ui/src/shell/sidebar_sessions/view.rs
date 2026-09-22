@@ -3,9 +3,8 @@
 use super::*;
 
 impl Shell {
-    /// One session row: context + status on line one, harness + title on line
-    /// two, and source metadata below. Working uses the live thread glyph in
-    /// the status corner. Click selects; right-click opens the context menu.
+    /// One session row: title plus status glyph on line one; harness, status or
+    /// time, and source metadata on line two. Compact keeps one-line layout.
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn render_chat_row(
         &self,
@@ -43,7 +42,8 @@ impl Shell {
         } else {
             format!("chat-{id}")
         };
-        let compact = search_query.is_none() && self.settings.sidebar_compact;
+        // Compact layout retired; existing persisted preferences are ignored.
+        let compact = false;
         let show_label = search_query.is_some() || self.settings.sidebar_show_project_label;
         let remote = self
             .state
@@ -54,17 +54,12 @@ impl Shell {
             .is_some_and(|chat| {
                 self.state.read(cx).local_device_id.as_deref() != Some(chat.device_id.as_str())
             });
-        let project_icon = (search_query.is_none() && self.settings.sidebar_show_project_icon)
-            .then(|| self.render_project_icon(&id, SIDEBAR_ACTIVE_HARNESS_ICON_SIZE, selected, cx));
-        let corner_hovered = !preview && self.chat_status_hover.as_deref() == Some(row_id.as_str());
+
+        // Archive stays in the context menu; row hover must not replace status
+        // metadata with an action.
+        let corner_hovered = false;
         let archived_muted = archived && search_query.is_none() && !selected && !corner_hovered;
-        let project_icon = project_icon.map(|icon| {
-            div()
-                .flex_none()
-                .opacity(if archived_muted { 0.4 } else { 1.0 })
-                .child(icon)
-                .into_any_element()
-        });
+
         let content_id = id.clone();
         // Send-truth overrides: a send unadopted past the grace window is
         // FAILED (explicit, with the transcript's retry affordance); a send
@@ -98,7 +93,7 @@ impl Shell {
                 zeron_proto::ChatIndicator::Idle => None,
             }
         };
-        let shows_metadata = branch.is_some() || change_request.is_some();
+
         let queued = queued && !undelivered;
         let working = status == zeron_proto::ChatIndicator::Working && !queued && !undelivered;
         let compact_status = compact.then(|| {
@@ -215,54 +210,28 @@ impl Shell {
                 div().into_any_element()
             }
         } else {
+            // Line one is glyph-only. Line two carries status text or time.
             match status_label {
-                Some(label) => {
-                    // Glyph slot: Working wears the preset's animated pixel
-                    // glyph beside its label, Done wears the check, and the
-                    // remaining statuses use a compact dot.
-                    let glyph: AnyElement = if status == zeron_proto::ChatIndicator::Completed {
-                        icon(icons::CHECK)
-                            .size(crate::typography::ui_rems(11.0))
-                            .flex_none()
-                            .text_color(status_color)
-                            .into_any_element()
-                    } else if working {
-                        loaders::mini_glyph_spinner(
-                            format!("{row_id}-working"),
-                            2.0,
-                            theme.glyph,
-                            self.sidebar_pane.entity_id(),
-                            cx,
-                        )
-                        .into_any_element()
-                    } else {
-                        div()
-                            .size(crate::typography::ui_rems(6.0))
-                            .flex_none()
-                            .rounded_full()
-                            .bg(status_color)
-                            .into_any_element()
-                    };
-                    div()
-                        .flex()
-                        .flex_row()
-                        .items_center()
-                        .gap(crate::typography::ui_rems(4.0))
-                        .child(glyph)
-                        .child(
-                            div()
-                                .text_size(crate::typography::ui_rems(10.0))
-                                .font_weight(gpui::FontWeight::MEDIUM)
-                                .text_color(status_color)
-                                .child(SharedString::from(label)),
-                        )
-                        .into_any_element()
-                }
-                None => div()
-                    .text_size(crate::typography::ui_rems(10.0))
-                    .font_weight(gpui::FontWeight::MEDIUM)
-                    .child(time_ago.clone())
+                Some(_) if status == zeron_proto::ChatIndicator::Completed => icon(icons::CHECK)
+                    .size(crate::typography::ui_rems(11.0))
+                    .flex_none()
+                    .text_color(status_color)
                     .into_any_element(),
+                Some(_) if working => loaders::mini_glyph_spinner(
+                    format!("{row_id}-working"),
+                    2.0,
+                    theme.glyph,
+                    self.sidebar_pane.entity_id(),
+                    cx,
+                )
+                .into_any_element(),
+                Some(_) => div()
+                    .size(crate::typography::ui_rems(6.0))
+                    .flex_none()
+                    .rounded_full()
+                    .bg(status_color)
+                    .into_any_element(),
+                None => div().into_any_element(),
             }
         };
         // One stable wrapper across both states (identity keeps the hover
@@ -287,7 +256,9 @@ impl Shell {
                         status_label.unwrap_or("Idle")
                     }
                 })
-                .when(compact, |el| el.w(crate::typography::ui_rems(20.0)).justify_center())
+                .when(compact, |el| {
+                    el.w(crate::typography::ui_rems(20.0)).justify_center()
+                })
                 .flex_none()
                 // Pin the corner to line 1's text height so the archive pill
                 // (taller, padded) overflows vertically instead of growing the
@@ -362,7 +333,7 @@ impl Shell {
             } else {
                 8.0
             }))
-            .px(crate::typography::ui_rems(Theme::SPACE_SM))
+            .px(crate::typography::ui_rems(Theme::SPACE_SM + 2.0))
             .py(crate::typography::ui_rems(6.0))
             .text_color(motion::hover_blend(&fade_key, rest_text, text))
             .bg(motion::hover_blend(&fade_key, rest_bg, hover_bg))
@@ -374,18 +345,8 @@ impl Shell {
             .when(!preview, |el| {
                 el.on_hover({
                     let fade_hover = motion::hover_listener(fade_key.clone());
-                    let hover_id = row_id.clone();
-                    cx.listener(move |this, hovered: &bool, window, cx| {
+                    cx.listener(move |_, hovered: &bool, window, cx| {
                         fade_hover(hovered, window, cx);
-                        if *hovered {
-                            if this.chat_status_hover.as_deref() != Some(hover_id.as_str()) {
-                                this.chat_status_hover = Some(hover_id.clone());
-                                cx.notify();
-                            }
-                        } else if this.chat_status_hover.as_deref() == Some(hover_id.as_str()) {
-                            this.chat_status_hover = None;
-                            cx.notify();
-                        }
                     })
                 })
                 .cursor_pointer()
@@ -414,8 +375,8 @@ impl Shell {
                     cx.new(|_| DragGhost)
                 })
             })
-            // Line 1: "project @ device", status word / time-ago right.
-            .when(!compact && show_label, |el| {
+            // Line 1: title only, with the activity glyph or archive action.
+            .when(!compact, |el| {
                 el.child(
                     div()
                         .w_full()
@@ -424,15 +385,23 @@ impl Shell {
                         .items_center()
                         .gap(crate::typography::ui_rems(Theme::SPACE_SM))
                         .child(sidebar_faded_label(
-                            format!("chat-device-{content_id}").into(),
+                            format!("chat-title-{content_id}").into(),
                             true,
                             div()
-                                .text_size(crate::typography::ui_rems(11.0))
-                                .line_height(crate::typography::ui_rems(14.0))
-                                .text_color(subline)
-                                .child(popover::search_highlight(space_name, search_query, theme)),
+                                .text_size(crate::typography::ui_rems(13.0))
+                                .line_height(crate::typography::ui_rems(17.0))
+                                .child(popover::search_highlight(
+                                    title.clone(),
+                                    search_query,
+                                    theme,
+                                )),
                         ))
-                        .child(div().text_color(subline).children(corner.take())),
+                        .child(
+                            div()
+                                .flex_none()
+                                .text_color(subline)
+                                .children(corner.take()),
+                        ),
                 )
             })
             // Line 2: harness identity belongs directly with the title,
@@ -454,7 +423,9 @@ impl Shell {
                         |el, (path, tint)| {
                             el.child(
                                 icon(path)
-                                    .size(crate::typography::ui_rems(SIDEBAR_ACTIVE_HARNESS_ICON_SIZE))
+                                    .size(crate::typography::ui_rems(
+                                        SIDEBAR_ACTIVE_HARNESS_ICON_SIZE,
+                                    ))
                                     .flex_none()
                                     .text_color(
                                         tint.unwrap_or(subline).opacity(if archived_muted {
@@ -466,38 +437,122 @@ impl Shell {
                             )
                         },
                     )
-                    .children(project_icon)
-                    .child(sidebar_faded_label(
-                        format!("chat-title-{content_id}").into(),
-                        true,
-                        div()
-                            .text_size(crate::typography::ui_rems(13.0))
-                            .line_height(crate::typography::ui_rems(17.0))
-                            .child(popover::search_highlight(title, search_query, theme)),
-                    ))
-                    .when(!compact && !show_label && remote, |el| {
-                        el.child(
-                            icon(icons::REMOTE_SERVER)
-                                .size(crate::typography::ui_rems(SIDEBAR_ACTIVE_HARNESS_ICON_SIZE))
-                                .flex_none()
-                                .text_color(subline),
-                        )
+                    .when(compact, |el| {
+                        el.child(sidebar_faded_label(
+                            format!("chat-title-{content_id}").into(),
+                            true,
+                            div()
+                                .text_size(crate::typography::ui_rems(13.0))
+                                .line_height(crate::typography::ui_rems(17.0))
+                                .child(popover::search_highlight(
+                                    title.clone(),
+                                    search_query,
+                                    theme,
+                                )),
+                        ))
                     })
-                    .when(
-                        if compact {
-                            remote || corner_hovered
-                        } else {
-                            !show_label
-                        },
-                        |el| {
+                    .when(!compact, |el| {
+                        el.child(match status_label {
+                            Some(label) => div()
+                                .flex_none()
+                                .text_size(crate::typography::ui_rems(11.0))
+                                .font_weight(gpui::FontWeight::MEDIUM)
+                                .text_color(subline)
+                                .child(SharedString::from(if working {
+                                    "Working…"
+                                } else {
+                                    label
+                                }))
+                                .into_any_element(),
+                            None => div()
+                                .flex_none()
+                                .text_size(crate::typography::ui_rems(11.0))
+                                .text_color(subline)
+                                .child(time_ago.clone())
+                                .into_any_element(),
+                        })
+                        .when(branch.is_some() || show_label, |el| {
                             el.child(
                                 div()
                                     .flex_none()
-                                    .text_color(subline)
-                                    .children(corner.take()),
+                                    .text_size(crate::typography::ui_rems(11.0))
+                                    .text_color(subline.opacity(0.7))
+                                    .child("•"),
                             )
-                        },
-                    )
+                        })
+                        .when_some(branch, |el, branch| {
+                            el.child(
+                                icon(icons::GIT_BRANCH)
+                                    .size(crate::typography::ui_rems(11.0))
+                                    .flex_none()
+                                    .text_color(subline),
+                            )
+                            .child(sidebar_faded_label(
+                                format!("chat-branch-{content_id}").into(),
+                                false,
+                                div()
+                                    .text_size(crate::typography::ui_rems(11.0))
+                                    .line_height(crate::typography::ui_rems(14.0))
+                                    .text_color(subline)
+                                    .child(popover::search_highlight(branch, search_query, theme)),
+                            ))
+                        })
+                        .when(show_label, |el| {
+                            el.child(sidebar_faded_label(
+                                format!("chat-device-{content_id}").into(),
+                                false,
+                                div()
+                                    .text_size(crate::typography::ui_rems(11.0))
+                                    .line_height(crate::typography::ui_rems(14.0))
+                                    .text_color(subline)
+                                    .child(popover::search_highlight(
+                                        space_name,
+                                        search_query,
+                                        theme,
+                                    )),
+                            ))
+                        })
+                        .when(remote, |el| {
+                            el.child(
+                                icon(icons::REMOTE_SERVER)
+                                    .size(crate::typography::ui_rems(
+                                        SIDEBAR_ACTIVE_HARNESS_ICON_SIZE,
+                                    ))
+                                    .flex_none()
+                                    .text_color(subline),
+                            )
+                        })
+                        .child(div().flex_1().min_w_0())
+                        .when_some(
+                            change_request.clone(),
+                            |el, summary| {
+                                el.child(if preview {
+                                    crate::change_requests::pull_request_badge_preview(
+                                        format!("{row_id}-pr").into(),
+                                        summary,
+                                        crate::change_requests::ChangeRequestBadgeSurface::Sidebar,
+                                        theme,
+                                    )
+                                } else {
+                                    crate::change_requests::pull_request_badge_with_query(
+                                        format!("{row_id}-pr").into(),
+                                        summary,
+                                        crate::change_requests::ChangeRequestBadgeSurface::Sidebar,
+                                        search_query,
+                                        theme,
+                                    )
+                                })
+                            },
+                        )
+                    })
+                    .when(compact && (remote || corner_hovered), |el| {
+                        el.child(
+                            div()
+                                .flex_none()
+                                .text_color(subline)
+                                .children(corner.take()),
+                        )
+                    })
                     .when(compact, |el| {
                         el.children(change_request.clone().map(|summary| {
                             if preview {
@@ -533,56 +588,6 @@ impl Shell {
                         )
                     }),
             )
-            // Line 3 is structural, not reserved whitespace: compact states
-            // omit it completely when both Branch and Pull request are hidden.
-            .when(!compact && shows_metadata, |row| {
-                row.child(
-                    div()
-                        .w_full()
-                        .flex()
-                        .flex_row()
-                        .items_center()
-                        .gap(crate::typography::ui_rems(4.0))
-                        .when_some(branch, |el, branch| {
-                            el.child(
-                                icon(icons::GIT_BRANCH)
-                                    .size(crate::typography::ui_rems(11.0))
-                                    .flex_none()
-                                    .text_color(subline),
-                            )
-                            .child(sidebar_faded_label(
-                                format!("chat-branch-{content_id}").into(),
-                                false,
-                                div()
-                                    .text_size(crate::typography::ui_rems(11.0))
-                                    .line_height(crate::typography::ui_rems(14.0))
-                                    .text_color(subline)
-                                    .child(popover::search_highlight(branch, search_query, theme)),
-                            ))
-                        })
-                        // Stable invisible spring keeps the optional PR badge
-                        // pinned right without changing no-PR paint.
-                        .child(div().flex_1().min_w_0())
-                        .when_some(change_request, |el, summary| {
-                            el.child(if preview {
-                                crate::change_requests::pull_request_badge_preview(
-                                    format!("{row_id}-pr").into(),
-                                    summary,
-                                    crate::change_requests::ChangeRequestBadgeSurface::Sidebar,
-                                    theme,
-                                )
-                            } else {
-                                crate::change_requests::pull_request_badge_with_query(
-                                    format!("{row_id}-pr").into(),
-                                    summary,
-                                    crate::change_requests::ChangeRequestBadgeSurface::Sidebar,
-                                    search_query,
-                                    theme,
-                                )
-                            })
-                        }),
-                )
-            })
             .into_any_element()
     }
 
@@ -613,7 +618,8 @@ impl Shell {
                     {
                         return;
                     }
-                    let rel_y = (f32::from(event.event.position.y) - f32::from(event.bounds.top())) / this.ui_scale();
+                    let rel_y = (f32::from(event.event.position.y) - f32::from(event.bounds.top()))
+                        / this.ui_scale();
                     if !payload.visible_ids.contains(&payload.chat_id) {
                         let top =
                             f32::from(event.bounds.bottom() - this.sidebar_scroll.bounds().top())
@@ -822,7 +828,11 @@ impl Shell {
                 order.push((
                     "sidebar-sessions-header".into(),
                     spaces::SIDEBAR_DISCLOSURE_HEADER_HEIGHT
-                        + if show_pinned_section { 12.0 } else { 0.0 }
+                        + if show_pinned_section {
+                            spaces::SIDEBAR_SECTION_GAP
+                        } else {
+                            0.0
+                        }
                         + if self.sessions_open {
                             spaces::SIDEBAR_DISCLOSURE_BODY_INSET - SIDEBAR_LIST_GAP
                         } else {
@@ -1155,6 +1165,33 @@ impl Shell {
             .flex_col()
             // (No titlebar strip: the unified window titlebar spans the whole
             // window above this column.)
+            .child(
+                div()
+                    .id("sidebar-new-session")
+                    .role(gpui::Role::Button)
+                    .aria_label("New session")
+                    .mx(crate::typography::ui_rems(Theme::SPACE_SM))
+                    .mt(crate::typography::ui_rems(6.0))
+                    .h(crate::typography::ui_rems(30.0))
+                    .flex()
+                    .flex_row()
+                    .items_center()
+                    .gap(crate::typography::ui_rems(8.0))
+                    .px(crate::typography::ui_rems(Theme::SPACE_SM))
+                    .rounded(crate::typography::ui_rems(8.0))
+                    .text_size(crate::typography::ui_rems(13.0))
+                    .font_weight(gpui::FontWeight::MEDIUM)
+                    .text_color(theme.text.opacity(0.85))
+                    .hover(|el| el.bg(theme.glass_hover()).text_color(theme.text))
+                    .cursor_pointer()
+                    .on_click(cx.listener(|this, _, _, cx| this.open_new_session(cx)))
+                    .child(
+                        icon(icons::PLUS)
+                            .size(crate::typography::ui_rems(14.0))
+                            .text_color(theme.text_muted),
+                    )
+                    .child("New session"),
+            )
             .child(filter_row)
             .child(sidebar_lists)
             // Global connection pill (durable-by-design UI truth): appears
@@ -1189,7 +1226,12 @@ impl Shell {
                         .child(notice),
                 )
             })
-            .child(div().p(crate::typography::ui_rems(Theme::SPACE_SM)).flex_none().child(user_menu))
+            .child(
+                div()
+                    .p(crate::typography::ui_rems(Theme::SPACE_SM))
+                    .flex_none()
+                    .child(user_menu),
+            )
             .into_any_element()
     }
 }

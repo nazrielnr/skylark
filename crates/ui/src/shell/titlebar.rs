@@ -583,18 +583,6 @@ impl Shell {
                         cx.listener(|this, _, _, cx| this.navigate_forward(cx)),
                     )),
             )
-            .children(show_plus.then(|| {
-                div()
-                    .flex_none()
-                    .ml(crate::typography::ui_rems(TITLEBAR_GROUP_GAP))
-                    .opacity(plus_alpha)
-                    .child(window_control_button(
-                        "titlebar-new-session",
-                        icons::PLUS,
-                        &theme,
-                        cx.listener(|this, _, _, cx| this.open_new_session(cx)),
-                    ))
-            }))
             .into_any_element()
     }
 

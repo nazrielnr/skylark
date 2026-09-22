@@ -82,12 +82,8 @@ pub(crate) fn chat_row_height(shows_branch: bool, shows_pull_request: bool) -> f
     }
 }
 
-pub(crate) fn sidebar_row_height(compact: bool, show_label: bool, branch: bool, pr: bool) -> f32 {
-    if compact {
-        29.0
-    } else {
-        chat_row_height(branch, pr) - if show_label { 0.0 } else { 16.0 }
-    }
+pub(crate) fn sidebar_row_height(_compact: bool, _show_label: bool, _branch: bool, _pr: bool) -> f32 {
+    48.0
 }
 
 /// Keep the fade short so only the last few glyphs recede. Tracking clipped
