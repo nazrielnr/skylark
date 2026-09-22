@@ -74,19 +74,31 @@ two layouts (bug 5), and a fresh editor tab measured `surface_width`
 from a stale initial value, so the "Loading file…" state rendered at
 full width until the file arrived.
 
-**Fix — a width tween.** The shell seeds a new editor tab with the width
-the tree already has (full pane when opening from the browser, the
-current sidebar width when switching from a file tab);
-`FilePreviewState::seed_sidebar_transition` starts a one-shot ease to the
-resting width (same 200 ms spec as the sidebar motion, cancel on drag).
-The first frame matches the previous layout exactly, the sidebar then
-slides right, and the file preview grows into the freed space — the
-"workspace bergeser smooth ke kanan, lalu muncul filenya" behavior.
-Seeding `surface_width` also fixes the wide/narrow branch on frame 1.
+**Fix — a width tween in both layout branches.** The shell seeds a new
+editor tab with the width the tree already has (full pane when opening
+from the browser, the current sidebar width when switching from a file
+tab); `FilePreviewState::seed_sidebar_transition` starts a one-shot ease
+toward the resting width (same 200 ms spec as the sidebar motion, cancel
+on drag). The first frame matches the previous layout exactly, the
+sidebar then slides right, and the file preview grows into the freed
+space — the "workspace bergeser smooth ke kanan, lalu muncul filenya"
+behavior. `tree_width_frame` takes the resting width as a parameter, so
+the tween runs in the wide AND the narrow layout branch.
 
-Known limitation: on narrow panes (< `WIDE_BREAKPOINT`, 680 px logical)
-the layout takes the fixed `narrow_tree_width` path and the tween is
-skipped.
+Two further overlap sources were removed with the same change:
+
+* `show_tree_sidebar` (the file-activation path) now SNAPS the sidebar
+  open instead of animating from 0 — on narrow panes the openness
+  animation used to run on every tab open, rendering the centered
+  loading state across the tree region for ~200 ms. Only the explicit
+  sidebar toggle animates.
+* Seeding `surface_width` fixes the wide/narrow branch on frame 1
+  (the measuring canvas only runs after the first paint).
+
+Geometry verification (`bounds preview-body` probe vs `tree-rows`):
+the overlap between the preview area and the tree region is 0 px on
+every frame of the transition; the preview grows 8→360 px while the
+tree eases from the pane's left edge to its sidebar position.
 
 ## Verification
 

@@ -184,12 +184,14 @@ impl FilePreviewState {
     }
 
     pub(crate) fn show_tree_sidebar(&mut self) {
-        let previous = self.tree_sidebar_visible();
+        // File activation (open/reveal) is immediate: an animating sidebar
+        // starts closed, which renders the loading state over the tree for
+        // the transition's duration (narrow panes especially, where the
+        // openness animation used to run on every tab open). Only the
+        // explicit toggle animates — see `toggle_tree_sidebar`.
         self.tree_sidebar_visible = true;
         self.tree_sidebar_dismissed = false;
-        if !previous {
-            self.tree_motion.animate_to(previous, true, Instant::now());
-        }
+        self.tree_motion.snap_open();
     }
 
     pub(crate) fn show_tree_sidebar_animated(&mut self) {
@@ -299,10 +301,11 @@ impl FilePreviewState {
         openness
     }
 
-    pub(crate) fn tree_width_frame(&self, window: &mut Window, cx: &App) -> f32 {
+    pub(crate) fn tree_width_frame(&self, resting: f32, window: &mut Window, cx: &App) -> f32 {
         // The opening transition eases the sidebar from the width the tree
         // had when the tab was created (full pane when it comes from the
-        // raw workspace browser) toward the resting width.
+        // raw workspace browser) toward the resting width — in BOTH layout
+        // branches, so narrow panes get the same continuous slide.
         if let Some((from, started)) = self.tree_width_tween {
             let total = Duration::from_millis(crate::motion::RESIZE.duration_ms)
                 .mul_f32(crate::motion::speed_scale());
@@ -312,18 +315,14 @@ impl FilePreviewState {
                 / total.as_secs_f32();
             if raw < 1.0 {
                 window.request_animation_frame();
-                return crate::motion::lerp(
-                    from,
-                    self.tree_width,
-                    crate::motion::RESIZE.progress(raw),
-                );
+                return crate::motion::lerp(from, resting, crate::motion::RESIZE.progress(raw));
             }
         }
         let Some(bounce) = self.tree_edge_bounce else {
-            return self.tree_width;
+            return resting;
         };
         if crate::motion::reduced_motion(cx) || !self.tree_sidebar_visible() {
-            return self.tree_width;
+            return resting;
         }
         let total = Duration::from_millis(crate::motion::RESIZE_EDGE_BOUNCE_MS)
             .mul_f32(crate::motion::speed_scale());
@@ -332,10 +331,10 @@ impl FilePreviewState {
             .as_secs_f32()
             / total.as_secs_f32();
         if raw >= 1.0 {
-            return self.tree_width;
+            return resting;
         }
         window.request_animation_frame();
-        self.tree_width + crate::motion::resize_bounce_offset(bounce.edge, raw)
+        resting + crate::motion::resize_bounce_offset(bounce.edge, raw)
     }
 
     pub(crate) fn tree_resize_active(&self) -> bool {

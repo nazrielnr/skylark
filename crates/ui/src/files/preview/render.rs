@@ -43,8 +43,10 @@ impl FilesSurface {
         div()
             .size_full()
             .min_w_0()
+            .relative()
             .flex()
             .flex_col()
+            .child(crate::ui_trace::bounds_probe("preview-body"))
             .when(lifecycle_pending, |element| {
                 element.child(
                     div()

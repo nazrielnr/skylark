@@ -318,11 +318,12 @@ impl Render for FilesSurface {
         let mut preview_split_right = None;
         let body = if split_editor {
             let wide = self.preview.is_wide();
-            let tree_width = if wide {
-                self.preview.tree_width_frame(window, cx)
-            } else {
-                self.preview.narrow_tree_width()
-            };
+            // The sidebar's resting width depends on the layout branch; the
+            // opening transition (seeded at tab creation) eases toward it in
+            // EITHER branch, so the tree slides aside continuously.
+            let tree_width =
+                self.preview
+                    .tree_width_frame(self.preview.resting_sidebar_width(), window, cx);
             let openness = self.preview.tree_sidebar_frame(window, cx);
             if wide && self.preview.tree_sidebar_visible() {
                 preview_split_right =

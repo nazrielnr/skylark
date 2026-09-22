@@ -110,6 +110,12 @@ struct TreeSidebarMotion {
 }
 
 impl TreeSidebarMotion {
+    /// Snap to fully open with no transition (file activation path).
+    fn snap_open(&mut self) {
+        self.target = Some(true);
+        self.started = None;
+    }
+
     fn sample(&mut self, visible: bool, now: Instant, reduced: bool) -> (f32, bool) {
         let end = f32::from(visible);
         let duration = crate::motion::RESIZE
