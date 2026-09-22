@@ -165,6 +165,10 @@ pub struct Transcript {
     /// Independent scroll positions for long tool/thought details. Keeping the
     /// handle outside render prevents remounts from racing the transcript list.
     pub(crate) tool_detail_scrolls: HashMap<SharedString, gpui::ScrollHandle>,
+    /// Follow newest line until user scrolls a detail upward.
+    pub(crate) tool_detail_follow: HashMap<SharedString, Rc<Cell<bool>>>,
+    /// Per-line fade state for streaming tool and reasoning details.
+    pub(crate) detail_veils: HashMap<SharedString, Rc<RefCell<RowVeil>>>,
     /// Expand/collapse state for user bubbles past [`USER_COLLAPSED_LINES`],
     /// keyed by row id. Render-local like `folds` — never part of the row
     /// fingerprint, so toggling one costs a repaint, not a rebuild.
@@ -434,6 +438,8 @@ impl Transcript {
             historical_markdown: HashMap::new(),
             tool_details: HashMap::new(),
             tool_detail_scrolls: HashMap::new(),
+            tool_detail_follow: HashMap::new(),
+            detail_veils: HashMap::new(),
             user_folds: HashMap::new(),
             user_heights: HashMap::new(),
             user_hold_task: None,

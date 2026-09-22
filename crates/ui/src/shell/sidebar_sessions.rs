@@ -82,8 +82,22 @@ pub(crate) fn chat_row_height(shows_branch: bool, shows_pull_request: bool) -> f
     }
 }
 
-pub(crate) fn sidebar_row_height(_compact: bool, _show_label: bool, _branch: bool, _pr: bool) -> f32 {
+pub(crate) fn sidebar_row_height(
+    _compact: bool,
+    _show_label: bool,
+    _branch: bool,
+    _pr: bool,
+) -> f32 {
     48.0
+}
+
+pub(crate) fn sidebar_session_location(project_path: Option<&str>, project_name: &str) -> String {
+    project_path
+        .map(|path| path.trim_end_matches(['/', '\\']))
+        .and_then(|path| path.rsplit(['/', '\\']).find(|part| !part.is_empty()))
+        .filter(|path| !path.trim().is_empty())
+        .unwrap_or(project_name)
+        .to_string()
 }
 
 /// Keep the fade short so only the last few glyphs recede. Tracking clipped
@@ -123,6 +137,19 @@ mod tests {
 
     fn keys(list: &[(&str, f32)]) -> Vec<(String, f32)> {
         list.iter().map(|(k, h)| (k.to_string(), *h)).collect()
+    }
+
+    #[test]
+    fn session_location_uses_initialized_folder_name() {
+        assert_eq!(
+            sidebar_session_location(Some("C:\\Users\\BiuBiu\\Documents\\tes"), "project"),
+            "tes"
+        );
+        assert_eq!(
+            sidebar_session_location(Some("/work/halo/"), "project"),
+            "halo"
+        );
+        assert_eq!(sidebar_session_location(None, "project"), "project");
     }
 
     #[test]

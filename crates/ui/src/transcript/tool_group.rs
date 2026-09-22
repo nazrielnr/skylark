@@ -290,33 +290,24 @@ impl Transcript {
             .child(
                 div()
                     // Keep the title adjacent to its disclosure affordance.
-                    .w(px(22.0))
-                    .h(px(18.0))
+                    .size(px(18.0))
                     .flex_none()
-                    .relative()
+                    .rounded(px(5.0))
+                    .bg(crate::theme::ink(0.06))
+                    .hover(|s| s.bg(crate::theme::ink(0.10)))
+                    .flex()
+                    .items_center()
+                    .justify_center()
                     .child(
-                        div()
-                            .absolute()
-                            .left(px(ACTIVITY_TRUNK_X - 9.0))
-                            .top(px(0.0))
-                            .size(px(18.0))
-                            .rounded(px(5.0))
-                            .bg(crate::theme::ink(0.06))
-                            .hover(|s| s.bg(crate::theme::ink(0.10)))
-                            .flex()
-                            .items_center()
-                            .justify_center()
-                            .child(
-                                crate::icons::icon(crate::icons::ALT_ARROW_DOWN)
-                                    .size(px(11.0))
-                                    .with_transformation(gpui::Transformation::rotate(
-                                        gpui::radians(
-                                            -std::f32::consts::FRAC_PI_2
-                                                * (1.0 - disclosure_progress),
-                                        ),
-                                    ))
-                                    .text_color(theme.text_muted),
-                            ),
+                        crate::icons::icon(crate::icons::ALT_ARROW_DOWN)
+                            .size(px(11.0))
+                            .with_transformation(gpui::Transformation::rotate(
+                                gpui::radians(
+                                    -std::f32::consts::FRAC_PI_2
+                                        * (1.0 - disclosure_progress),
+                                ),
+                            ))
+                            .text_color(theme.text_muted),
                     ),
             )
             .child({
@@ -516,21 +507,52 @@ impl Transcript {
                                 invocation,
                                 None,
                                 Some(&invocation_scroll),
+                                None,
+                                None,
                                 theme,
                             ));
                     }
                     if let Some(detail) = detail.as_deref() {
                         let detail_id = SharedString::from(format!("{key}-detail"));
-                        let detail_scroll = matches!(
+                        let scrollable = matches!(
                             detail,
                             ToolDetail::Thought { .. } | ToolDetail::Output { .. }
-                        )
-                        .then(|| {
+                        );
+                        let detail_scroll = scrollable.then(|| {
                             self.tool_detail_scrolls
                                 .entry(detail_id.clone())
                                 .or_default()
                                 .clone()
                         });
+                        let detail_follow = scrollable.then(|| {
+                            self.tool_detail_follow
+                                .entry(detail_id.clone())
+                                .or_insert_with(|| Rc::new(Cell::new(true)))
+                                .clone()
+                        });
+                        let detail_veil = if scrollable && !reduce_motion {
+                            let historical = self
+                                .tool_group_reveals
+                                .get(row_id)
+                                .and_then(|reveal| reveal.starts.get(ix))
+                                .copied()
+                                .flatten()
+                                .is_none();
+                            Some(
+                                self.detail_veils
+                                    .entry(detail_id.clone())
+                                    .or_insert_with(|| {
+                                        Rc::new(RefCell::new(if historical {
+                                            crate::markdown::veil::RowVeil::seeded()
+                                        } else {
+                                            crate::markdown::veil::RowVeil::default()
+                                        }))
+                                    })
+                                    .clone(),
+                            )
+                        } else {
+                            None
+                        };
                         panel = panel
                             .child(
                                 div()
@@ -543,8 +565,16 @@ impl Transcript {
                                 detail,
                                 detail_highlights[ix].clone(),
                                 detail_scroll.as_ref(),
+                                detail_follow.as_ref(),
+                                detail_veil.as_ref(),
                                 theme,
                             ));
+                        if let Some(veil) = detail_veil {
+                            veil.borrow_mut().finish_seeding();
+                            if veil.borrow().is_fading() {
+                                motion::pulse_lease(cx.entity_id(), cx);
+                            }
+                        }
                     }
                     if let Some(ChipAffordance { blob_ref, label }) = affordance {
                         let loading = matches!(

@@ -92,6 +92,8 @@ impl Transcript {
             self.tool_group_reveals.clear();
             self.tool_details.clear();
             self.tool_detail_scrolls.clear();
+            self.tool_detail_follow.clear();
+            self.detail_veils.clear();
             self.last_replay_baseline = None;
             self.historical_markdown.clear();
             self.user_folds.clear();

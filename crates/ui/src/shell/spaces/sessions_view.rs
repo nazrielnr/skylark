@@ -331,11 +331,10 @@ impl Shell {
             .device_name(&chat.device_id)
             .unwrap_or("Unknown device")
             .to_string();
-        let mut folder = project.clone();
-        // Unknown device â†’ no fragment, same as the archived list.
-        if state.device_name(&chat.device_id).is_some() {
-            folder = format!("{folder} @ {device}");
-        }
+        let folder = crate::shell::sidebar_sessions::sidebar_session_location(
+            space.map(|space| space.path.as_str()),
+            &project,
+        );
         // The branch shows whenever the engine has stamped one â€”
         // main-checkout sessions included, not just worktrees.
         let branch = crate::change_requests::conversation_branch(&chat, &state.spaces)

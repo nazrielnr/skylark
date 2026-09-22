@@ -1,5 +1,7 @@
 //! Tool execution cards, chips, activity rail connector tessellation, and folding.
 
+use std::cell::{Cell, RefCell};
+use std::rc::Rc;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -34,7 +36,7 @@ pub const CHIP_HEADER_HEIGHT: f32 = CHIP_CARD_HEIGHT - 2.0;
 
 pub const ACTIVITY_GUTTER_WIDTH: f32 = 48.0;
 pub const ACTIVITY_TEXT_GAP: f32 = 8.0;
-pub const ACTIVITY_TRUNK_X: f32 = 12.5;
+pub const ACTIVITY_TRUNK_X: f32 = 9.0;
 pub const ACTIVITY_BEND_RADIUS: f32 = 6.0;
 pub const ACTIVITY_BRANCH_END_X: f32 = 28.0;
 pub const ACTIVITY_ICON_LEFT: f32 = 32.0;
@@ -187,8 +189,13 @@ pub fn format_kb(bytes: u64) -> String {
     }
 }
 
+fn detail_should_follow(max_scroll: f32, offset_y: f32) -> bool {
+    max_scroll + offset_y <= 2.0
+}
+
 fn detail_scroll_to_pointer(
     scroll: &ScrollHandle,
+    follow: &Cell<bool>,
     metrics: crate::popover::MenuScrollbarMetrics,
     pointer_y: Pixels,
 ) {
@@ -202,18 +209,29 @@ fn detail_scroll_to_pointer(
     };
     let offset = scroll.offset();
     scroll.set_offset(Point::new(offset.x, px(-fraction * metrics.max_scroll)));
+    follow.set(detail_should_follow(
+        metrics.max_scroll,
+        -fraction * metrics.max_scroll,
+    ));
 }
 
 fn scrollable_detail(
     id: SharedString,
     scroll: Option<&ScrollHandle>,
+    follow: Option<&Rc<Cell<bool>>>,
     row_count: usize,
     rows: impl IntoElement,
     theme: &Theme,
 ) -> AnyElement {
     let scroll = scroll.cloned().unwrap_or_default();
+    let follow = follow.cloned().unwrap_or_else(|| Rc::new(Cell::new(false)));
     let viewport_height = OUTPUT_DETAIL_MAX_LINES as f32 * OUTPUT_LINE_HEIGHT + OUTPUT_BODY_PAD;
     let content_height = row_count as f32 * OUTPUT_LINE_HEIGHT + OUTPUT_BODY_PAD;
+    let max_scroll = (content_height - viewport_height).max(0.0);
+    if follow.get() {
+        let offset = scroll.offset();
+        scroll.set_offset(Point::new(offset.x, px(-max_scroll)));
+    }
     let metrics = crate::popover::MenuScrollbarMetrics::from_parts(
         viewport_height,
         content_height,
@@ -232,7 +250,9 @@ fn scrollable_detail(
         .fade_overflow_y(&scroll);
     let rail = metrics.map(|metrics| {
         let press_scroll = scroll.clone();
+        let press_follow = follow.clone();
         let drag_scroll = scroll.clone();
+        let drag_follow = follow.clone();
         let drag_id = id.clone();
         div()
             .id(SharedString::from(format!("{id}-scrollbar")))
@@ -245,7 +265,7 @@ fn scrollable_detail(
             .role(gpui::Role::ScrollBar)
             .aria_label("Output scrollbar")
             .on_mouse_down(gpui::MouseButton::Left, move |event, window, cx| {
-                detail_scroll_to_pointer(&press_scroll, metrics, event.position.y);
+                detail_scroll_to_pointer(&press_scroll, &press_follow, metrics, event.position.y);
                 cx.stop_propagation();
                 window.refresh();
             })
@@ -260,7 +280,12 @@ fn scrollable_detail(
                         return;
                     };
                     if drag.id == drag_id {
-                        detail_scroll_to_pointer(&drag_scroll, metrics, event.event.position.y);
+                        detail_scroll_to_pointer(
+                            &drag_scroll,
+                            &drag_follow,
+                            metrics,
+                            event.event.position.y,
+                        );
                         cx.stop_propagation();
                         window.refresh();
                     }
@@ -280,6 +305,7 @@ fn scrollable_detail(
             )
     });
     let wheel_scroll = scroll.clone();
+    let wheel_follow = follow.clone();
     let wheel_capture = canvas(
         |_, _, _| (),
         move |bounds, _, window, _| {
@@ -291,10 +317,9 @@ fn scrollable_detail(
                 let delta = event.delta.pixel_delta(px(20.0));
                 let offset = scroll.offset();
                 let max = scroll.max_offset();
-                scroll.set_offset(Point::new(
-                    offset.x,
-                    (offset.y + delta.y).clamp(-max.y, px(0.0)),
-                ));
+                let next_y = (offset.y + delta.y).clamp(-max.y, px(0.0));
+                scroll.set_offset(Point::new(offset.x, next_y));
+                wheel_follow.set(detail_should_follow(f32::from(max.y), f32::from(next_y)));
                 cx.stop_propagation();
                 window.refresh();
             });
@@ -614,6 +639,8 @@ pub fn detail_body(
     detail: &ToolDetail,
     diff_highlights: Option<Arc<crate::changes::DiffHighlights>>,
     scroll: Option<&ScrollHandle>,
+    follow: Option<&Rc<Cell<bool>>>,
+    detail_veil: Option<&Rc<RefCell<crate::markdown::veil::RowVeil>>>,
     theme: &Theme,
 ) -> AnyElement {
     let body = div().w_full().min_w_0().flex().flex_col().overflow_hidden();
@@ -677,7 +704,24 @@ pub fn detail_body(
                 .pr(px(DETAIL_SCROLLBAR_WIDTH))
                 .font_family(theme.font_mono.clone())
                 .text_size(crate::typography::ui_rems(TOOL_TEXT_SIZE))
-                .children(lines.iter().map(|line| {
+                .children(lines.iter().enumerate().map(|(line_ix, line)| {
+                    let text = line.clone();
+                    let runs = detail_veil.map(|veil| {
+                        let run = TextRun {
+                            len: text.len(),
+                            font: gpui::font(theme.font_mono.clone()),
+                            color: theme.text_faint,
+                            background_color: None,
+                            underline: None,
+                            strikethrough: None,
+                        };
+                        let spans = veil.borrow_mut().advance(line_ix, &text, Instant::now());
+                        crate::markdown::veil::apply_veil(vec![run], &spans)
+                    });
+                    let text = match runs {
+                        Some(runs) => StyledText::new(text).with_runs(runs).into_any_element(),
+                        None => div().child(text).into_any_element(),
+                    };
                     div()
                         .h(crate::typography::ui_rems(OUTPUT_LINE_HEIGHT))
                         .flex_none()
@@ -686,19 +730,19 @@ pub fn detail_body(
                         .flex()
                         .items_center()
                         .text_color(theme.text_faint)
-                        .child(div().w_full().min_w_0().truncate().child(line.clone()))
+                        .child(div().w_full().min_w_0().truncate().child(text))
                 }))
                 .when(*truncated_by > 0, |block| {
                     block.child(more_lines_row(*truncated_by, theme))
                 });
-            scrollable_detail(id, scroll, row_count, rows, theme)
+            scrollable_detail(id, scroll, follow, row_count, rows, theme)
         }
         ToolDetail::Thought { lines, .. } => {
             let rows = div()
                 .py(crate::typography::ui_rems(6.0))
                 .pr(px(DETAIL_SCROLLBAR_WIDTH))
                 .text_size(crate::typography::ui_rems(TOOL_TEXT_SIZE))
-                .children(lines.iter().map(|line| {
+                .children(lines.iter().enumerate().map(|(line_ix, line)| {
                     let row = div()
                         .h(crate::typography::ui_rems(OUTPUT_LINE_HEIGHT))
                         .flex_none()
@@ -706,9 +750,13 @@ pub fn detail_body(
                         .min_w_0()
                         .flex()
                         .items_center();
-                    let Some((text, runs)) = thought_line_text(line, theme) else {
+                    let Some((text, mut runs)) = thought_line_text(line, theme) else {
                         return row;
                     };
+                    if let Some(veil) = detail_veil {
+                        let spans = veil.borrow_mut().advance(line_ix, &text, Instant::now());
+                        runs = crate::markdown::veil::apply_veil(runs, &spans);
+                    }
                     row.child(
                         div()
                             .w_full()
@@ -717,7 +765,7 @@ pub fn detail_body(
                             .child(StyledText::new(text).with_runs(runs)),
                     )
                 }));
-            scrollable_detail(id, scroll, lines.len(), rows, theme)
+            scrollable_detail(id, scroll, follow, lines.len(), rows, theme)
         }
     }
 }
@@ -1168,8 +1216,10 @@ pub fn activity_rail(
                             let continuation_height = (f32::from(bounds.size.height)
                                 - (header_center_y - ACTIVITY_BEND_RADIUS))
                                 .max(0.0);
-                            bottom =
-                                point(x, bend_y + px(continuation_height * continuation_reveal));
+                            bottom = point(
+                                x,
+                                bend_y + px(continuation_height * continuation_reveal),
+                            );
                         }
                         activity_ribbon(&mut tree, &[point(x, bounds.origin.y), bottom]);
                     }
@@ -1179,6 +1229,19 @@ pub fn activity_rail(
                             .map(|p| point(x + px(p.x), bend_y + px(p.y)))
                             .collect();
                         activity_ribbon(&mut tree, &points);
+                    }
+                    if branch_reveal >= 1.0 {
+                        let icon_center_x =
+                            bounds.origin.x + px(ACTIVITY_ICON_LEFT + ACTIVITY_ICON_SIZE / 2.0);
+                        let line_top =
+                            bounds.origin.y + px(header_center_y + ACTIVITY_ICON_SIZE / 2.0 + 4.0);
+                        let line_bottom = bounds.origin.y + bounds.size.height - px(6.0);
+                        if line_bottom > line_top {
+                            activity_ribbon(
+                                &mut tree,
+                                &[point(icon_center_x, line_top), point(icon_center_x, line_bottom)],
+                            );
+                        }
                     }
                     if let Ok(path) = tree.build() {
                         window.paint_path(path, color);
@@ -1336,6 +1399,19 @@ pub fn subagent_chip(
                 )),
         )
         .into_any_element()
+}
+
+#[cfg(test)]
+mod detail_follow_tests {
+    use super::detail_should_follow;
+
+    #[test]
+    fn follows_only_at_detail_bottom() {
+        assert!(detail_should_follow(120.0, -120.0));
+        assert!(detail_should_follow(120.0, -118.0));
+        assert!(!detail_should_follow(120.0, -117.9));
+        assert!(!detail_should_follow(120.0, -40.0));
+    }
 }
 
 // ---------------------------------------------------------------------------
