@@ -1,16 +1,14 @@
 //! Workspace file browsing surface.
 
 use std::{
-    collections::HashMap,
     sync::atomic::{AtomicU64, Ordering},
     time::Duration,
 };
 
 use gpui::{
-    Context, Entity, EventEmitter, FocusHandle, ListAlignment, ListState, Pixels, Point, Render,
-    SharedString, Subscription, Task, Window, div, prelude::*, px,
+    Context, Entity, EventEmitter, ListAlignment, ListState, Pixels, Point, Render, SharedString,
+    Subscription, Window, div, prelude::*, px,
 };
-use zeron_proto::ListWorkspaceDirectoryRequest;
 
 use crate::{
     composer::{ComposerInput, ComposerInputEvent},
@@ -27,11 +25,13 @@ mod markdown_preview;
 pub mod model;
 pub mod preview;
 pub mod search;
-pub mod tree;
+mod tree_view;
 pub mod watch;
 
-use client::{FilesRequestContext, WorkspaceFilesClient};
-use model::{DirectoryLoadState, FileTreeModel};
+pub use tree_view::{FileTreeView, WorkspaceTreeEvent};
+
+use client::FilesRequestContext;
+use model::DirectoryLoadState;
 use preview::FilePreviewState;
 use search::FileSearchState;
 
@@ -184,26 +184,17 @@ pub struct FilesSurface {
     request_context: Option<FilesRequestContext>,
     target_change_pending: bool,
     pending_request_context: Option<FilesRequestContext>,
-    tree: FileTreeModel,
-    tree_list: ListState,
-    tree_list_rows: Vec<model::VisibleTreeRow>,
-    tree_list_generation: u64,
-    /// Floating rail state for the file tree (the menu-scrollbar treatment).
-    tree_bar: crate::popover::MenuScrollbarState,
-    tree_focus: FocusHandle,
+    /// The panel's SHARED workspace tree, owned by the shell. Every Files
+    /// surface (browser + editor tabs) embeds the same entity, so tree
+    /// state, loads, and the watcher exist once per panel.
+    tree_view: Entity<FileTreeView>,
     search: Entity<ComposerInput>,
     search_state: FileSearchState,
     search_list: ListState,
     search_typography_generation: u32,
-    watch_task: Option<Task<()>>,
-    watch_sequence: Option<u64>,
-    watch_error: Option<SharedString>,
     preview: FilePreviewState,
     editor_context_menu: crate::popover::Popup<EditorContextMenu>,
     actions_menu: crate::popover::Popup<()>,
-    loads: HashMap<(String, Option<String>), Task<()>>,
-    error: Option<SharedString>,
-    started: bool,
     pub(super) search_open: bool,
     _observe: Subscription,
     _search_events: Subscription,
@@ -212,10 +203,14 @@ pub struct FilesSurface {
 impl Render for FilesSurface {
     fn render(&mut self, window: &mut gpui::Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = crate::theme::Theme::of(cx).clone();
-        let phase = self.tree.node("").map(|root| root.load.clone());
+        // Tree load state comes from the shared tree entity; reading it here
+        // also re-renders this surface when the tree notifies.
+        let (phase, tree_has_content, tree_error) = self.tree_view.read_with(cx, |tree, _| {
+            (tree.phase(), tree.has_content(), tree.error().cloned())
+        });
         let content = if !self.search_state.query.is_empty() {
             self.render_search_results(cx)
-        } else if let Some(error) = self.error.clone().filter(|_| !self.tree_has_content()) {
+        } else if let Some(error) = tree_error.filter(|_| !tree_has_content) {
             div()
                 .flex_1()
                 .flex()
@@ -247,10 +242,12 @@ impl Render for FilesSurface {
                         .text_size(crate::typography::ui_rems(13.0))
                         .text_color(theme.text)
                         .child("Retry")
-                        .on_click(cx.listener(|this, _, _, cx| this.retry_root(cx))),
+                        .on_click(cx.listener(|this, _, _, cx| {
+                            this.tree_view.update(cx, |tree, cx| tree.retry_root(cx));
+                        })),
                 )
                 .into_any_element()
-        } else if !self.tree_has_content()
+        } else if !tree_has_content
             && matches!(
                 phase.as_ref(),
                 Some(DirectoryLoadState::Unloaded | DirectoryLoadState::Loading { .. })
@@ -261,7 +258,9 @@ impl Render for FilesSurface {
             self.render_tree(cx)
         };
         let split_editor = self.presentation.is_editor();
-        let watch_error = self.watch_error.clone();
+        let watch_error = self
+            .tree_view
+            .read_with(cx, |tree, _| tree.watch_error().cloned());
         let tree_pane = div()
             .size_full()
             .min_w_0()
@@ -307,7 +306,7 @@ impl Render for FilesSurface {
                                 .hover(|style| style.bg(crate::theme::wash(0.07)))
                                 .child("Refresh now")
                                 .on_click(cx.listener(|this, _, _, cx| {
-                                    this.refresh(cx);
+                                    this.tree_view.update(cx, |tree, cx| tree.refresh(cx));
                                     this.reconcile_open_documents(cx);
                                 })),
                         ),
@@ -340,13 +339,17 @@ impl Render for FilesSurface {
             let tree_header = self
                 .render_header(&theme, true, cx)
                 .h_full()
-                .pr(crate::typography::ui_rems(crate::surface_chrome::CONTROL_GAP))
+                .pr(crate::typography::ui_rems(
+                    crate::surface_chrome::CONTROL_GAP,
+                ))
                 .border_l_1()
                 .border_color(theme.border);
             header = Some(
                 div()
                     .w_full()
-                    .h(crate::typography::ui_rems(crate::surface_chrome::HEADER_HEIGHT))
+                    .h(crate::typography::ui_rems(
+                        crate::surface_chrome::HEADER_HEIGHT,
+                    ))
                     .flex_none()
                     .flex()
                     .child(
@@ -445,6 +448,7 @@ impl Render for FilesSurface {
             .child(div().flex_1().min_h_0().w_full().child(body))
             .children(preview_split_handle)
             .children(editor_context_menu)
+            .into_any_element()
     }
 }
 
@@ -452,11 +456,11 @@ impl FilesSurface {
     pub fn new(
         state: Entity<AppState>,
         chat_id: String,
+        tree_view: Entity<FileTreeView>,
         autosave_enabled: bool,
         autosave_delay_ms: u64,
         editor_font_size: f32,
         word_wrap: bool,
-        show_all_files: bool,
         cx: &mut Context<Self>,
     ) -> Self {
         Self::new_with_presentation(
@@ -464,11 +468,11 @@ impl FilesSurface {
             chat_id,
             FilesPresentation::Browser,
             None,
+            tree_view,
             autosave_enabled,
             autosave_delay_ms,
             editor_font_size,
             word_wrap,
-            show_all_files,
             cx,
         )
     }
@@ -477,25 +481,30 @@ impl FilesSurface {
         state: Entity<AppState>,
         chat_id: String,
         path: String,
+        tree_view: Entity<FileTreeView>,
+        initial_sidebar: Option<f32>,
         autosave_enabled: bool,
         autosave_delay_ms: u64,
         editor_font_size: f32,
         word_wrap: bool,
-        show_all_files: bool,
         cx: &mut Context<Self>,
     ) -> Self {
-        Self::new_with_presentation(
+        let mut surface = Self::new_with_presentation(
             state,
             chat_id,
             FilesPresentation::Editor,
             Some(path),
+            tree_view,
             autosave_enabled,
             autosave_delay_ms,
             editor_font_size,
             word_wrap,
-            show_all_files,
             cx,
-        )
+        );
+        if let Some(from_width) = initial_sidebar {
+            surface.preview.seed_sidebar_transition(from_width);
+        }
+        surface
     }
 
     fn new_with_presentation(
@@ -503,11 +512,11 @@ impl FilesSurface {
         chat_id: String,
         presentation: FilesPresentation,
         editor_path: Option<String>,
+        tree_view: Entity<FileTreeView>,
         autosave_enabled: bool,
         autosave_delay_ms: u64,
         editor_font_size: f32,
         word_wrap: bool,
-        show_all_files: bool,
         cx: &mut Context<Self>,
     ) -> Self {
         let search = cx.new(|cx| {
@@ -545,16 +554,6 @@ impl FilesSurface {
             }
             this.sync_active_markdown_comments(cx);
         });
-        // The list state exposes no scroll handle, so the floating rail
-        // bridges scroll activity through the scroll handler (the
-        // transcript's pattern) and reads its geometry from the state's own
-        // scrollbar accessors.
-        let tree_list = ListState::new(0, ListAlignment::Top, px(560.0));
-        let weak = cx.entity().downgrade();
-        tree_list.set_scroll_handler(move |_, _, cx| {
-            weak.update(cx, |this: &mut Self, cx| this.on_tree_scrolled(cx))
-                .ok();
-        });
         let mut surface = Self {
             state,
             chat_id,
@@ -565,19 +564,11 @@ impl FilesSurface {
             request_context: None,
             target_change_pending: false,
             pending_request_context: None,
-            tree: FileTreeModel::with_include_ignored(show_all_files),
-            tree_list,
-            tree_list_rows: Vec::new(),
-            tree_list_generation: 0,
-            tree_bar: crate::popover::MenuScrollbarState::default(),
-            tree_focus: cx.focus_handle(),
+            tree_view,
             search,
             search_state: FileSearchState::default(),
             search_list: ListState::new(0, ListAlignment::Top, px(420.0)),
             search_typography_generation: 0,
-            watch_task: None,
-            watch_sequence: None,
-            watch_error: None,
             preview: FilePreviewState::new(
                 autosave_enabled,
                 autosave_delay_ms,
@@ -586,9 +577,6 @@ impl FilesSurface {
             ),
             editor_context_menu: crate::popover::Popup::default(),
             actions_menu: crate::popover::Popup::default(),
-            loads: HashMap::new(),
-            error: None,
-            started: false,
             search_open: false,
             _observe: observe,
             _search_events: search_events,
@@ -745,44 +733,28 @@ impl FilesSurface {
         cx.notify();
     }
 
-    pub fn set_show_all_files(&mut self, show_all_files: bool, cx: &mut Context<Self>) {
-        self.apply_show_all_files(show_all_files, cx);
+    pub fn set_show_all_files(&mut self, _show_all_files: bool, cx: &mut Context<Self>) {
+        // The tree side lives on the shared FileTreeView; the shell applies
+        // the setting there. Only the surface-local search filter resets.
+        if !self.search_state.query.is_empty() {
+            self.search_state.query.clear();
+            self.on_search_edited(cx);
+        }
     }
 
+    /// Documents only: the shared tree entity loads the workspace once for
+    /// the whole panel (the shell ensures it). This surface just keeps its
+    /// request target in sync and opens its own editor file.
     pub fn ensure_loaded(&mut self, cx: &mut Context<Self>) {
         self.sync_target(cx);
         if self.request_context.is_none() {
             return;
         }
-        self.ensure_watch(cx);
         if self.presentation.is_editor()
             && !self.preview.has_active()
             && let Some(path) = self.editor_path.clone()
         {
             self.open_file(path, cx);
-        }
-        if self.started {
-            return;
-        }
-        self.started = true;
-        self.load_directory(String::new(), None, cx);
-    }
-
-    pub fn retry_root(&mut self, cx: &mut Context<Self>) {
-        self.error = None;
-        self.started = true;
-        self.load_directory(String::new(), None, cx);
-    }
-
-    fn refresh(&mut self, cx: &mut Context<Self>) {
-        self.error = None;
-        self.started = true;
-        self.tree.invalidate_all_directories();
-        let directories = std::iter::once(String::new())
-            .chain(self.tree.expanded_directories())
-            .collect::<Vec<_>>();
-        for directory in directories {
-            self.load_directory(directory, None, cx);
         }
     }
 
@@ -806,136 +778,24 @@ impl FilesSurface {
         }
     }
 
-    pub fn set_tree(&mut self, tree: FileTreeModel) {
-        self.tree = tree;
-        self.sync_tree_list();
-    }
-
     pub(super) fn open_tree_file(&mut self, path: String, cx: &mut Context<Self>) {
+        // The shell owns tab creation and selection for every file open. The
+        // old in-place promotion of the browser surface left one file open
+        // under two owners (the promoted tab plus the File tab a later click
+        // created), so a click could activate a stale tab, re-read an already
+        // open file, and reset the tree state on each new tab.
+        cx.emit(FilesEvent::OpenFile(path));
+    }
+
+    /// The sidebar width this surface's tree currently sits at (editor
+    /// layout). `None` for the raw workspace browser — its tree fills the
+    /// pane, so the shell seeds a new tab from the pane width instead.
+    pub fn current_sidebar_width(&self) -> Option<f32> {
         if self.presentation.is_editor() {
-            self.open_file(path.clone(), cx);
-            self.preview.show_tree_sidebar();
-            cx.emit(FilesEvent::OpenFile(path));
-            return;
-        }
-
-        self.presentation = FilesPresentation::Editor;
-        self.editor_path = Some(path.clone());
-        self.open_file(path, cx);
-        self.preview.show_tree_sidebar_animated();
-        cx.emit(FilesEvent::TitleChanged);
-    }
-
-    fn toggle_ignored(&mut self, cx: &mut Context<Self>) {
-        cx.emit(FilesEvent::ShowAllFilesChanged(
-            !self.tree.include_ignored(),
-        ));
-    }
-
-    fn apply_show_all_files(&mut self, show_all_files: bool, cx: &mut Context<Self>) {
-        if self.tree.set_include_ignored(show_all_files) {
-            self.loads.clear();
-            self.error = None;
-            self.sync_tree_list();
-            self.started = true;
-            self.load_directory(String::new(), None, cx);
-            if !self.search_state.query.is_empty() {
-                self.search_state.query.clear();
-                self.on_search_edited(cx);
-            }
-        }
-    }
-
-    pub fn load_directory(
-        &mut self,
-        directory: String,
-        cursor: Option<String>,
-        cx: &mut Context<Self>,
-    ) {
-        let Some(request_context) = self.request_context.clone() else {
-            self.error = Some("No workspace available for this chat.".into());
-            cx.notify();
-            return;
-        };
-        let generation = self.tree.generation();
-        let cached_paths = if cursor.is_none() {
-            self.tree
-                .node(&directory)
-                .map(|node| node.children.clone())
-                .unwrap_or_default()
+            Some(self.preview.resting_sidebar_width())
         } else {
-            Vec::new()
-        };
-        if !self.tree.begin_load(&directory, cursor.clone(), generation) {
-            return;
+            None
         }
-        self.sync_tree_list();
-        let Some(engine) = self.state.read(cx).engine().cloned() else {
-            self.tree.fail_load(
-                &directory,
-                cursor,
-                "Workspace service is still starting.",
-                generation,
-            );
-            self.sync_tree_list();
-            cx.notify();
-            return;
-        };
-        let key = (directory.clone(), cursor.clone());
-        let request = ListWorkspaceDirectoryRequest {
-            target: request_context.target.clone(),
-            directory: directory.clone(),
-            include_ignored: self.tree.include_ignored(),
-            cursor: cursor.clone(),
-        };
-        let client = WorkspaceFilesClient::new(engine, request_context);
-        let task = cx.spawn(async move |this, cx| {
-            let mut result = client
-                .list_directory_snapshot(request.clone(), &cached_paths)
-                .await;
-            if result.as_ref().is_err_and(|error| error.retryable()) {
-                cx.background_executor()
-                    .timer(Duration::from_millis(250))
-                    .await;
-                result = client.list_directory_snapshot(request, &cached_paths).await;
-            }
-            let _ = this.update(cx, |surface, cx| {
-                if surface.tree.generation() != generation {
-                    return;
-                }
-                let reload = surface.tree.node(&directory).is_some_and(|node| node.stale);
-                match result {
-                    Ok(page) => {
-                        surface.error = None;
-                        surface.tree.apply_page(page, generation);
-                    }
-                    Err(error) => {
-                        let message = error.to_string();
-                        if directory.is_empty() {
-                            surface.error = Some(message.clone().into());
-                        }
-                        surface
-                            .tree
-                            .fail_load(&directory, cursor, message, generation);
-                    }
-                }
-                surface.sync_tree_list();
-                if reload {
-                    surface.load_directory(directory, None, cx);
-                }
-                cx.notify();
-            });
-        });
-        self.loads.insert(key, task);
-        cx.notify();
-    }
-
-    pub fn tree(&self) -> &FileTreeModel {
-        &self.tree
-    }
-
-    pub fn error(&self) -> Option<&SharedString> {
-        self.error.as_ref()
     }
 
     pub fn chat_id(&self) -> &str {
@@ -973,44 +833,14 @@ impl FilesSurface {
     }
 
     fn apply_target(&mut self, next: Option<FilesRequestContext>, cx: &mut Context<Self>) {
+        // Document-side reset only: the shared tree entity syncs its own
+        // target (reset + single reload) independently of the surfaces.
         self.suspend_images(cx);
         self.cancel_review_comment_flush(cx);
-        self.loads.clear();
-        self.watch_task = None;
-        self.watch_sequence = None;
-        self.watch_error = None;
         self.editor_context_menu = crate::popover::Popup::default();
         self.preview.reset();
-        self.tree.reset();
-        self.sync_tree_list();
-        self.error = if next.is_none() {
-            Some("No workspace available for this chat.".into())
-        } else {
-            None
-        };
         self.request_context = next;
-        self.started = false;
-    }
-
-    fn tree_has_content(&self) -> bool {
-        self.tree.node("").is_some_and(|node| node.has_loaded)
-    }
-
-    fn sync_tree_list(&mut self) {
-        if self.tree_list_generation != self.tree.generation() {
-            self.tree_list.reset_with_uniform_height(
-                self.tree.visible_rows().len(),
-                px(tree::TREE_ROW_HEIGHT),
-            );
-            self.tree_list_generation = self.tree.generation();
-        } else {
-            tree::sync_list_rows(
-                &self.tree_list,
-                &self.tree_list_rows,
-                self.tree.visible_rows(),
-            );
-        }
-        self.tree_list_rows = self.tree.visible_rows().to_vec();
+        cx.notify();
     }
 
     pub fn workspace_name(&self, cx: &Context<Self>) -> String {
@@ -1070,12 +900,13 @@ impl FilesSurface {
     }
 
     pub(super) fn collapse_all(&mut self, cx: &mut Context<Self>) {
-        let expanded = self.tree.expanded_directories();
-        for dir in expanded {
-            self.tree.toggle_expanded(&dir);
-        }
-        self.sync_tree_list();
-        cx.notify();
+        self.tree_view.update(cx, |tree, cx| tree.collapse_all(cx));
+    }
+
+    /// The shared tree entity — the shell owns it; every surface embeds the
+    /// same view.
+    fn render_tree(&mut self, _cx: &mut Context<Self>) -> gpui::AnyElement {
+        self.tree_view.clone().into_any_element()
     }
 
     fn render_header(
@@ -1084,7 +915,9 @@ impl FilesSurface {
         is_split: bool,
         cx: &mut Context<Self>,
     ) -> gpui::Div {
-        let include_ignored = self.tree.include_ignored();
+        let include_ignored = self
+            .tree_view
+            .read_with(cx, |tree, _| tree.include_ignored());
         let ws_name = self.workspace_name(cx);
         let branch = self.workspace_branch(cx);
         let is_search_open = self.search_open || !self.search_state.query.is_empty();
@@ -1092,9 +925,12 @@ impl FilesSurface {
         let trailing_actions = if is_split {
             let is_menu_open = self.actions_menu.get().is_some();
             let mut menu_trigger = toolbar_button("files-action-menu-trigger", "Workspace options")
-                .on_mouse_down(gpui::MouseButton::Left, cx.listener(|this, _, _, _| {
-                    this.actions_menu.note_trigger_press();
-                }))
+                .on_mouse_down(
+                    gpui::MouseButton::Left,
+                    cx.listener(|this, _, _, _| {
+                        this.actions_menu.note_trigger_press();
+                    }),
+                )
                 .on_click(cx.listener(|this, _, _, cx| {
                     if this.actions_menu.take_press_was_open() {
                         this.close_actions_menu(cx);
@@ -1179,7 +1015,8 @@ impl FilesSurface {
                             )
                             .on_click(cx.listener(|this, _, _, cx| {
                                 this.close_actions_menu(cx);
-                                this.toggle_ignored(cx);
+                                this.tree_view
+                                    .update(cx, |tree, cx| tree.toggle_ignored(cx));
                             })),
                     )
                     .child(
@@ -1226,19 +1063,20 @@ impl FilesSurface {
                             )
                             .on_click(cx.listener(|this, _, _, cx| {
                                 this.close_actions_menu(cx);
-                                this.refresh(cx);
+                                this.tree_view.update(cx, |tree, cx| tree.refresh(cx));
                                 this.reconcile_open_documents(cx);
                             })),
                     )
                     .into_any_element();
 
-                menu_trigger = menu_trigger.relative().child(
-                    crate::popover::anchored_menu_below_end(
-                        "files-actions-menu-popover",
-                        menu_card,
-                        closing,
-                    ),
-                );
+                menu_trigger =
+                    menu_trigger
+                        .relative()
+                        .child(crate::popover::anchored_menu_below_end(
+                            "files-actions-menu-popover",
+                            menu_card,
+                            closing,
+                        ));
             }
 
             div()
@@ -1263,9 +1101,7 @@ impl FilesSurface {
                         },
                     )
                     .when(is_search_open, |el| el.bg(crate::theme::wash(0.12)))
-                    .on_click(cx.listener(|this, _, window, cx| {
-                        this.toggle_search(window, cx)
-                    }))
+                    .on_click(cx.listener(|this, _, window, cx| this.toggle_search(window, cx)))
                     .child(
                         crate::icons::icon(crate::icons::MAGNIFER)
                             .size(crate::typography::ui_rems(crate::surface_chrome::ICON_SIZE))
@@ -1288,7 +1124,10 @@ impl FilesSurface {
                     .when(include_ignored, |element| {
                         element.bg(crate::theme::wash(0.1))
                     })
-                    .on_click(cx.listener(|this, _, _, cx| this.toggle_ignored(cx)))
+                    .on_click(cx.listener(|this, _, _, cx| {
+                        this.tree_view
+                            .update(cx, |tree, cx| tree.toggle_ignored(cx));
+                    }))
                     .child(
                         crate::icons::icon(if include_ignored {
                             crate::icons::EYE
@@ -1315,7 +1154,7 @@ impl FilesSurface {
                 .child(
                     toolbar_button("files-refresh-button", "Refresh workspace")
                         .on_click(cx.listener(|this, _, _, cx| {
-                            this.refresh(cx);
+                            this.tree_view.update(cx, |tree, cx| tree.refresh(cx));
                             this.reconcile_open_documents(cx);
                         }))
                         .child(

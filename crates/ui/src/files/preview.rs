@@ -161,6 +161,11 @@ pub(super) struct FilePreviewState {
     tree_sidebar_visible: bool,
     tree_sidebar_dismissed: bool,
     tree_width: f32,
+    /// One-shot width transition: the tab was opened while the tree filled
+    /// (or sat at) `from` width — the sidebar eases from there to
+    /// `tree_width` so the browser→editor switch reads as the tree sliding
+    /// aside instead of the layout snapping.
+    tree_width_tween: Option<(f32, Instant)>,
     tree_motion: TreeSidebarMotion,
     tree_edge_bounce: Option<crate::motion::ResizeEdgeBounce>,
     tree_resize_edge: Option<crate::motion::ResizeEdge>,

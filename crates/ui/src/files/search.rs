@@ -314,7 +314,9 @@ impl FilesSurface {
         let request = SearchWorkspaceFilesRequest {
             target: context.target.clone(),
             query: query.clone(),
-            include_ignored: self.tree.include_ignored(),
+            include_ignored: self
+                .tree_view
+                .read_with(cx, |tree, _| tree.include_ignored()),
             limit: Some(SEARCH_RESULT_LIMIT as u16),
         };
         let client = WorkspaceFilesClient::new(engine, context);
@@ -416,8 +418,10 @@ impl FilesSurface {
         }
         ancestors.reverse();
         directories.extend(ancestors.clone());
-        let generation = self.tree.generation();
-        let include_ignored = self.tree.include_ignored();
+        let generation = self.tree_view.read_with(cx, |tree, _| tree.generation());
+        let include_ignored = self
+            .tree_view
+            .read_with(cx, |tree, _| tree.include_ignored());
         let client = WorkspaceFilesClient::new(engine, context.clone());
         self.search_state.reveal_task = Some(cx.spawn(async move |this, cx| {
             let mut pages = Vec::with_capacity(directories.len());
@@ -434,7 +438,9 @@ impl FilesSurface {
                     Ok(page) => pages.push(page),
                     Err(error) => {
                         let _ = this.update(cx, |surface, cx| {
-                            if surface.tree.generation() == generation {
+                            if surface.tree_view.read_with(cx, |tree, _| tree.generation())
+                                == generation
+                            {
                                 surface.search_state.error = Some(error.to_string().into());
                                 cx.notify();
                             }
@@ -444,21 +450,17 @@ impl FilesSurface {
                 }
             }
             let _ = this.update(cx, |surface, cx| {
-                if surface.tree.generation() != generation {
+                if surface.tree_view.read_with(cx, |tree, _| tree.generation()) != generation {
                     return;
                 }
-                for (index, page) in pages.into_iter().enumerate() {
-                    surface.tree.apply_page(page, generation);
-                    if let Some(next) = ancestors.get(index) {
-                        surface.tree.expand(next);
-                    }
-                }
-                surface.tree.select(result.path.clone());
-                surface.sync_tree_list();
+                let pairs: Vec<_> = pages.into_iter().zip(ancestors.iter().cloned()).collect();
                 surface
                     .search
                     .update(cx, |search, cx| search.set_text("", cx));
-                surface.reveal_tree_selection();
+                let path = result.path.clone();
+                surface.tree_view.update(cx, |tree, cx| {
+                    tree.reveal_search_result(&path, pairs, generation, cx);
+                });
                 if result.kind == WorkspaceEntryKind::Directory {
                     surface.show_tree_sidebar(cx);
                 } else {
@@ -589,53 +591,53 @@ impl FilesSurface {
             .gap(crate::typography::ui_rems(6.0));
 
         inner = inner
-                .child(
-                    div()
-                        .size(crate::typography::ui_rems(16.0))
-                        .flex_none()
-                        .flex()
-                        .items_center()
-                        .justify_center()
-                        .when(row.has_children, |element| {
-                            element.child(
-                                icon(if expanded {
-                                    icons::ALT_ARROW_DOWN
-                                } else {
-                                    icons::ALT_ARROW_RIGHT
-                                })
-                                .size(crate::typography::ui_rems(11.0))
-                                .text_color(theme.text_faint),
-                            )
-                        }),
-                )
-                .child({
-                    let identity = match row.kind {
-                        WorkspaceEntryKind::Directory => {
-                            FileIconIdentity::directory(&row.name, expanded)
-                        }
-                        WorkspaceEntryKind::File => FileIconIdentity::file(&row.name),
-                        WorkspaceEntryKind::Symlink => FileIconIdentity::symlink(&row.name),
-                    };
-                    file_icons::icon(identity, theme.appearance)
-                        .size(crate::typography::ui_rems(15.0))
-                        .flex_none()
-                })
-                .child(
-                    div()
-                        .min_w_0()
-                        .truncate()
-                        .font_family(theme.font_sans.clone())
-                        .text_size(crate::typography::ui_rems(12.5))
-                        .when(selected, |el| el.font_weight(gpui::FontWeight::MEDIUM))
-                        .text_color(if is_directory {
-                            theme.text_muted
-                        } else {
-                            theme.text
-                        })
-                        .child(row.name),
-                );
+            .child(
+                div()
+                    .size(crate::typography::ui_rems(16.0))
+                    .flex_none()
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .when(row.has_children, |element| {
+                        element.child(
+                            icon(if expanded {
+                                icons::ALT_ARROW_DOWN
+                            } else {
+                                icons::ALT_ARROW_RIGHT
+                            })
+                            .size(crate::typography::ui_rems(11.0))
+                            .text_color(theme.text_faint),
+                        )
+                    }),
+            )
+            .child({
+                let identity = match row.kind {
+                    WorkspaceEntryKind::Directory => {
+                        FileIconIdentity::directory(&row.name, expanded)
+                    }
+                    WorkspaceEntryKind::File => FileIconIdentity::file(&row.name),
+                    WorkspaceEntryKind::Symlink => FileIconIdentity::symlink(&row.name),
+                };
+                file_icons::icon(identity, theme.appearance)
+                    .size(crate::typography::ui_rems(15.0))
+                    .flex_none()
+            })
+            .child(
+                div()
+                    .min_w_0()
+                    .truncate()
+                    .font_family(theme.font_sans.clone())
+                    .text_size(crate::typography::ui_rems(12.5))
+                    .when(selected, |el| el.font_weight(gpui::FontWeight::MEDIUM))
+                    .text_color(if is_directory {
+                        theme.text_muted
+                    } else {
+                        theme.text
+                    })
+                    .child(row.name),
+            );
 
-            row_el.child(inner).into_any_element()
+        row_el.child(inner).into_any_element()
     }
 }
 

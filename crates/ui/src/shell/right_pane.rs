@@ -1,6 +1,6 @@
 //! Right pane surface host and layout rendering.
 
-use gpui::{div, prelude::*, px, AnyElement, Context, IntoElement, Window};
+use gpui::{AnyElement, Context, IntoElement, Window, div, prelude::*, px};
 
 use crate::theme::Theme;
 
@@ -11,7 +11,11 @@ impl Shell {
     /// default, drag-resizable. Content is the ACTIVE surface — the Diff
     /// page (its options row + the lazy [`Changes`] viewer), workspace Files,
     /// an embedded terminal, or the surface picker when no tabs exist.
-    pub(crate) fn render_right_pane(&mut self, window: &Window, cx: &mut Context<Self>) -> AnyElement {
+    pub(crate) fn render_right_pane(
+        &mut self,
+        window: &Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
         let theme = Theme::of(cx).clone();
         let bg = theme.bg;
         let content: AnyElement = if self.right_pane_open(cx) || self.tween_active(self.right_tween)
@@ -25,6 +29,10 @@ impl Shell {
                 RightSurface::Files => {
                     let key = self.panel_key(cx);
                     if let Some(files) = self.files.get(&key).cloned() {
+                        // One ensure for the shared tree + one for documents.
+                        if let Some(tree) = self.workspace_trees.get(&key).cloned() {
+                            tree.update(cx, |tree, cx| tree.ensure_loaded(cx));
+                        }
                         files.update(cx, |files, cx| files.ensure_loaded(cx));
                         files.into_any_element()
                     } else {
@@ -33,6 +41,9 @@ impl Shell {
                 }
                 RightSurface::File(id) => {
                     if let Some(file) = self.file_surfaces.get(&id).cloned() {
+                        if let Some(tree) = self.workspace_trees.get(&self.panel_key(cx)).cloned() {
+                            tree.update(cx, |tree, cx| tree.ensure_loaded(cx));
+                        }
                         file.update(cx, |file, cx| file.ensure_loaded(cx));
                         file.into_any_element()
                     } else {

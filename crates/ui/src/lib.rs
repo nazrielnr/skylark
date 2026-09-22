@@ -59,6 +59,7 @@ pub mod theme_library;
 pub mod tokens;
 pub mod transcript;
 pub mod typography;
+pub mod ui_trace;
 mod workspace_links;
 
 use std::path::PathBuf;
@@ -129,6 +130,7 @@ impl gpui::Global for ReopenState {}
 /// connect-or-embed), 1320×880 window (min 900×600) with [`shell::Shell`] as the
 /// root view, boot splash overlaid until the engine reports ready.
 pub fn run_app(config: UiConfig) {
+    ui_trace::init();
     // Retain ownership for the whole application lifetime. The bridge's
     // default runtime has only two workers, insufficient for a desktop engine.
     let runtime = tokio::runtime::Runtime::new().expect("desktop Tokio runtime");

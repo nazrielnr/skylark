@@ -17,7 +17,12 @@ impl FilesSurface {
             // `remeasure` re-derives them while holding the scroll position.
             self.preview.list.remeasure();
         }
-        let Some(active) = self.preview.active.clone().or_else(|| self.editor_path.clone()) else {
+        let Some(active) = self
+            .preview
+            .active
+            .clone()
+            .or_else(|| self.editor_path.clone())
+        else {
             return centered_state("Loading file…", theme.text_faint);
         };
         let external = self.preview.documents.get(&active).is_some_and(|document| {
@@ -224,7 +229,11 @@ impl FilesSurface {
         theme: &Theme,
         cx: &mut Context<Self>,
     ) -> Option<AnyElement> {
-        let path = self.preview.active.clone().or_else(|| self.editor_path.clone())?;
+        let path = self
+            .preview
+            .active
+            .clone()
+            .or_else(|| self.editor_path.clone())?;
         Some(self.render_breadcrumb(&path, theme, cx))
     }
 
@@ -352,7 +361,9 @@ impl FilesSurface {
             })
             .tooltip_show_delay(Duration::from_millis(350));
         toolbar(theme)
-            .h(crate::typography::ui_rems(crate::surface_chrome::HEADER_HEIGHT))
+            .h(crate::typography::ui_rems(
+                crate::surface_chrome::HEADER_HEIGHT,
+            ))
             .pl(crate::typography::ui_rems(16.0))
             .pr(crate::typography::ui_rems(8.0))
             .gap(crate::typography::ui_rems(6.0))
@@ -414,9 +425,13 @@ impl FilesSurface {
                 element.child(
                     div()
                         .id("files-save-status")
-                        .h(crate::typography::ui_rems(crate::surface_chrome::CONTROL_SIZE))
+                        .h(crate::typography::ui_rems(
+                            crate::surface_chrome::CONTROL_SIZE,
+                        ))
                         .px(crate::typography::ui_rems(8.0))
-                        .rounded(crate::typography::ui_rems(crate::surface_chrome::CONTROL_RADIUS))
+                        .rounded(crate::typography::ui_rems(
+                            crate::surface_chrome::CONTROL_RADIUS,
+                        ))
                         .flex()
                         .items_center()
                         .flex_none()
@@ -913,6 +928,7 @@ impl FilesSurface {
             self.preview.tree_resize_edge,
             crate::motion::reduced_motion(cx),
         );
+        self.preview.clear_tree_width_tween();
         self.preview.tree_width = sample.width;
         self.preview.tree_resize_dragging = true;
         self.preview.tree_resize_active = sample.edge.is_none();
@@ -1014,7 +1030,10 @@ impl FilesSurface {
 
 fn centered_state(message: impl Into<SharedString>, color: gpui::Hsla) -> AnyElement {
     div()
-        .flex_1()
+        .size_full()
+        .min_w_0()
+        .min_h_0()
+        .overflow_hidden()
         .flex()
         .items_center()
         .justify_center()

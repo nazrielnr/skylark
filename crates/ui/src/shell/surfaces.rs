@@ -1,19 +1,21 @@
 use std::time::Duration;
 
 use gpui::{
-    div, prelude::*, px, AnyElement, App, Context, Entity, Focusable as _, IntoElement,
-    SharedString, Subscription, Task, Window,
+    AnyElement, App, Context, Entity, Focusable as _, IntoElement, SharedString, Subscription,
+    Task, Window, div, prelude::*, px,
 };
 use zeron_rpc::methods;
 
 use crate::changes::{Changes, ChangesEvent};
-use crate::files::{FilesCloseDisposition, FilesEvent, FilesSurface};
+use crate::files::{
+    FileTreeView, FilesCloseDisposition, FilesEvent, FilesSurface, WorkspaceTreeEvent,
+};
 use crate::icons::{self, icon};
 use crate::theme::Theme;
 use crate::transcript::{Transcript, TranscriptEvent};
 use crate::workspace_links::resolve_workspace_file_link;
 
-use super::{layout::WidthTween, NavEntry, Shell};
+use super::{NavEntry, Shell, layout::WidthTween};
 
 #[derive(Debug, Clone)]
 pub enum PendingExit {
@@ -40,7 +42,10 @@ pub enum RightSurface {
     Subagent(u64),
 }
 
-pub(crate) fn push_unique_right_surface(tabs: &mut Vec<RightSurface>, surface: RightSurface) -> bool {
+pub(crate) fn push_unique_right_surface(
+    tabs: &mut Vec<RightSurface>,
+    surface: RightSurface,
+) -> bool {
     if tabs.contains(&surface) {
         false
     } else {
@@ -203,16 +208,16 @@ impl Shell {
             let delay = self.settings.files_autosave_delay_ms;
             let editor_font_size = crate::typography::code_font_size(cx);
             let word_wrap = self.settings.files_word_wrap;
-            let show_all_files = self.settings.files_show_all;
+            let tree = self.workspace_tree(window, cx);
             let files = cx.new(|cx| {
                 FilesSurface::new(
                     self.state.clone(),
                     self.active_chat.clone(),
+                    tree.clone(),
                     autosave_enabled,
                     delay,
                     editor_font_size,
                     word_wrap,
-                    show_all_files,
                     cx,
                 )
             });
@@ -245,6 +250,7 @@ impl Shell {
             );
             self.files.insert(key.clone(), files);
             self.files_subs.insert(key.clone(), sub);
+            crate::ui_trace!("surface-new kind=files panel={:?}", key);
         }
         let tabs = self.right_tabs.entry(key).or_default();
         push_unique_right_surface(tabs, RightSurface::Files);
@@ -253,9 +259,16 @@ impl Shell {
     }
 
     /// Open a workspace file as a first-class right-pane tab. Every editor is
-    /// a separate FilesSurface so its tree, search, watcher and split layout
-    /// stay stable while users move among open files.
-    pub(crate) fn add_file_surface(&mut self, path: String, window: &mut Window, cx: &mut Context<Self>) {
+    /// a separate FilesSurface so its documents, search, and split layout
+    /// stay stable while users move among open files; the workspace tree is
+    /// the panel's SHARED [`FileTreeView`] — no per-tab tree, no per-tab
+    /// reload, no racing loads.
+    pub(crate) fn add_file_surface(
+        &mut self,
+        path: String,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         if self.active_chat.is_empty() {
             return;
         }
@@ -270,23 +283,35 @@ impl Shell {
 
         self.file_surface_seq += 1;
         let id = self.file_surface_seq;
-        let existing_tree = self.files.get(&panel_key).map(|f| f.read(cx).tree().clone());
+        let tree = self.workspace_tree(window, cx);
+        // Visual continuity: the new tab's tree sidebar starts where the
+        // tree already is — full pane when the raw workspace browser was
+        // active, the current sidebar width when switching from a file tab —
+        // then eases to its resting width (the tree slides aside and the
+        // file emerges, instead of the layout snapping).
+        let initial_sidebar = match self.resolved_right_active(cx) {
+            RightSurface::Files if self.files.contains_key(&panel_key) => {
+                Some(self.right_target(cx))
+            }
+            RightSurface::File(active_id) => self
+                .file_surfaces
+                .get(&active_id)
+                .and_then(|surface| surface.read(cx).current_sidebar_width()),
+            _ => None,
+        };
         let file = cx.new(|cx| {
-            let mut surface = FilesSurface::new_editor(
+            FilesSurface::new_editor(
                 self.state.clone(),
                 self.active_chat.clone(),
                 path.clone(),
+                tree.clone(),
+                initial_sidebar,
                 self.settings.files_autosave_enabled,
                 self.settings.files_autosave_delay_ms,
                 crate::typography::code_font_size(cx),
                 self.settings.files_word_wrap,
-                self.settings.files_show_all,
                 cx,
-            );
-            if let Some(tree) = existing_tree {
-                surface.set_tree(tree);
-            }
-            surface
+            )
         });
         let event_panel_key = panel_key.clone();
         let sub = cx.subscribe_in(
@@ -317,6 +342,7 @@ impl Shell {
                 FilesEvent::CloseCancelled => this.cancel_file_close(RightSurface::File(id), cx),
             },
         );
+        crate::ui_trace!("surface-new kind=file id={} path={:?}", id, path);
         self.file_surfaces.insert(id, file);
         self.file_surface_paths.insert(id, path);
         self.file_surface_keys.insert(lookup, id);
@@ -326,6 +352,78 @@ impl Shell {
             .or_default()
             .push(RightSurface::File(id));
         self.set_right_active(RightSurface::File(id), cx);
+    }
+
+    /// The panel's ONE shared workspace tree. Created on first need and
+    /// kept for the panel's lifetime: every Files surface (browser and
+    /// editor tabs) embeds this entity, so the tree state, its directory
+    /// loads, and the workspace watcher exist exactly once per panel.
+    pub(super) fn workspace_tree(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Entity<FileTreeView> {
+        let key = self.panel_key(cx);
+        if let Some(tree) = self.workspace_trees.get(&key) {
+            return tree.clone();
+        }
+        let tree = cx.new(|cx| {
+            FileTreeView::new(
+                self.state.clone(),
+                self.active_chat.clone(),
+                self.settings.files_show_all,
+                cx,
+            )
+        });
+        let event_key = key.clone();
+        let sub = cx.subscribe_in(
+            &tree,
+            window,
+            move |this: &mut Self, _, event, window, cx| match event {
+                WorkspaceTreeEvent::OpenFile(path) => {
+                    this.add_file_surface(path.clone(), window, cx)
+                }
+                WorkspaceTreeEvent::ShowAllFilesChanged(show_all_files) => {
+                    this.set_files_show_all(*show_all_files, cx)
+                }
+                WorkspaceTreeEvent::DocumentsChanged { frame, resync } => {
+                    this.fan_out_files_frame(&event_key, &frame, *resync, cx);
+                }
+            },
+        );
+        self.workspace_trees.insert(key.clone(), tree.clone());
+        self.workspace_tree_subs.insert(key, sub);
+        tree
+    }
+
+    /// Apply a watch frame the shared tree already applied to every Files
+    /// surface of the panel (browser + editor tabs): open documents,
+    /// images, and rename bookkeeping reconcile here.
+    fn fan_out_files_frame(
+        &mut self,
+        panel_key: &str,
+        frame: &zeron_proto::WorkspaceFileChanges,
+        resync: bool,
+        cx: &mut Context<Self>,
+    ) {
+        let mut surfaces: Vec<Entity<FilesSurface>> = Vec::new();
+        if let Some(files) = self.files.get(panel_key) {
+            surfaces.push(files.clone());
+        }
+        if let Some(tabs) = self.right_tabs.get(panel_key) {
+            for tab in tabs {
+                if let RightSurface::File(id) = tab
+                    && let Some(surface) = self.file_surfaces.get(id)
+                {
+                    surfaces.push(surface.clone());
+                }
+            }
+        }
+        for surface in surfaces {
+            surface.update(cx, |surface, cx| {
+                surface.apply_files_frame(frame, resync, cx);
+            });
+        }
     }
 
     pub(super) fn open_workspace_file_link(
@@ -399,7 +497,11 @@ impl Shell {
         self.register_diff_surface(changes, cx);
     }
 
-    pub(super) fn register_diff_surface(&mut self, changes: Entity<Changes>, cx: &mut Context<Self>) {
+    pub(super) fn register_diff_surface(
+        &mut self,
+        changes: Entity<Changes>,
+        cx: &mut Context<Self>,
+    ) {
         self.diff_seq += 1;
         let id = self.diff_seq;
         let sub = cx.subscribe(&changes, |this: &mut Self, _, event, cx| match event {
@@ -848,11 +950,11 @@ impl Shell {
                     .flex_col()
                     .gap(px(8.0))
                     .child(
-                        row("surface-card-files", icons::FOLDER_WITH_FILES, "Files").on_click(
-                            cx.listener(|this, _, window, cx| {
+                        row("surface-card-files", icons::FOLDER_WITH_FILES, "Files")
+                            .on_click(cx.listener(|this, _, window, cx| {
                                 this.add_files_surface(window, cx);
-                            }),
-                        ),
+                            }))
+                            .child(crate::ui_trace::bounds_probe("files-card")),
                     )
                     .child(
                         row("surface-card-browser", icons::GLOBE, "Browser").on_click(cx.listener(

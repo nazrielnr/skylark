@@ -3,13 +3,13 @@
 use std::time::Duration;
 
 use super::*;
-use gpui::{
-    div, px, AnyElement, App, Context, Entity, IntoElement, MouseButton, MouseUpEvent, Point,
-    Window,
-};
 use crate::motion::{self, RESIZE};
 use crate::settings::{self, SavePolicy};
 use crate::theme::Theme;
+use gpui::{
+    AnyElement, App, Context, Entity, IntoElement, MouseButton, MouseUpEvent, Point, Window, div,
+    px,
+};
 
 /// Vertical pane resize hitboxes yield the global titlebar. Keeping this in
 /// the shared constructor makes left/right seams mirror each other and avoids
@@ -115,11 +115,7 @@ impl Shell {
 
     pub(crate) fn ui_scale(&self) -> f32 {
         let px = self.settings.ui_font_size.pixels();
-        if px <= 0.0 {
-            1.0
-        } else {
-            px / 16.0
-        }
+        if px <= 0.0 { 1.0 } else { px / 16.0 }
     }
 
     pub(crate) fn sidebar_target(&self) -> f32 {
@@ -182,8 +178,11 @@ impl Shell {
                 right_pane_takeover_width(self.viewport_width, sidebar_now)
             } else {
                 let scale = self.ui_scale();
-                (self.settings.right_pane_width * scale)
-                    .min(right_pane_max_width_scaled(self.viewport_width, sidebar_now, scale))
+                (self.settings.right_pane_width * scale).min(right_pane_max_width_scaled(
+                    self.viewport_width,
+                    sidebar_now,
+                    scale,
+                ))
             }
         }
     }
@@ -382,6 +381,9 @@ impl Shell {
         self.settings.files_show_all = show_all_files;
         if let Some(page) = self.files_settings_page.clone() {
             page.update(cx, |page, cx| page.set_show_all_files(show_all_files, cx));
+        }
+        for tree in self.workspace_trees.values() {
+            tree.update(cx, |tree, cx| tree.set_show_all_files(show_all_files, cx));
         }
         let surfaces = self
             .files
@@ -654,7 +656,12 @@ impl Shell {
             .flex_none()
             .overflow_hidden()
             .w(px(self.sidebar_now()))
-            .child(div().h_full().pt(crate::typography::ui_rems(Theme::TITLEBAR_HEIGHT)).child(inner))
+            .child(
+                div()
+                    .h_full()
+                    .pt(crate::typography::ui_rems(Theme::TITLEBAR_HEIGHT))
+                    .child(inner),
+            )
             .into_any_element()
     }
 
@@ -783,8 +790,7 @@ impl Shell {
         let main_target_width =
             conversation_width(viewport, self.sidebar_target(), right_target_width);
         let main_transition = self.active_tween_endpoints(self.main_takeover_tween);
-        let main_content_width =
-            stable_panel_content_width(main_target_width, main_transition);
+        let main_content_width = stable_panel_content_width(main_target_width, main_transition);
         let transcript_width = self.composer_dock.borrow_mut().transcript_width(
             main_content_width,
             self.state.read(cx).selected_chat.is_some(),
@@ -882,18 +888,11 @@ impl Shell {
         } else {
             None
         };
-        let mut card_div = div()
-            .flex_1()
-            .min_w_0()
-            .flex()
-            .flex_row()
-            .overflow_hidden();
+        let mut card_div = div().flex_1().min_w_0().flex().flex_row().overflow_hidden();
         if let Some(bg) = card_bg {
             card_div = card_div.bg(bg);
         }
-        let card: AnyElement = card_div
-            .child(main)
-            .into_any_element();
+        let card: AnyElement = card_div.child(main).into_any_element();
         // The whole app page is one keyed `animate-in` entrance (zeron
         // App.tsx `<div key={phase} className="animate-in h-full">`):
         // arriving from the splash or any gate fades the page in; the
@@ -989,6 +988,9 @@ impl Shell {
             .child(div().absolute().top_0().left_0().right_0().child(title_bar))
             .child(self.render_titlebar_cluster(cx))
             .children(overlays);
-        (sidebar_tone.into_any_element(), motion::fade_in("phase-app", page).into_any_element())
+        (
+            sidebar_tone.into_any_element(),
+            motion::fade_in("phase-app", page).into_any_element(),
+        )
     }
 }

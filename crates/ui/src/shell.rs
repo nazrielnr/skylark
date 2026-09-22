@@ -16,9 +16,8 @@ use std::time::Duration;
 
 use chrono::Utc;
 use gpui::{
-    AnyElement, App, Context, Empty, Entity, FocusHandle, Focusable as _,
-    IntoElement, Keystroke, MouseButton, MouseDownEvent,
-    Pixels, Point, Render, SharedString, Subscription, Task, Window,
+    AnyElement, App, Context, Empty, Entity, FocusHandle, Focusable as _, IntoElement, Keystroke,
+    MouseButton, MouseDownEvent, Pixels, Point, Render, SharedString, Subscription, Task, Window,
     div, prelude::*, px,
 };
 use zeron_proto::{AuthState, WorkspaceScope};
@@ -26,7 +25,7 @@ use zeron_rpc::methods;
 
 use crate::changes::Changes;
 use crate::composer::{Composer, ComposerEvent, ComposerInput, ComposerInputEvent};
-use crate::files::{FilesSurface, WorkspacePathDrag};
+use crate::files::{FileTreeView, FilesSurface, WorkspacePathDrag};
 use crate::icons::{self, icon};
 use crate::loaders;
 use crate::motion::{self, AnimationExt as _, MotionSpec, RESIZE, SPLASH_OUT, TAB_SLIDE};
@@ -41,15 +40,14 @@ use crate::settings::harnesses::HarnessesPage;
 use crate::settings::notifications::{NotificationsEvent, NotificationsPage};
 use crate::settings::shortcuts::{ShortcutsEvent, ShortcutsPage};
 use crate::settings::{
-    self, CHAT_PANEL_MIN, JUMP_SLOTS, RIGHT_PANE_DEFAULT,
-    RIGHT_PANE_MIN, SIDEBAR_DEFAULT, SIDEBAR_MAX, SIDEBAR_MIN, ShortcutId,
-    SidebarOrganization, SidebarSort, TERMINAL_DEFAULT_HEIGHT, TERMINAL_MAX_VH,
-    TERMINAL_MIN_HEIGHT, UiSettings, badge_combo, jump_hints_visible, modifier_send_hint_visible,
-    platform_combo, sidebar_pin_profile_key,
+    self, CHAT_PANEL_MIN, JUMP_SLOTS, RIGHT_PANE_DEFAULT, RIGHT_PANE_MIN, SIDEBAR_DEFAULT,
+    SIDEBAR_MAX, SIDEBAR_MIN, ShortcutId, SidebarOrganization, SidebarSort,
+    TERMINAL_DEFAULT_HEIGHT, TERMINAL_MAX_VH, TERMINAL_MIN_HEIGHT, UiSettings, badge_combo,
+    jump_hints_visible, modifier_send_hint_visible, platform_combo, sidebar_pin_profile_key,
 };
 use crate::state::{
-    AppState, ConnectionStatus, EngineBootConfig, GatePhase, Indicator, OrgRow,
-    format_time_ago, org_name_valid, parse_orgs, sort_memberships,
+    AppState, ConnectionStatus, EngineBootConfig, GatePhase, Indicator, OrgRow, format_time_ago,
+    org_name_valid, parse_orgs, sort_memberships,
 };
 use crate::terminal::panel::{TerminalPanel, ToggleTerminal};
 use crate::theme::Theme;
@@ -67,11 +65,11 @@ mod notifications;
 mod org_gate;
 mod overlays;
 mod project_icon;
-mod right_tabs;
-mod settings_modal;
 mod right_pane;
+mod right_tabs;
 mod routes;
 mod session_panels;
+mod settings_modal;
 mod sidebar_drag;
 mod sidebar_mutations;
 mod sidebar_pins;
@@ -84,32 +82,32 @@ mod terminal_container;
 mod titlebar;
 mod user_menu;
 pub use keyboard::*;
-pub use routes::*;
-pub use session_panels::*;
-pub use surfaces::*;
-pub use titlebar::*;
 pub(crate) use layout::*;
 pub(crate) use main_outlet::*;
-pub(crate) use overlays::*;
-pub(crate) use sidebar_drag::*;
-pub(crate) use sync_switch::*;
-pub(crate) use user_menu::*;
+use org_gate::OrgGateUi;
 pub(super) use org_gate::grid_backdrop;
+pub(crate) use overlays::*;
+use right_tabs::RightTabDragState;
 pub(super) use right_tabs::workspace_file_title;
+pub use routes::*;
+pub use session_panels::*;
+pub(crate) use sidebar_drag::*;
 pub(super) use sidebar_mutations::{ChatMenuPage, ChatMenuState, RenameChatDialog};
 pub(super) use spaces::SidebarDisclosureMotion;
+pub use surfaces::*;
+pub(crate) use sync_switch::*;
 pub(super) use terminal_container::TERMINAL_RESIZE_HITBOX_HEIGHT;
-use org_gate::OrgGateUi;
-use right_tabs::RightTabDragState;
+pub use titlebar::*;
+pub(crate) use user_menu::*;
 
 pub use navigation::{NavEntry, NavHistory};
-pub use sidebar_sessions::{resort_offsets, RESORT};
-pub(crate) use sidebar_sessions::{
-    sidebar_faded_label, sidebar_row_height, SIDEBAR_DRAG_SCROLL_BAND,
-    SIDEBAR_DRAG_SCROLL_FRAME_MS, SIDEBAR_DRAG_SCROLL_MAX, SIDEBAR_LIST_GAP, SIDEBAR_LIST_PAD_TOP,
-};
 #[cfg(test)]
 pub(crate) use sidebar_sessions::SIDEBAR_SESSION_SLOT;
+pub use sidebar_sessions::{RESORT, resort_offsets};
+pub(crate) use sidebar_sessions::{
+    SIDEBAR_DRAG_SCROLL_BAND, SIDEBAR_DRAG_SCROLL_FRAME_MS, SIDEBAR_DRAG_SCROLL_MAX,
+    SIDEBAR_LIST_GAP, SIDEBAR_LIST_PAD_TOP, sidebar_faded_label, sidebar_row_height,
+};
 
 use spaces::{AddSpaceFlow, RenameSpaceDialog};
 
@@ -165,7 +163,12 @@ pub struct Shell {
     /// its file watcher and every in-flight workspace request.
     pub(super) files: std::collections::HashMap<String, Entity<FilesSurface>>,
     pub(super) files_subs: std::collections::HashMap<String, Subscription>,
-    /// One independent editor/tree per opened workspace file. IDs are global
+    /// The panel's ONE shared workspace tree (model, loads, watcher). Every
+    /// Files surface — browser and editor tabs — embeds the same entity, so
+    /// the tree never reloads or races when tabs open.
+    pub(super) workspace_trees: std::collections::HashMap<String, Entity<FileTreeView>>,
+    pub(super) workspace_tree_subs: std::collections::HashMap<String, Subscription>,
+    /// One independent editor per opened workspace file. IDs are global
     /// while the lookup key keeps a file tab scoped to its chat panel.
     pub(super) file_surfaces: std::collections::HashMap<u64, Entity<FilesSurface>>,
     pub(super) file_surface_paths: std::collections::HashMap<u64, String>,
@@ -569,6 +572,8 @@ impl Shell {
             diffs: std::collections::HashMap::new(),
             files: std::collections::HashMap::new(),
             files_subs: std::collections::HashMap::new(),
+            workspace_trees: std::collections::HashMap::new(),
+            workspace_tree_subs: std::collections::HashMap::new(),
             file_surfaces: std::collections::HashMap::new(),
             file_surface_paths: std::collections::HashMap::new(),
             file_surface_keys: std::collections::HashMap::new(),

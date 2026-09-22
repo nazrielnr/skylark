@@ -28,6 +28,7 @@ impl FilePreviewState {
             tree_sidebar_visible: false,
             tree_sidebar_dismissed: false,
             tree_width: TREE_SPLIT_DEFAULT,
+            tree_width_tween: None,
             tree_motion: TreeSidebarMotion::default(),
             tree_edge_bounce: None,
             tree_resize_edge: None,
@@ -49,6 +50,7 @@ impl FilePreviewState {
         self.reload_confirmation = None;
         self.close_requested = false;
         self.tree_sidebar_visible = false;
+        self.tree_width_tween = None;
         self.tree_motion = TreeSidebarMotion::default();
         self.tree_edge_bounce = None;
         self.tree_resize_edge = None;
@@ -186,16 +188,37 @@ impl FilePreviewState {
         self.tree_sidebar_visible = true;
         self.tree_sidebar_dismissed = false;
         if !previous {
-            self.tree_motion
-                .animate_to(previous, true, Instant::now());
+            self.tree_motion.animate_to(previous, true, Instant::now());
         }
     }
 
     pub(crate) fn show_tree_sidebar_animated(&mut self) {
         self.tree_sidebar_visible = true;
         self.tree_sidebar_dismissed = false;
-        self.tree_motion
-            .animate_to(false, true, Instant::now());
+        self.tree_motion.animate_to(false, true, Instant::now());
+    }
+
+    /// Seed a new editor tab so its first frame matches the layout the tree
+    /// already has (full pane from the raw workspace browser, or the current
+    /// sidebar width from another file tab), then ease to the resting width.
+    /// Also primes the wide/narrow measurement so frame 1 picks the right
+    /// layout branch (the measuring canvas only runs after this paint).
+    pub(crate) fn seed_sidebar_transition(&mut self, from_width: f32) {
+        self.surface_width.set(from_width);
+        self.tree_width_tween = Some((from_width, Instant::now()));
+    }
+
+    /// The sidebar width this surface would rest at (the tween's target).
+    pub(crate) fn resting_sidebar_width(&self) -> f32 {
+        if self.is_wide() {
+            self.tree_width
+        } else {
+            self.narrow_tree_width()
+        }
+    }
+
+    pub(crate) fn clear_tree_width_tween(&mut self) {
+        self.tree_width_tween = None;
     }
 
     pub(super) fn toggle_tree_sidebar(&mut self) {
@@ -277,6 +300,25 @@ impl FilePreviewState {
     }
 
     pub(crate) fn tree_width_frame(&self, window: &mut Window, cx: &App) -> f32 {
+        // The opening transition eases the sidebar from the width the tree
+        // had when the tab was created (full pane when it comes from the
+        // raw workspace browser) toward the resting width.
+        if let Some((from, started)) = self.tree_width_tween {
+            let total = Duration::from_millis(crate::motion::RESIZE.duration_ms)
+                .mul_f32(crate::motion::speed_scale());
+            let raw = Instant::now()
+                .saturating_duration_since(started)
+                .as_secs_f32()
+                / total.as_secs_f32();
+            if raw < 1.0 {
+                window.request_animation_frame();
+                return crate::motion::lerp(
+                    from,
+                    self.tree_width,
+                    crate::motion::RESIZE.progress(raw),
+                );
+            }
+        }
         let Some(bounce) = self.tree_edge_bounce else {
             return self.tree_width;
         };
