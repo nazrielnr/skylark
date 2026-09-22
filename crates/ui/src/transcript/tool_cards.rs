@@ -4,8 +4,9 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use gpui::{
-    AnyElement, Bounds, ContentMask, Context, PathBuilder, Pixels, Point, SharedString, StyledText,
-    TextAlign, TextRun, Window, canvas, div, point, prelude::*, px, size,
+    AnyElement, Bounds, ContentMask, Context, DispatchPhase, PathBuilder, Pixels, Point,
+    ScrollHandle, SharedString, StyledText, TextAlign, TextRun, Window, canvas, div, point,
+    prelude::*, px, size,
 };
 use zeron_doc::SubagentStatus;
 use zeron_proto::ToolCall;
@@ -15,8 +16,8 @@ use crate::motion;
 use crate::notice::{NoticeChipIcon::Tile, notice_chip};
 use crate::theme::Theme;
 use crate::transcript::row::{
-    DETAIL_SEPARATOR, OUTPUT_BODY_PAD, OUTPUT_LINE_HEIGHT, ToolDetail, ToolItem, is_agent_call,
-    is_agent_tool, is_spawn_link, tool_detail, tool_group_collapses,
+    DETAIL_SEPARATOR, OUTPUT_BODY_PAD, OUTPUT_DETAIL_MAX_LINES, OUTPUT_LINE_HEIGHT, ToolDetail,
+    ToolItem, is_agent_call, is_agent_tool, is_spawn_link, tool_detail, tool_group_collapses,
 };
 use crate::transcript::{BlobFetch, FoldState, Transcript, TranscriptEvent};
 
@@ -64,6 +65,21 @@ pub const FOLD_TWEEN_WINDOW: Duration = Duration::from_millis(400);
 pub const BLOB_AFFORDANCE_HEIGHT: f32 = 24.0;
 pub const FULL_OUTPUT_MAX_LINES: usize = 400;
 pub const SUBAGENT_TITLE_MAX: usize = 40;
+const DETAIL_FADE_BAND: f32 = 28.0;
+const DETAIL_SCROLLBAR_WIDTH: f32 = 10.0;
+
+#[derive(Clone)]
+pub(crate) struct DetailScrollbarDrag {
+    id: SharedString,
+}
+
+pub(crate) struct DetailScrollbarDragGhost;
+
+impl gpui::Render for DetailScrollbarDragGhost {
+    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl gpui::IntoElement {
+        gpui::Empty
+    }
+}
 
 // ---------------------------------------------------------------------------
 // Structs & Enums
@@ -90,6 +106,7 @@ pub(crate) struct ToolGroupReveal {
     pub(crate) shimmer_started_at: Option<Instant>,
     pub(crate) rendered_open: Option<bool>,
     pub(crate) rendered_height: f32,
+    pub(crate) settled_duration_secs: Option<u64>,
 }
 
 /// The trailing tile on a chip header, when it has one.
@@ -124,14 +141,10 @@ pub fn detail_height(detail: &ToolDetail) -> f32 {
             truncated_by,
         } => {
             let rows = lines.len() + usize::from(*truncated_by > 0);
-            rows as f32 * OUTPUT_LINE_HEIGHT + OUTPUT_BODY_PAD
+            rows.min(OUTPUT_DETAIL_MAX_LINES) as f32 * OUTPUT_LINE_HEIGHT + OUTPUT_BODY_PAD
         }
-        ToolDetail::Thought {
-            lines,
-            truncated_by,
-        } => {
-            let rows = lines.len() + usize::from(*truncated_by > 0);
-            rows as f32 * OUTPUT_LINE_HEIGHT + OUTPUT_BODY_PAD
+        ToolDetail::Thought { lines, .. } => {
+            lines.len().min(OUTPUT_DETAIL_MAX_LINES) as f32 * OUTPUT_LINE_HEIGHT + OUTPUT_BODY_PAD
         }
         ToolDetail::Diff { file, .. } => crate::changes::body_height(file),
         ToolDetail::Stats { stats } => stats.len() as f32 * OUTPUT_LINE_HEIGHT + OUTPUT_BODY_PAD,
@@ -172,6 +185,132 @@ pub fn format_kb(bytes: u64) -> String {
     } else {
         format!("{} KB", bytes.div_ceil(1024))
     }
+}
+
+fn detail_scroll_to_pointer(
+    scroll: &ScrollHandle,
+    metrics: crate::popover::MenuScrollbarMetrics,
+    pointer_y: Pixels,
+) {
+    let local =
+        f32::from(pointer_y - scroll.bounds().top()) - crate::popover::MENU_SCROLLBAR_TRACK_INSET;
+    let thumb_top = (local - metrics.thumb_height / 2.0).clamp(0.0, metrics.travel());
+    let fraction = if metrics.travel() > 0.0 {
+        thumb_top / metrics.travel()
+    } else {
+        0.0
+    };
+    let offset = scroll.offset();
+    scroll.set_offset(Point::new(offset.x, px(-fraction * metrics.max_scroll)));
+}
+
+fn scrollable_detail(
+    id: SharedString,
+    scroll: Option<&ScrollHandle>,
+    row_count: usize,
+    rows: impl IntoElement,
+    theme: &Theme,
+) -> AnyElement {
+    let scroll = scroll.cloned().unwrap_or_default();
+    let viewport_height = OUTPUT_DETAIL_MAX_LINES as f32 * OUTPUT_LINE_HEIGHT + OUTPUT_BODY_PAD;
+    let content_height = row_count as f32 * OUTPUT_LINE_HEIGHT + OUTPUT_BODY_PAD;
+    let metrics = crate::popover::MenuScrollbarMetrics::from_parts(
+        viewport_height,
+        content_height,
+        -f32::from(scroll.offset().y),
+    );
+    let viewport = div()
+        .id(id.clone())
+        .h(crate::typography::ui_rems(
+            viewport_height.min(content_height),
+        ))
+        .max_h(crate::typography::ui_rems(viewport_height))
+        .overflow_y_scroll()
+        .track_scroll(&scroll)
+        .child(rows);
+    let faded = crate::edge_fade::edge_faded(DETAIL_FADE_BAND, true, true, viewport)
+        .fade_overflow_y(&scroll);
+    let rail = metrics.map(|metrics| {
+        let press_scroll = scroll.clone();
+        let drag_scroll = scroll.clone();
+        let drag_id = id.clone();
+        div()
+            .id(SharedString::from(format!("{id}-scrollbar")))
+            .absolute()
+            .top_0()
+            .bottom_0()
+            .right_0()
+            .w(px(DETAIL_SCROLLBAR_WIDTH))
+            .cursor_pointer()
+            .role(gpui::Role::ScrollBar)
+            .aria_label("Output scrollbar")
+            .on_mouse_down(gpui::MouseButton::Left, move |event, window, cx| {
+                detail_scroll_to_pointer(&press_scroll, metrics, event.position.y);
+                cx.stop_propagation();
+                window.refresh();
+            })
+            .on_drag(DetailScrollbarDrag { id: id.clone() }, |_, _, _, cx| {
+                cx.stop_propagation();
+                cx.new(|_| DetailScrollbarDragGhost)
+            })
+            .on_drag_move(
+                move |event: &gpui::DragMoveEvent<DetailScrollbarDrag>, window, cx| {
+                    let Some(drag) = event.dragged_item().downcast_ref::<DetailScrollbarDrag>()
+                    else {
+                        return;
+                    };
+                    if drag.id == drag_id {
+                        detail_scroll_to_pointer(&drag_scroll, metrics, event.event.position.y);
+                        cx.stop_propagation();
+                        window.refresh();
+                    }
+                },
+            )
+            .child(
+                div()
+                    .absolute()
+                    .top(px(
+                        crate::popover::MENU_SCROLLBAR_TRACK_INSET + metrics.thumb_top
+                    ))
+                    .right(px(2.0))
+                    .w(px(crate::popover::MENU_SCROLLBAR_THUMB_WIDTH))
+                    .h(px(metrics.thumb_height))
+                    .rounded(px(crate::popover::MENU_SCROLLBAR_THUMB_WIDTH / 2.0))
+                    .bg(theme.text_faint.opacity(0.62)),
+            )
+    });
+    let wheel_scroll = scroll.clone();
+    let wheel_capture = canvas(
+        |_, _, _| (),
+        move |bounds, _, window, _| {
+            let scroll = wheel_scroll.clone();
+            window.on_mouse_event(move |event: &gpui::ScrollWheelEvent, phase, window, cx| {
+                if phase != DispatchPhase::Capture || !bounds.contains(&event.position) {
+                    return;
+                }
+                let delta = event.delta.pixel_delta(px(20.0));
+                let offset = scroll.offset();
+                let max = scroll.max_offset();
+                scroll.set_offset(Point::new(
+                    offset.x,
+                    (offset.y + delta.y).clamp(-max.y, px(0.0)),
+                ));
+                cx.stop_propagation();
+                window.refresh();
+            });
+        },
+    )
+    .absolute()
+    .inset_0();
+    div()
+        .relative()
+        .w_full()
+        .min_w_0()
+        .overflow_hidden()
+        .child(faded)
+        .children(rail)
+        .child(wheel_capture)
+        .into_any_element()
 }
 
 pub fn tool_row_reveal_progress(start: Option<Instant>, now: Instant, reduce_motion: bool) -> f32 {
@@ -471,8 +610,10 @@ pub fn file_badge_name(path: &str) -> &str {
 }
 
 pub fn detail_body(
+    id: SharedString,
     detail: &ToolDetail,
     diff_highlights: Option<Arc<crate::changes::DiffHighlights>>,
+    scroll: Option<&ScrollHandle>,
     theme: &Theme,
 ) -> AnyElement {
     let body = div().w_full().min_w_0().flex().flex_col().overflow_hidden();
@@ -529,52 +670,55 @@ pub fn detail_body(
         ToolDetail::Output {
             lines,
             truncated_by,
-        } => body
-            .py(crate::typography::ui_rems(6.0))
-            .font_family(theme.font_mono.clone())
-            .text_size(crate::typography::ui_rems(TOOL_TEXT_SIZE))
-            .children(lines.iter().map(|line| {
-                div()
-                    .h(crate::typography::ui_rems(OUTPUT_LINE_HEIGHT))
-                    .w_full()
-                    .min_w_0()
-                    .flex()
-                    .items_center()
-                    .text_color(theme.text_faint)
-                    .child(div().w_full().min_w_0().truncate().child(line.clone()))
-            }))
-            .when(*truncated_by > 0, |block| {
-                block.child(more_lines_row(*truncated_by, theme))
-            })
-            .into_any_element(),
-        ToolDetail::Thought {
-            lines,
-            truncated_by,
-        } => body
-            .py(crate::typography::ui_rems(6.0))
-            .text_size(crate::typography::ui_rems(TOOL_TEXT_SIZE))
-            .children(lines.iter().map(|line| {
-                let row = div()
-                    .h(crate::typography::ui_rems(OUTPUT_LINE_HEIGHT))
-                    .w_full()
-                    .min_w_0()
-                    .flex()
-                    .items_center();
-                let Some((text, runs)) = thought_line_text(line, theme) else {
-                    return row;
-                };
-                row.child(
+        } => {
+            let row_count = lines.len() + usize::from(*truncated_by > 0);
+            let rows = div()
+                .py(crate::typography::ui_rems(6.0))
+                .pr(px(DETAIL_SCROLLBAR_WIDTH))
+                .font_family(theme.font_mono.clone())
+                .text_size(crate::typography::ui_rems(TOOL_TEXT_SIZE))
+                .children(lines.iter().map(|line| {
                     div()
+                        .h(crate::typography::ui_rems(OUTPUT_LINE_HEIGHT))
+                        .flex_none()
                         .w_full()
                         .min_w_0()
-                        .truncate()
-                        .child(StyledText::new(text).with_runs(runs)),
-                )
-            }))
-            .when(*truncated_by > 0, |block| {
-                block.child(more_lines_row(*truncated_by, theme))
-            })
-            .into_any_element(),
+                        .flex()
+                        .items_center()
+                        .text_color(theme.text_faint)
+                        .child(div().w_full().min_w_0().truncate().child(line.clone()))
+                }))
+                .when(*truncated_by > 0, |block| {
+                    block.child(more_lines_row(*truncated_by, theme))
+                });
+            scrollable_detail(id, scroll, row_count, rows, theme)
+        }
+        ToolDetail::Thought { lines, .. } => {
+            let rows = div()
+                .py(crate::typography::ui_rems(6.0))
+                .pr(px(DETAIL_SCROLLBAR_WIDTH))
+                .text_size(crate::typography::ui_rems(TOOL_TEXT_SIZE))
+                .children(lines.iter().map(|line| {
+                    let row = div()
+                        .h(crate::typography::ui_rems(OUTPUT_LINE_HEIGHT))
+                        .flex_none()
+                        .w_full()
+                        .min_w_0()
+                        .flex()
+                        .items_center();
+                    let Some((text, runs)) = thought_line_text(line, theme) else {
+                        return row;
+                    };
+                    row.child(
+                        div()
+                            .w_full()
+                            .min_w_0()
+                            .truncate()
+                            .child(StyledText::new(text).with_runs(runs)),
+                    )
+                }));
+            scrollable_detail(id, scroll, lines.len(), rows, theme)
+        }
     }
 }
 
@@ -635,12 +779,40 @@ pub fn thought_line_text(
 pub(crate) fn chip_header_row(
     tool: &ToolItem,
     trail: Option<ChipTrail>,
+    live_elapsed_secs: Option<u64>,
     theme: &Theme,
     view: gpui::EntityId,
     cx: &mut gpui::App,
 ) -> gpui::Div {
+    let thought_label_storage: String;
     let (label, detail) = if tool.is_thought {
-        ("Thought process", String::new())
+        if !tool.resolved {
+            if let Some(elapsed) = live_elapsed_secs {
+                if elapsed > 0 {
+                    let dur = zeron_proto::view::format_duration_secs(elapsed);
+                    thought_label_storage = format!("Thinking {dur}...");
+                    (thought_label_storage.as_str(), String::new())
+                } else {
+                    ("Thinking...", String::new())
+                }
+            } else {
+                ("Thinking...", String::new())
+            }
+        } else if let Some(ms) = tool.thought_duration_ms {
+            let dur = zeron_proto::view::format_duration_ms(ms);
+            thought_label_storage = format!("Thought for {dur}");
+            (thought_label_storage.as_str(), String::new())
+        } else if let Some(elapsed) = live_elapsed_secs {
+            if elapsed > 0 {
+                let dur = zeron_proto::view::format_duration_secs(elapsed);
+                thought_label_storage = format!("Thought for {dur}");
+                (thought_label_storage.as_str(), String::new())
+            } else {
+                ("Thought", String::new())
+            }
+        } else {
+            ("Thought", String::new())
+        }
     } else {
         tool_chip_content(&tool.call)
     };
@@ -879,11 +1051,19 @@ pub(crate) fn chip_header_row(
 pub fn chip_header(
     tool: &ToolItem,
     open: bool,
+    live_elapsed_secs: Option<u64>,
     theme: &Theme,
     view: gpui::EntityId,
     cx: &mut gpui::App,
 ) -> gpui::Div {
-    chip_header_row(tool, Some(ChipTrail::Chevron { open }), theme, view, cx)
+    chip_header_row(
+        tool,
+        Some(ChipTrail::Chevron { open }),
+        live_elapsed_secs,
+        theme,
+        view,
+        cx,
+    )
 }
 
 pub fn title_line(text: &str, max: usize) -> Option<String> {
@@ -952,7 +1132,7 @@ pub fn activity_rail(
     continues: bool,
     reveal: f32,
     continuation_reveal: f32,
-    row_height: f32,
+    _row_height: f32,
     theme: &Theme,
 ) -> gpui::Div {
     let color = theme.hairline(0.12);
@@ -962,16 +1142,18 @@ pub fn activity_rail(
         theme.text_muted
     };
     let (incoming_reveal, branch_reveal) = tool_connector_parts(reveal, has_predecessor);
+    let header_center_y = TOOL_TREE_ROW_HEIGHT / 2.0;
     div()
         .relative()
         .w(px(ACTIVITY_GUTTER_WIDTH))
+        .h_full()
         .flex_none()
         .child(
             canvas(
                 move |_, _, _| (),
                 move |bounds, _, window, _| {
                     let x = bounds.origin.x + px(ACTIVITY_TRUNK_X);
-                    let branch_y = bounds.origin.y + px(row_height / 2.0);
+                    let branch_y = bounds.origin.y + px(header_center_y);
                     let bend_y = branch_y - px(ACTIVITY_BEND_RADIUS);
                     let mut tree = PathBuilder::fill().with_style(gpui::PathStyle::Fill(
                         gpui::FillOptions::default().with_fill_rule(gpui::FillRule::NonZero),
@@ -980,11 +1162,11 @@ pub fn activity_rail(
                         let mut bottom = point(
                             x,
                             bounds.origin.y
-                                + px((row_height / 2.0 - ACTIVITY_BEND_RADIUS) * incoming_reveal),
+                                + px((header_center_y - ACTIVITY_BEND_RADIUS) * incoming_reveal),
                         );
                         if incoming_reveal >= 1.0 && continues && continuation_reveal > 0.0 {
                             let continuation_height = (f32::from(bounds.size.height)
-                                - (row_height / 2.0 - ACTIVITY_BEND_RADIUS))
+                                - (header_center_y - ACTIVITY_BEND_RADIUS))
                                 .max(0.0);
                             bottom =
                                 point(x, bend_y + px(continuation_height * continuation_reveal));
@@ -1014,7 +1196,7 @@ pub fn activity_rail(
             })
             .absolute()
             .left(px(ACTIVITY_ICON_LEFT))
-            .top(px(row_height / 2.0 - ACTIVITY_ICON_SIZE / 2.0))
+            .top(px(header_center_y - ACTIVITY_ICON_SIZE / 2.0))
             .size(px(ACTIVITY_ICON_SIZE))
             .opacity(branch_reveal)
             .text_color(tint),
@@ -1096,7 +1278,7 @@ pub fn tool_chip(
                         .top(px(4.0 * (1.0 - content_reveal)))
                         .opacity(content_reveal)
                 })
-                .child(chip_header_row(tool, None, theme, view, cx)),
+                .child(chip_header_row(tool, None, None, theme, view, cx)),
         )
         .into_any_element()
 }
@@ -1147,6 +1329,7 @@ pub fn subagent_chip(
                 .child(chip_header_row(
                     tool,
                     Some(ChipTrail::OpenArrow),
+                    None,
                     theme,
                     view,
                     cx,

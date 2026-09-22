@@ -142,6 +142,8 @@ pub enum MessagePart {
     Reasoning {
         id: String,
         text: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        duration_ms: Option<u64>,
     },
     #[serde(rename_all = "camelCase")]
     Tool {
@@ -311,6 +313,7 @@ pub fn fold_event_into_parts(out: &mut Vec<MessagePart>, event: &AgentEvent) {
                 out.push(MessagePart::Reasoning {
                     id,
                     text: text.clone(),
+                    duration_ms: None,
                 });
             }
         }
@@ -628,9 +631,15 @@ pub fn split_parts(parts: &[MessagePart]) -> Vec<Vec<MessagePart>> {
     for part in parts {
         // Both text-bodied kinds chunk the same way; extended thinking can
         // exceed the cap just as easily as a long reply.
-        let (id, text, reasoning) = match part {
-            MessagePart::Text { id, text } if text.len() > MSG_INLINE_MAX => (id, text, false),
-            MessagePart::Reasoning { id, text } if text.len() > MSG_INLINE_MAX => (id, text, true),
+        let (id, text, reasoning, duration_ms) = match part {
+            MessagePart::Text { id, text } if text.len() > MSG_INLINE_MAX => {
+                (id, text, false, None)
+            }
+            MessagePart::Reasoning {
+                id,
+                text,
+                duration_ms,
+            } if text.len() > MSG_INLINE_MAX => (id, text, true, *duration_ms),
             other => {
                 push_part(&mut chunks, &mut current_bytes, other.clone());
                 continue;
@@ -658,6 +667,7 @@ pub fn split_parts(parts: &[MessagePart]) -> Vec<Vec<MessagePart>> {
                 MessagePart::Reasoning {
                     id: sub_id,
                     text: body,
+                    duration_ms: if piece == 0 { duration_ms } else { None },
                 }
             } else {
                 MessagePart::Text {
@@ -708,7 +718,8 @@ mod tests {
             parts[0],
             MessagePart::Reasoning {
                 id: "r0".into(),
-                text: "let me think".into()
+                text: "let me think".into(),
+                duration_ms: None,
             }
         );
         // Text breaks the reasoning block; a later thought starts a new part.
@@ -722,7 +733,7 @@ mod tests {
         assert_eq!(parts.len(), 3);
         assert!(matches!(
             &parts[2],
-            MessagePart::Reasoning { id, text } if id == "r2" && text == "more"
+            MessagePart::Reasoning { id, text, .. } if id == "r2" && text == "more"
         ));
     }
 
@@ -732,6 +743,7 @@ mod tests {
         let parts = vec![MessagePart::Reasoning {
             id: "r0".into(),
             text: big,
+            duration_ms: None,
         }];
         let chunks = split_parts(&parts);
         let flat = join_continuations(chunks);

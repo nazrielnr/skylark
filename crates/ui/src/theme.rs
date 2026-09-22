@@ -936,8 +936,8 @@ fn band_for(appearance: Appearance) -> Hsla {
 /// *inside floating cards* is different — see [`card_selected_bg`].
 pub fn glass_selected_bg() -> Hsla {
     match current_appearance() {
-        Appearance::Dark => wash(0.11),
-        Appearance::Light => wash(0.14),
+        Appearance::Dark => wash(0.05),
+        Appearance::Light => wash(0.05),
     }
 }
 

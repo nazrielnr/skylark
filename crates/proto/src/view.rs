@@ -439,6 +439,35 @@ fn tool_chip_content_raw(call: &crate::ToolCall) -> (&'static str, String) {
     }
 }
 
+/// Compact duration formatting for tool groups and reasoning (e.g. "3s", "1m", "1m 5s").
+pub fn format_duration_secs(secs: u64) -> String {
+    if secs < 60 {
+        format!("{secs}s")
+    } else if secs < 3_600 {
+        let m = secs / 60;
+        let s = secs % 60;
+        if s == 0 {
+            format!("{m}m")
+        } else {
+            format!("{m}m {s}s")
+        }
+    } else {
+        let h = secs / 3_600;
+        let m = (secs % 3_600) / 60;
+        if m == 0 {
+            format!("{h}h")
+        } else {
+            format!("{h}h {m}m")
+        }
+    }
+}
+
+/// Compact duration formatting from milliseconds.
+pub fn format_duration_ms(ms: u64) -> String {
+    let secs = ((ms + 500) / 1000).max(1);
+    format_duration_secs(secs)
+}
+
 /// The ToolGroup summary line — "Ran 3 commands · edited 2 files".
 ///
 /// Takes `(call, is_error)` pairs so each viewport can keep its own row model;
@@ -481,25 +510,25 @@ pub fn tool_group_summary(tools: &[(crate::ToolCall, bool)]) -> String {
     }
     let mut segments: Vec<String> = Vec::new();
     if commands > 0 {
-        segments.push(format!("ran {}", plural(commands, "command", "commands")));
+        segments.push(format!("Ran {}", plural(commands, "command", "commands")));
     }
     if !edited.is_empty() {
-        segments.push(format!("edited {}", plural(edited.len(), "file", "files")));
+        segments.push(format!("Edited {}", plural(edited.len(), "file", "files")));
     }
     if reads > 0 {
-        segments.push(format!("read {}", plural(reads, "file", "files")));
+        segments.push(format!("Read {}", plural(reads, "file", "files")));
     }
     if searches > 0 {
-        segments.push(format!("searched {}", plural(searches, "time", "times")));
+        segments.push(format!("Searched {}", plural(searches, "time", "times")));
     }
     if fetches > 0 {
-        segments.push(format!("fetched {}", plural(fetches, "page", "pages")));
+        segments.push(format!("Fetched {}", plural(fetches, "page", "pages")));
     }
     if todos > 0 {
-        segments.push("updated todos".to_string());
+        segments.push("Updated todos".to_string());
     }
     if other > 0 {
-        segments.push(format!("called {}", plural(other, "tool", "tools")));
+        segments.push(format!("Called {}", plural(other, "tool", "tools")));
     }
     if segments.is_empty() {
         segments.push(plural(tools.len(), "tool", "tools"));
@@ -507,13 +536,7 @@ pub fn tool_group_summary(tools: &[(crate::ToolCall, bool)]) -> String {
     if failed > 0 {
         segments.push(format!("{failed} failed"));
     }
-    let mut summary = segments.join(" · ");
-    // Capitalize the first segment only (zeron's style).
-    if let Some(first) = summary.get(0..1) {
-        let upper = first.to_uppercase();
-        summary.replace_range(0..1, &upper);
-    }
-    summary
+    segments.join(" · ")
 }
 
 /// The status-dot palette, as oklch triples (L, C, H°).
@@ -672,5 +695,44 @@ mod checkout_tests {
             checkout_label(CheckoutKind::NewWorktree, Some(&plain("main"))),
             "New worktree"
         );
+    }
+
+    #[test]
+    fn tool_group_summary_capitalizes_segments() {
+        use crate::ToolCall;
+        let tools = vec![
+            (
+                ToolCall::Exec {
+                    command: "cargo test".into(),
+                },
+                false,
+            ),
+            (
+                ToolCall::EditFile {
+                    path: "src/lib.rs".into(),
+                    old_string: None,
+                    new_string: None,
+                },
+                false,
+            ),
+        ];
+        assert_eq!(tool_group_summary(&tools), "Ran 1 command · Edited 1 file");
+    }
+
+    #[test]
+    fn format_duration_works_for_seconds_and_minutes() {
+        assert_eq!(format_duration_secs(0), "0s");
+        assert_eq!(format_duration_secs(7), "7s");
+        assert_eq!(format_duration_secs(59), "59s");
+        assert_eq!(format_duration_secs(60), "1m");
+        assert_eq!(format_duration_secs(65), "1m 5s");
+        assert_eq!(format_duration_secs(120), "2m");
+        assert_eq!(format_duration_secs(125), "2m 5s");
+        assert_eq!(format_duration_secs(3600), "1h");
+        assert_eq!(format_duration_secs(3665), "1h 1m");
+
+        assert_eq!(format_duration_ms(3000), "3s");
+        assert_eq!(format_duration_ms(60000), "1m");
+        assert_eq!(format_duration_ms(65000), "1m 5s");
     }
 }

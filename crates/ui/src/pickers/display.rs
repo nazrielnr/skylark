@@ -68,11 +68,9 @@ impl Pickers {
             .items_center()
             .gap(px(6.0))
             .px(px(10.0))
-            .rounded(px(8.0))
+            .rounded_full()
             .text_size(crate::typography::ui_rems(12.0))
             .font_weight(gpui::FontWeight::MEDIUM)
-            // zeron composer/styles.tsx `pill`: `transition-colors` — the wash
-            // and text brighten fade over 150ms.
             .text_color(motion::hover_blend(
                 id,
                 if set {
@@ -82,26 +80,10 @@ impl Pickers {
                 },
                 theme.text,
             ))
-            .when(kind == PickerKind::HarnessModel && theme.is_frost(), |el| {
-                el.border_1().border_color(crate::theme::hairline(if theme.appearance.is_dark() { 0.12 } else { 0.08 }))
-            })
-            .bg({
-                let is_engine = kind == PickerKind::HarnessModel;
-                let rest_bg = if is_engine && theme.is_frost() {
-                    crate::theme::wash(if theme.appearance.is_dark() { 0.08 } else { 0.05 })
-                } else {
-                    gpui::transparent_black()
-                };
-                let hover_bg = if is_engine && theme.is_frost() {
-                    crate::theme::wash(if theme.appearance.is_dark() { 0.16 } else { 0.12 })
-                } else {
-                    theme.element_hover
-                };
-                if open {
-                    hover_bg
-                } else {
-                    motion::hover_blend(id, rest_bg, hover_bg)
-                }
+            .bg(if open {
+                theme.element_hover
+            } else {
+                motion::hover_blend(id, gpui::transparent_black(), theme.element_hover)
             })
             .on_hover(motion::hover_listener(id))
             .cursor_pointer()
@@ -176,7 +158,7 @@ impl Pickers {
             .items_center()
             .gap(px(6.0))
             .px(px(8.0))
-            .rounded(px(FOOTER_CHIP_RADIUS))
+            .rounded_full()
             .text_size(crate::typography::ui_rems(12.0))
             .font_weight(gpui::FontWeight::MEDIUM)
             .text_color(motion::hover_blend(

@@ -1,7 +1,7 @@
 //! App-state unit and integration tests.
 
 use super::*;
-use super::*;
+use crate::state::engine::DeferredEngineState;
 use chrono::TimeDelta;
 use gpui::AppContext;
 use zeron_engine::{EngineCore, default_registry};

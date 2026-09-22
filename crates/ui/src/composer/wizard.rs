@@ -488,12 +488,10 @@ impl Composer {
                             .gap(px(10.0))
                             .child(
                                 div()
-                                    .text_size(crate::typography::ui_rems(10.5))
+                                    .text_size(crate::typography::ui_rems(11.0))
                                     .font_weight(gpui::FontWeight::MEDIUM)
-                                    .text_color(theme.text_muted.opacity(0.6))
-                                    .child(SharedString::from(crate::popover::tracked_upper(
-                                        &question.header,
-                                    ))),
+                                    .text_color(theme.text_muted.opacity(0.7))
+                                    .child(SharedString::from(question.header.clone())),
                             )
                             .when(wizard.questions.len() > 1, |el| {
                                 el.child(

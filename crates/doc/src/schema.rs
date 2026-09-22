@@ -114,6 +114,9 @@ struct DocPartJson {
     /// One-line live tail of the subagent's output (additive).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     subagent_tail: Option<String>,
+    /// Duration of model thinking in milliseconds (additive).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    duration_ms: Option<u64>,
 }
 
 /// App parts → doc part json (mirror of `toDocParts`).
@@ -138,10 +141,15 @@ fn to_doc_part(part: &MessagePart) -> Result<DocPartJson, DocError> {
             text: Some(text.clone()),
             ..Default::default()
         },
-        MessagePart::Reasoning { id, text } => DocPartJson {
+        MessagePart::Reasoning {
+            id,
+            text,
+            duration_ms,
+        } => DocPartJson {
             id: id.clone(),
             kind: "reasoning".into(),
             reasoning: Some(text.clone()),
+            duration_ms: *duration_ms,
             ..Default::default()
         },
         MessagePart::Tool {
@@ -250,6 +258,7 @@ fn from_doc_part(p: DocPartJson) -> MessagePart {
         "reasoning" => MessagePart::Reasoning {
             id: p.id,
             text: p.reasoning.unwrap_or_default(),
+            duration_ms: p.duration_ms,
         },
         _ => MessagePart::Text {
             id: p.id,
@@ -842,6 +851,9 @@ fn push_part(parts: &LoroList, part: &MessagePart) -> Result<(), DocError> {
     if let Some(subagent_tail) = &doc_part.subagent_tail {
         map.insert("subagentTail", subagent_tail.as_str())?;
     }
+    if let Some(duration_ms) = doc_part.duration_ms {
+        map.insert("durationMs", duration_ms as i64)?;
+    }
     Ok(())
 }
 
@@ -956,9 +968,13 @@ fn salvage_part(part: &serde_json::Value, entry_id: &str, ix: usize) -> Option<M
         ));
     }
     if let Some(reasoning) = obj.get("reasoning").and_then(|x| x.as_str()) {
+        let duration_ms = obj
+            .get("durationMs")
+            .and_then(|x| x.as_u64().or_else(|| x.as_i64().map(|n| n.max(0) as u64)));
         return Some(MessagePart::Reasoning {
             id,
             text: reasoning.to_owned(),
+            duration_ms,
         });
     }
     if let Some(text) = obj.get("text").and_then(|x| x.as_str()) {
@@ -1147,8 +1163,8 @@ impl<'a> SegmentWriter<'a> {
                     match grown {
                         Some((field, old, new)) => {
                             let delta = &new[old.len()..];
+                            let part_map = part_map_at(&parts, i)?;
                             if !delta.is_empty() {
-                                let part_map = part_map_at(&parts, i)?;
                                 match part_map.get(field) {
                                     Some(loro::ValueOrContainer::Container(
                                         loro::Container::Text(t),
@@ -1163,6 +1179,20 @@ impl<'a> SegmentWriter<'a> {
                                     }
                                 }
                                 dirty = true;
+                            }
+                            if let (
+                                MessagePart::Reasoning { duration_ms: old_dur, .. },
+                                MessagePart::Reasoning { duration_ms: new_dur, .. },
+                            ) = (prev, part)
+                            {
+                                if old_dur != new_dur {
+                                    if let Some(dur) = new_dur {
+                                        part_map.insert("durationMs", *dur as i64)?;
+                                    } else {
+                                        part_map.delete("durationMs")?;
+                                    }
+                                    dirty = true;
+                                }
                             }
                         }
                         None => {
@@ -1255,6 +1285,9 @@ fn update_part_fields(map: &LoroMap, part: &MessagePart) -> Result<(), DocError>
     }
     if let Some(subagent_tail) = &doc_part.subagent_tail {
         map.insert("subagentTail", subagent_tail.as_str())?;
+    }
+    if let Some(duration_ms) = doc_part.duration_ms {
+        map.insert("durationMs", duration_ms as i64)?;
     }
     if let Some(text) = &doc_part.text {
         // Defensive path only — the fold never rewrites earlier text.
@@ -1722,7 +1755,7 @@ mod tests {
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].parts.len(), 2);
         match &entries[0].parts[0] {
-            MessagePart::Reasoning { id, text } => {
+            MessagePart::Reasoning { id, text, .. } => {
                 assert_eq!(id, "r0");
                 assert_eq!(text, "let me think");
             }
@@ -1741,6 +1774,37 @@ mod tests {
         assert_eq!(part["kind"], "reasoning");
         assert_eq!(part["reasoning"], "let me think");
         assert!(part.get("text").is_none(), "{part:?}");
+    }
+
+    #[test]
+    fn segment_writer_syncs_reasoning_duration_ms() {
+        let doc = SessionDoc::init("chat-rdur").unwrap();
+        let mut writer = SegmentWriter::begin(&doc, "a1", "dev-a", 5).unwrap();
+
+        let mut folded = vec![MessagePart::Reasoning {
+            id: "r0".into(),
+            text: "thinking...".into(),
+            duration_ms: None,
+        }];
+        writer.sync(&folded).unwrap();
+
+        // Duration is recorded once reasoning finishes.
+        folded[0] = MessagePart::Reasoning {
+            id: "r0".into(),
+            text: "thinking...".into(),
+            duration_ms: Some(2500),
+        };
+        writer.sync(&folded).unwrap();
+        writer.finish(&folded, MessageStatus::Complete).unwrap();
+
+        let entries = doc.read_entries().unwrap();
+        assert_eq!(entries.len(), 1);
+        match &entries[0].parts[0] {
+            MessagePart::Reasoning { duration_ms, .. } => {
+                assert_eq!(*duration_ms, Some(2500));
+            }
+            other => panic!("unexpected {other:?}"),
+        }
     }
 
     /// The ToolResult resolution path goes through `update_part_fields` —

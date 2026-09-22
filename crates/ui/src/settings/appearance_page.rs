@@ -305,6 +305,38 @@ impl Render for AppearancePage {
                     .into_any_element(),
             );
         }
+        let show_tool_summary = ui_settings.show_tool_summary_in_header;
+        settings_rows.push(
+            widgets::card_row(&theme, false)
+                .child(widgets::row_tile(&theme, icons::CHECKLIST))
+                .child(
+                    div()
+                        .flex_1()
+                        .min_w_0()
+                        .child(widgets::row_title(&theme, "Detailed activity summary"))
+                        .child(widgets::meta_line(
+                            &theme,
+                            vec![
+                                div()
+                                    .child(SharedString::from(
+                                        "Show command and file edit counts in the activity header.",
+                                    ))
+                                    .into_any_element(),
+                            ],
+                        )),
+                )
+                .child(
+                    div()
+                        .id("appearance-show-tool-summary-toggle")
+                        .cursor_pointer()
+                        .on_click(cx.listener(move |_, _, _, cx| {
+                            crate::settings::set_show_tool_summary_in_header(!show_tool_summary, cx);
+                            cx.notify();
+                        }))
+                        .child(widgets::toggle_switch(&theme, show_tool_summary)),
+                )
+                .into_any_element(),
+        );
         settings_rows.extend(self.render_theme_library_rows(&theme, cx));
         let library_warning = self
             .library_error

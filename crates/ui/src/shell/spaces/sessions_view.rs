@@ -78,15 +78,23 @@ fn sidebar_disclosure_header(
         .items_center()
         .gap(crate::typography::ui_rems(8.0))
         .h(crate::typography::ui_rems(SIDEBAR_DISCLOSURE_HEADER_HEIGHT))
-        .pl(crate::typography::ui_rems(Theme::SPACE_SM + 2.0))
-        .pr(crate::typography::ui_rems(Theme::SPACE_SM + 6.0))
+        .px(crate::typography::ui_rems(Theme::SPACE_SM))
+        .rounded(crate::typography::ui_rems(8.0))
+        .hover(|el| el.bg(theme.glass_hover()).text_color(theme.text))
         .cursor_pointer()
         .when_some(group_icon, |el, icon_path| {
             el.child(
-                icon(icon_path)
-                    .size(crate::typography::ui_rems(14.0))
+                div()
+                    .size(crate::typography::ui_rems(16.0))
                     .flex_none()
-                    .text_color(theme.text_muted.opacity(0.6)),
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .child(
+                        icon(icon_path)
+                            .size(crate::typography::ui_rems(14.0))
+                            .text_color(theme.text_muted.opacity(0.65)),
+                    ),
             )
         })
         .child(super::sidebar_faded_label(
@@ -95,7 +103,7 @@ fn sidebar_disclosure_header(
             div()
                 .text_size(crate::typography::ui_rems(13.0))
                 .font_weight(gpui::FontWeight::MEDIUM)
-                .text_color(theme.text_muted.opacity(0.5))
+                .text_color(theme.text_muted.opacity(0.75))
                 .child(label),
         ))
         .child(div().flex_1())
@@ -339,15 +347,19 @@ impl Shell {
             .change_request_for_chat(&chat)
             .cloned()
             .filter(|_| self.settings.sidebar_show_pull_request);
-        let group = match self.settings.sidebar_organization {
-            SidebarOrganization::ByDevice => Some((chat.device_id.clone(), device)),
-            SidebarOrganization::ByProject => Some((
-                chat.space_id
-                    .clone()
-                    .unwrap_or_else(|| format!("home:{}", chat.device_id)),
-                project,
-            )),
-            SidebarOrganization::InOneList => None,
+        let group = if self.settings.space_filter.is_some() {
+            None
+        } else {
+            match self.settings.sidebar_organization {
+                SidebarOrganization::ByDevice => Some((chat.device_id.clone(), device)),
+                SidebarOrganization::ByProject => Some((
+                    chat.space_id
+                        .clone()
+                        .unwrap_or_else(|| format!("home:{}", chat.device_id)),
+                    project,
+                )),
+                SidebarOrganization::InOneList => None,
+            }
         };
         ActiveChatRow {
             status,
@@ -765,14 +777,31 @@ impl Shell {
                     .map(|(_, height, _)| *height)
                     .sum::<f32>()
                 + SIDEBAR_LIST_GAP * row_count.saturating_sub(1) as f32;
+            let guide_color = if theme.appearance.is_dark() {
+                theme.text_faint.opacity(0.28)
+            } else {
+                theme.border_strong
+            };
             let body = div()
+                .relative()
                 .w_full()
                 .flex()
                 .flex_col()
-                .px(crate::typography::ui_rems(Theme::SPACE_SM))
                 .pt(crate::typography::ui_rems(SIDEBAR_DISCLOSURE_BODY_INSET))
                 .pb(crate::typography::ui_rems(Theme::SPACE_SM))
+                .pl(crate::typography::ui_rems(24.0))
                 .gap(crate::typography::ui_rems(SIDEBAR_LIST_GAP))
+                .when(row_count > 0, |el| {
+                    el.child(
+                        div()
+                            .absolute()
+                            .top_0()
+                            .bottom(crate::typography::ui_rems(Theme::SPACE_SM))
+                            .left(crate::typography::ui_rems(15.5))
+                            .w(px(1.0))
+                            .bg(guide_color),
+                    )
+                })
                 .children(rendered_rows.into_iter().map(|(_, _, row)| row))
                 .when(extra_gap > 0.0, |el| {
                     el.child(
@@ -830,19 +859,8 @@ impl Shell {
                 .flex()
                 .flex_col()
                 .pt(crate::typography::ui_rems(SIDEBAR_SECTION_GAP))
-                .child(
-                    div()
-                        .w_full()
-                        .flex()
-                        .flex_col()
-                        .border_1()
-                        .border_color(theme.border)
-                        .bg(theme.surface_card)
-                        .rounded(crate::typography::ui_rems(10.0))
-                        .overflow_hidden()
-                        .child(header)
-                        .child(body),
-                )
+                .child(header)
+                .child(body)
                 .into_any_element();
             rendered.push((format!("g:{collapse_key}"), height, element));
         }

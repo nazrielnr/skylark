@@ -407,6 +407,8 @@ pub const HOVER_FADE: MotionSpec = MotionSpec::new(150, EASE_TAILWIND);
 pub const ZERON_PULSE: MotionSpec = MotionSpec::new(2400, EASE);
 /// Gradient matrix spinner wave period: 750ms.
 pub const GRADIENT_SPIN: MotionSpec = MotionSpec::new(750, EASE);
+/// Text shimmer wave period: 2.8s.
+pub const SHIMMER_SWEEP: MotionSpec = MotionSpec::new(2800, EASE);
 
 // ---------------------------------------------------------------------------
 // Resize-edge feedback

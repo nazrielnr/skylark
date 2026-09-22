@@ -44,6 +44,8 @@ pub struct ToolItem {
     /// text is the `detail`; `resolved == false` means it is still
     /// streaming (the chip then defaults open).
     pub is_thought: bool,
+    /// Duration of model thinking in milliseconds if this item is a thought.
+    pub thought_duration_ms: Option<u64>,
 }
 
 /// Subagent spawn chips — [`ToolCall::is_subagent_spawn`], the shared genus
@@ -348,33 +350,20 @@ fn thought_block_lines(block: &Block, indent: usize, out: &mut Vec<Vec<InlineRun
 }
 
 /// A reasoning part as a tool-group chip: "Thought process" header over the
-/// thought's markdown flattened into styled detail lines (analytic height —
-/// the group's fold tween needs it; see [`thought_lines`]). Capped like tool
-/// outputs, with the counted tail. `live` = the part is still streaming
-/// (chip defaults open).
-pub(crate) fn thought_item(part_id: &str, tree: &BlockTree, live: bool) -> ToolItem {
-    let mut lines = thought_lines(tree);
-    let truncated_by = lines.len().saturating_sub(OUTPUT_DETAIL_MAX_LINES);
-    if truncated_by > 0 {
-        // Keep the TAIL while streaming (the fresh thinking is the signal);
-        // settled thoughts keep the head like tool outputs do.
-        if live {
-            lines.drain(..truncated_by);
-            // The cut can land on a block separator — drop the orphan blank.
-            while lines
-                .first()
-                .is_some_and(|l| l.iter().all(|r| r.text.trim().is_empty()))
-            {
-                lines.remove(0);
-            }
-        } else {
-            lines.truncate(OUTPUT_DETAIL_MAX_LINES);
-        }
-    }
+/// thought's markdown flattened into styled detail lines. All lines remain in
+/// the detail; its renderer caps viewport height and scrolls overflow.
+/// `live` = the part is still streaming (chip defaults open).
+pub(crate) fn thought_item(
+    part_id: &str,
+    tree: &BlockTree,
+    live: bool,
+    thought_duration_ms: Option<u64>,
+) -> ToolItem {
+    let lines = thought_lines(tree);
     ToolItem {
         part_id: part_id.into(),
         call: ToolCall::Unknown {
-            name: "Thought process".into(),
+            name: "Thinking".into(),
             input: None,
         },
         is_error: false,
@@ -382,7 +371,7 @@ pub(crate) fn thought_item(part_id: &str, tree: &BlockTree, live: bool) -> ToolI
         detail: (!lines.is_empty()).then(|| {
             Arc::new(ToolDetail::Thought {
                 lines,
-                truncated_by,
+                truncated_by: 0,
             })
         }),
         invocation: None,
@@ -393,6 +382,7 @@ pub(crate) fn thought_item(part_id: &str, tree: &BlockTree, live: bool) -> ToolI
         subagent_status: None,
         subagent_tail: None,
         is_thought: true,
+        thought_duration_ms,
     }
 }
 
@@ -406,8 +396,8 @@ pub enum ToolDetail {
         truncated_by: usize,
     },
     /// A thought's markdown, pre-flattened into wrapped STYLED lines — one
-    /// fixed-height row each, so the height stays analytic like `Output`
-    /// while inline markers render as real styling ([`thought_lines`]).
+    /// fixed-height row each. The renderer gives long thoughts a bounded,
+    /// scrollable viewport while retaining every line ([`thought_lines`]).
     Thought {
         lines: Vec<Vec<InlineRun>>,
         truncated_by: usize,

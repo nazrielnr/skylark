@@ -748,6 +748,9 @@ pub struct UiSettings {
     pub new_thread_composer_background: Option<NewThreadComposerBackground>,
     /// Non-destructive treatment composited inside the artwork's fade mask.
     pub new_thread_background_effect: NewThreadBackgroundEffect,
+    /// Show detailed tool activity counts ("Ran 1 command · Edited 1 file") in the collapsed accordion header.
+    /// When disabled, only the reasoning/work summary ("Worked" / "Thinking") is shown.
+    pub show_tool_summary_in_header: bool,
     /// Pre-theme settings used `accentColor`. Read it once, migrate to
     /// [`Self::accent`], and never write it again.
     #[serde(default, rename = "accentColor", skip_serializing)]
@@ -818,8 +821,23 @@ impl Default for UiSettings {
             surface: zeron_theme::SurfacePreference::default(),
             new_thread_composer_background: None,
             new_thread_background_effect: NewThreadBackgroundEffect::None,
+            show_tool_summary_in_header: false,
             legacy_accent_color: None,
         }
+    }
+}
+
+pub fn show_tool_summary_in_header(cx: &App) -> bool {
+    cx.try_global::<SettingsStore>()
+        .map(|store| store.current.show_tool_summary_in_header)
+        .unwrap_or(false)
+}
+
+pub fn set_show_tool_summary_in_header(enabled: bool, cx: &mut App) {
+    if update(SavePolicy::Immediate, cx, |settings| {
+        settings.show_tool_summary_in_header = enabled;
+    }) {
+        cx.refresh_windows();
     }
 }
 

@@ -161,6 +161,9 @@ pub(crate) fn tool_fingerprint(tools: &[ToolItem], auto_open: bool) -> u64 {
         if let Some(tail) = &t.subagent_tail {
             acc.extend_from_slice(tail.as_bytes());
         }
+        if let Some(ms) = t.thought_duration_ms {
+            acc.extend_from_slice(&ms.to_le_bytes());
+        }
     }
     acc.push(auto_open as u8);
     fnv1a(&acc)
@@ -339,6 +342,7 @@ pub fn rows_for_entry(
                     subagent_status: *subagent_status,
                     subagent_tail: subagent_tail.clone().map(SharedString::from),
                     is_thought: false,
+                    thought_duration_ms: None,
                 };
                 // Agent chips don't share a fold with ordinary tools: flush
                 // whenever the genus flips so each group is uniform.
@@ -358,7 +362,11 @@ pub fn rows_for_entry(
             }
             // Thinking rides the SAME accordion as the tools around it
             // (user request) — a thought chip in the group, not its own row.
-            MessagePart::Reasoning { id: part_id, text } => {
+            MessagePart::Reasoning {
+                id: part_id,
+                text,
+                duration_ms,
+            } => {
                 if text.trim().is_empty() {
                     continue;
                 }
@@ -370,7 +378,7 @@ pub fn rows_for_entry(
                 // streaming, hanging inline markers mended for display, the
                 // settled cache once complete.
                 let tree = parse(&format!("{}#{}", entry.id, part_id), text);
-                let item = thought_item(part_id, &tree, live);
+                let item = thought_item(part_id, &tree, live, *duration_ms);
                 // Thoughts join ordinary tool groups; agent (spawn-link)
                 // groups stay pure, exactly like the tool genus rule.
                 if pending_group.first().is_some_and(is_agent_tool) {
@@ -736,21 +744,9 @@ pub fn tool_group_summary(tools: &[ToolItem]) -> String {
         .filter(|t| !t.is_thought)
         .map(|t| (t.call.clone(), t.is_error))
         .collect();
-    let thoughts = tools.iter().filter(|t| t.is_thought).count();
-    // The shared summary answers "used 0 tools" for an empty set — a
-    // thought-only group must not inherit that.
-    let base = if pairs.is_empty() {
+    if pairs.is_empty() {
         String::new()
     } else {
         zeron_proto::view::tool_group_summary(&pairs)
-    };
-    // Thought chips ride the group (they are UI-synthesized, so the shared
-    // view summary never sees them): name them on the collapsed line.
-    match (base.is_empty(), thoughts) {
-        (_, 0) => base,
-        (true, 1) => "Thought process".into(),
-        (true, n) => format!("Thought {n} times"),
-        (false, 1) => format!("Thought · {base}"),
-        (false, n) => format!("Thought {n} times · {base}"),
     }
 }

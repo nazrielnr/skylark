@@ -179,11 +179,21 @@ fn try_text_append(prev: &SessionMessageEntry, next: &SessionMessageEntry) -> Op
             continue;
         }
         let ((pid, pt), (nid, nt)) = match (p, n) {
-            (MessagePart::Text { id: pid, text: pt }, MessagePart::Text { id: nid, text: nt })
-            | (
-                MessagePart::Reasoning { id: pid, text: pt },
-                MessagePart::Reasoning { id: nid, text: nt },
-            ) => ((pid, pt), (nid, nt)),
+            (MessagePart::Text { id: pid, text: pt }, MessagePart::Text { id: nid, text: nt }) => {
+                ((pid, pt), (nid, nt))
+            }
+            (
+                MessagePart::Reasoning {
+                    id: pid,
+                    text: pt,
+                    duration_ms: prev_duration,
+                },
+                MessagePart::Reasoning {
+                    id: nid,
+                    text: nt,
+                    duration_ms: next_duration,
+                },
+            ) if prev_duration == next_duration => ((pid, pt), (nid, nt)),
             _ => return None,
         };
         if pid != nid || !nt.starts_with(pt.as_str()) || append.is_some() {
@@ -313,7 +323,7 @@ pub fn apply_transcript_frame(
                     return Err(TranscriptDesync(format!("missing append entry {entry}")));
                 };
                 let tail = target.parts.iter_mut().find_map(|p| match p {
-                    MessagePart::Text { id, text } | MessagePart::Reasoning { id, text }
+                    MessagePart::Text { id, text } | MessagePart::Reasoning { id, text, .. }
                         if *id == part =>
                     {
                         Some(text)
@@ -423,11 +433,13 @@ mod tests {
         b0.parts = vec![MessagePart::Reasoning {
             id: "r0".into(),
             text: "thinking".into(),
+            duration_ms: None,
         }];
         let mut b1 = b0.clone();
         b1.parts = vec![MessagePart::Reasoning {
             id: "r0".into(),
             text: "thinking more".into(),
+            duration_ms: None,
         }];
         let frame = diff_transcript(std::slice::from_ref(&b0), std::slice::from_ref(&b1));
         match &frame {
@@ -439,6 +451,32 @@ mod tests {
             other => panic!("expected delta, got {other:?}"),
         }
         apply(&[b0], &[b1]);
+    }
+
+    #[test]
+    fn reasoning_duration_change_falls_back_to_upsert() {
+        let mut before = entry("b", "prompt");
+        before.parts = vec![MessagePart::Reasoning {
+            id: "r0".into(),
+            text: "thinking".into(),
+            duration_ms: None,
+        }];
+        let mut after = before.clone();
+        after.parts = vec![MessagePart::Reasoning {
+            id: "r0".into(),
+            text: "thinking more".into(),
+            duration_ms: Some(2_500),
+        }];
+
+        let frame = diff_transcript(std::slice::from_ref(&before), std::slice::from_ref(&after));
+        match &frame {
+            TranscriptFrame::Delta { upsert, append, .. } => {
+                assert_eq!(upsert.len(), 1);
+                assert!(append.is_empty());
+            }
+            other => panic!("expected delta, got {other:?}"),
+        }
+        apply(&[before], &[after]);
     }
 
     #[test]
@@ -553,6 +591,7 @@ mod context_update_tests {
         entry.parts.push(MessagePart::Reasoning {
             id: "new".into(),
             text: "live".into(),
+            duration_ms: None,
         });
         assert!(!baseline.covers(&entry));
         let historical = baseline.historical_entry(&entry).unwrap();

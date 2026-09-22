@@ -32,9 +32,9 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use gpui::{
-    div, list, point, prelude::*, px, AnyElement, Bounds, Context, Entity, ListAlignment,
-    ListOffset, ListScrollEvent, ListState, MouseButton, PathBuilder, Pixels, Point, SharedString,
-    Subscription, Task, Window,
+    AnyElement, Bounds, Context, Entity, ListAlignment, ListOffset, ListScrollEvent, ListState,
+    MouseButton, PathBuilder, Pixels, Point, SharedString, Subscription, Task, Window, div, list,
+    point, prelude::*, px,
 };
 
 #[allow(unused_imports)]
@@ -56,7 +56,6 @@ use crate::theme::Theme;
 // Constants (mugen ports)
 // ---------------------------------------------------------------------------
 
-
 pub(crate) mod tool_cards;
 pub use tool_cards::*;
 
@@ -68,10 +67,10 @@ pub(crate) use code_block::*;
 
 pub(crate) mod row;
 pub use row::{
-    call_block, diff_rows, diff_to_file, format_timestamp, parse_for_row, rows_for_entry,
-    tool_detail, tool_group_summary, top_gap_for, user_message_needs_collapse,
-    user_resize_duration_ms, user_resize_spec, ParseOutcome, Row, RowKind, ToolDetail, ToolItem,
     CALL_WRAP_COLS, DIFF_DETAIL_MAX_LINES, OUTPUT_DETAIL_MAX_LINES, OUTPUT_LINE_HEIGHT,
+    ParseOutcome, Row, RowKind, ToolDetail, ToolItem, call_block, diff_rows, diff_to_file,
+    format_timestamp, parse_for_row, rows_for_entry, tool_detail, tool_group_summary, top_gap_for,
+    user_message_needs_collapse, user_resize_duration_ms, user_resize_spec,
 };
 pub(crate) use row::{
     frame_stats_enabled, generated_image_devices, is_agent_call, is_agent_tool, is_spawn_link,
@@ -80,7 +79,7 @@ pub(crate) use row::{
 
 #[cfg(test)]
 pub(crate) use row::{
-    assistant_copy_text, thought_lines, FORBID_ROW_PREPARATION, THOUGHT_WRAP_COLS,
+    FORBID_ROW_PREPARATION, THOUGHT_WRAP_COLS, assistant_copy_text, thought_lines,
 };
 
 pub mod flavour;
@@ -90,15 +89,15 @@ pub(crate) mod preparation;
 pub(crate) use preparation::*;
 pub(crate) mod viewport;
 pub(crate) use viewport::*;
+pub mod folding;
 pub(crate) mod own_turn;
 pub(crate) mod selection;
-pub mod folding;
 pub use folding::*;
 pub(crate) mod attachments;
 pub use attachments::*;
+pub(crate) mod display;
 pub(crate) mod render_rows;
 pub(crate) mod sync;
-pub(crate) mod display;
 
 // ---------------------------------------------------------------------------
 // Transcript entity
@@ -163,6 +162,9 @@ pub struct Transcript {
     /// group fold. Render-local like `folds` — never part of the row
     /// fingerprint.
     pub(crate) tool_details: HashMap<SharedString, FoldState>,
+    /// Independent scroll positions for long tool/thought details. Keeping the
+    /// handle outside render prevents remounts from racing the transcript list.
+    pub(crate) tool_detail_scrolls: HashMap<SharedString, gpui::ScrollHandle>,
     /// Expand/collapse state for user bubbles past [`USER_COLLAPSED_LINES`],
     /// keyed by row id. Render-local like `folds` — never part of the row
     /// fingerprint, so toggling one costs a repaint, not a rebuild.
@@ -431,6 +433,7 @@ impl Transcript {
             last_replay_baseline: None,
             historical_markdown: HashMap::new(),
             tool_details: HashMap::new(),
+            tool_detail_scrolls: HashMap::new(),
             user_folds: HashMap::new(),
             user_heights: HashMap::new(),
             user_hold_task: None,
@@ -557,7 +560,6 @@ impl Transcript {
 
 #[cfg(test)]
 mod tests;
-
 
 #[cfg(feature = "appshots-fixture")]
 impl Transcript {

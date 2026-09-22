@@ -559,14 +559,14 @@ impl Shell {
                         Some((tag.into(), offline)),
                     )
                 }
-                None => (SharedString::from("All projects"), None),
+                None => (SharedString::from("All Projects"), None),
             }
         };
-        let open = self.spaces_menu.is_open();
 
         let is_all = filter.is_none();
+        let is_menu_open = self.spaces_menu.get().is_some();
         let trigger_label = if is_all {
-            SharedString::from("Spaces")
+            SharedString::from("All Projects")
         } else {
             label
         };
@@ -575,17 +575,20 @@ impl Shell {
             .id("spaces-filter")
             .flex_1()
             .min_w_0()
-            .h(crate::typography::ui_rems(28.0))
+            .h(crate::typography::ui_rems(30.0))
             .flex()
             .flex_row()
             .items_center()
-            .gap(crate::typography::ui_rems(6.0))
-            .rounded(crate::typography::ui_rems(6.0))
-            .px(crate::typography::ui_rems(4.0))
-            .text_size(crate::typography::ui_rems(if is_all { 13.0 } else { 12.0 }))
-            .font_weight(gpui::FontWeight::SEMIBOLD)
+            .gap(crate::typography::ui_rems(8.0))
+            .rounded(crate::typography::ui_rems(8.0))
+            .px(crate::typography::ui_rems(Theme::SPACE_SM))
+            .text_size(crate::typography::ui_rems(13.0))
+            .font_weight(gpui::FontWeight::MEDIUM)
             .text_color(theme.text.opacity(0.85))
-            .hover(|el| el.text_color(theme.text))
+            .hover(|el| el.bg(theme.glass_hover()).text_color(theme.text))
+            .when(is_menu_open, |el| {
+                el.bg(theme.glass_hover()).text_color(theme.text)
+            })
             .cursor_pointer()
             .on_mouse_down(
                 gpui::MouseButton::Left,
@@ -598,14 +601,23 @@ impl Shell {
                     this.open_spaces_menu(window, cx);
                 }
             }))
-            .when(!is_all, |el| {
-                el.child(
-                    icon(icons::FOLDER)
+            .child(
+                div()
+                    .size(crate::typography::ui_rems(16.0))
+                    .flex_none()
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .child(
+                        icon(if is_all {
+                            icons::FOLDER_WITH_FILES
+                        } else {
+                            icons::FOLDER
+                        })
                         .size(crate::typography::ui_rems(14.0))
-                        .flex_none()
                         .text_color(theme.text_muted),
-                )
-            })
+                    ),
+            )
             .child(
                 div()
                     .flex_1()
@@ -784,7 +796,7 @@ impl Shell {
             .items_center()
             .justify_between()
             .gap(crate::typography::ui_rems(4.0))
-            .px(crate::typography::ui_rems(Theme::SPACE_SM + 6.0))
+            .px(crate::typography::ui_rems(Theme::SPACE_SM))
             .pt(crate::typography::ui_rems(8.0))
             .pb(crate::typography::ui_rems(4.0))
             .child(trigger)
@@ -835,7 +847,7 @@ impl Shell {
                 .map(|row| match row {
                     SpacesMenuRow::All => (
                         SpacesMenuRow::All,
-                        SharedString::from("All projects"),
+                        SharedString::from("All Projects"),
                         None,
                         false,
                         filter.is_none(),

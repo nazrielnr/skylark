@@ -25,6 +25,14 @@ impl Transcript {
             });
         let effective_auto_open = auto_open || arrival_pending;
         let open = !collapses || fold.open.unwrap_or(effective_auto_open);
+        let active = collapses && auto_open;
+        let persisted_duration_secs = {
+            let total_ms: u64 = tools
+                .iter()
+                .filter_map(|tool| tool.thought_duration_ms)
+                .sum();
+            (total_ms > 0).then_some(((total_ms + 500) / 1000).max(1))
+        };
         if collapses {
             let reveal = self.tool_group_reveals.entry(row_id.clone()).or_default();
             if reveal
@@ -37,8 +45,17 @@ impl Transcript {
                 self.folds.insert(row_id.clone(), fold);
             }
             reveal.rendered_open = Some(open);
+            if active {
+                if reveal.header_started_at.is_none() {
+                    reveal.header_started_at = Some(Instant::now());
+                }
+                let elapsed = reveal
+                    .header_started_at
+                    .map(|t| t.elapsed().as_secs())
+                    .unwrap_or(0);
+                reveal.settled_duration_secs = Some(elapsed);
+            }
         }
-        let active = collapses && auto_open;
 
         let body_visible = open
             || (!cx.reduce_motion()
@@ -235,7 +252,7 @@ impl Transcript {
                 .sum::<f32>();
         let viewport_height = revealed_height;
         let target = if open { viewport_height } else { 0.0 };
-        let shimmer_phase = if active && !reduce_motion {
+        let shimmer_phase = if (active || tools.iter().any(|t| !t.resolved)) && !reduce_motion {
             motion::pulse_lease(cx.entity_id(), cx);
             self.tool_group_reveals
                 .get(row_id)
@@ -278,26 +295,75 @@ impl Transcript {
                     .flex_none()
                     .relative()
                     .child(
-                        crate::icons::icon(crate::icons::ALT_ARROW_DOWN)
+                        div()
                             .absolute()
-                            .left(px(ACTIVITY_TRUNK_X - 7.0))
-                            .top(px(2.0))
-                            .size(px(14.0))
-                            .with_transformation(gpui::Transformation::rotate(gpui::radians(
-                                -std::f32::consts::FRAC_PI_2 * (1.0 - disclosure_progress),
-                            )))
-                            .text_color(theme.text_muted),
+                            .left(px(ACTIVITY_TRUNK_X - 9.0))
+                            .top(px(0.0))
+                            .size(px(18.0))
+                            .rounded(px(5.0))
+                            .bg(crate::theme::ink(0.06))
+                            .hover(|s| s.bg(crate::theme::ink(0.10)))
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .child(
+                                crate::icons::icon(crate::icons::ALT_ARROW_DOWN)
+                                    .size(px(11.0))
+                                    .with_transformation(gpui::Transformation::rotate(
+                                        gpui::radians(
+                                            -std::f32::consts::FRAC_PI_2
+                                                * (1.0 - disclosure_progress),
+                                        ),
+                                    ))
+                                    .text_color(theme.text_muted),
+                            ),
                     ),
             )
-            .child(
+            .child({
+                let reveal = self.tool_group_reveals.get(row_id);
+                let duration_secs = persisted_duration_secs
+                    .or_else(|| reveal.and_then(|r| r.settled_duration_secs));
+
+                let prefix = if active {
+                    let elapsed = reveal
+                        .and_then(|r| r.header_started_at)
+                        .map(|t| t.elapsed().as_secs())
+                        .unwrap_or(0);
+                    if elapsed > 0 {
+                        let dur = zeron_proto::view::format_duration_secs(elapsed);
+                        format!("Working {dur}...")
+                    } else {
+                        "Working...".to_string()
+                    }
+                } else if let Some(secs) = duration_secs {
+                    if secs > 0 {
+                        let dur = zeron_proto::view::format_duration_secs(secs);
+                        format!("Worked for {dur}")
+                    } else {
+                        "Worked".to_string()
+                    }
+                } else {
+                    "Worked".to_string()
+                };
+
+                let display_summary: SharedString =
+                    if crate::settings::show_tool_summary_in_header(cx) {
+                        if summary.is_empty() {
+                            prefix.into()
+                        } else {
+                            format!("{prefix} · {summary}").into()
+                        }
+                    } else {
+                        prefix.into()
+                    };
                 div()
                     .min_w_0()
                     .h(px(TOOL_LABEL_LINE_HEIGHT))
                     .flex()
                     .items_center()
                     .truncate()
-                    .child(tool_group_title(summary.clone(), shimmer_phase, theme)),
-            );
+                    .child(tool_group_title(display_summary, shimmer_phase, theme))
+            });
 
         let chips = div()
             .flex()
@@ -364,6 +430,20 @@ impl Transcript {
                         .toggled_at
                         .is_some_and(|at| at.elapsed() < FOLD_TWEEN_WINDOW);
                 let toggle_key = key.clone();
+                let thought_elapsed = if tool.is_thought {
+                    let start = self
+                        .tool_group_reveals
+                        .get(row_id)
+                        .and_then(|r| r.starts.get(ix).copied().flatten())
+                        .or_else(|| {
+                            self.tool_group_reveals
+                                .get(row_id)
+                                .and_then(|r| r.header_started_at)
+                        });
+                    start.map(|s| s.elapsed().as_secs())
+                } else {
+                    None
+                };
                 let mut card = div()
                     .my(px((base_row_height - CHIP_CARD_HEIGHT) / 2.0))
                     .when(collapses, |el| el.ml(px(ACTIVITY_TEXT_GAP)))
@@ -401,7 +481,14 @@ impl Transcript {
                                 entry.toggled_at = Some(Instant::now());
                                 cx.notify();
                             }))
-                            .child(chip_header(tool, open, theme, cx.entity_id(), cx)),
+                            .child(chip_header(
+                                tool,
+                                open,
+                                thought_elapsed,
+                                theme,
+                                cx.entity_id(),
+                                cx,
+                            )),
                     );
                 if open || animating {
                     let mut panel = div()
@@ -411,6 +498,12 @@ impl Transcript {
                         .flex_col()
                         .overflow_hidden();
                     if let Some(invocation) = invocation.as_deref() {
+                        let invocation_id = SharedString::from(format!("{key}-invocation"));
+                        let invocation_scroll = self
+                            .tool_detail_scrolls
+                            .entry(invocation_id.clone())
+                            .or_default()
+                            .clone();
                         panel = panel
                             .child(
                                 div()
@@ -418,9 +511,26 @@ impl Transcript {
                                     .flex_none()
                                     .when(!collapses, |line| line.bg(crate::theme::hairline(0.06))),
                             )
-                            .child(detail_body(invocation, None, theme));
+                            .child(detail_body(
+                                invocation_id,
+                                invocation,
+                                None,
+                                Some(&invocation_scroll),
+                                theme,
+                            ));
                     }
                     if let Some(detail) = detail.as_deref() {
+                        let detail_id = SharedString::from(format!("{key}-detail"));
+                        let detail_scroll = matches!(
+                            detail,
+                            ToolDetail::Thought { .. } | ToolDetail::Output { .. }
+                        )
+                        .then(|| {
+                            self.tool_detail_scrolls
+                                .entry(detail_id.clone())
+                                .or_default()
+                                .clone()
+                        });
                         panel = panel
                             .child(
                                 div()
@@ -428,7 +538,13 @@ impl Transcript {
                                     .flex_none()
                                     .when(!collapses, |line| line.bg(crate::theme::hairline(0.06))),
                             )
-                            .child(detail_body(detail, detail_highlights[ix].clone(), theme));
+                            .child(detail_body(
+                                detail_id,
+                                detail,
+                                detail_highlights[ix].clone(),
+                                detail_scroll.as_ref(),
+                                theme,
+                            ));
                     }
                     if let Some(ChipAffordance { blob_ref, label }) = affordance {
                         let loading = matches!(

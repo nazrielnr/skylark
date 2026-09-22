@@ -83,7 +83,7 @@ impl EngineBackend for InProcessEngine {
 }
 
 #[derive(Clone)]
-pub(super) enum DeferredEngineState {
+pub(crate) enum DeferredEngineState {
     Waiting,
     Ready,
     Failed(String),

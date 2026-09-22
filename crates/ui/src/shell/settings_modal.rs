@@ -339,7 +339,7 @@ impl Shell {
                                     .gap(crate::typography::ui_rems(8.0))
                                     .rounded(crate::typography::ui_rems(8.0))
                                     .border_1()
-                                    .border_color(if selected && theme.appearance.is_light() {
+                                    .border_color(if selected {
                                         crate::theme::hairline(0.12)
                                     } else {
                                         gpui::transparent_black()
@@ -363,16 +363,23 @@ impl Shell {
                                     .on_click(cx.listener(move |this, _, _, cx| {
                                         this.open_settings(item, cx)
                                     }))
-                                    .child(
-                                        icon(section_icon(item))
-                                            .size(crate::typography::ui_rems(16.0))
-                                            .flex_none()
-                                            .text_color(if selected {
-                                                theme.text
-                                            } else {
-                                                theme.text_muted
-                                            }),
-                                    )
+                                     .child(
+                                         div()
+                                             .size(crate::typography::ui_rems(16.0))
+                                             .flex_none()
+                                             .flex()
+                                             .items_center()
+                                             .justify_center()
+                                             .child(
+                                                 icon(section_icon(item))
+                                                     .size(crate::typography::ui_rems(14.0))
+                                                     .text_color(if selected {
+                                                         theme.text
+                                                     } else {
+                                                         theme.text_muted
+                                                     }),
+                                             ),
+                                     )
                                     .child(
                                         div()
                                             .flex_1()

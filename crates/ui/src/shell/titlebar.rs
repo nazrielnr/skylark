@@ -485,12 +485,6 @@ impl Shell {
         let theme = Theme::of(cx).clone();
         let can_back = self.nav.can_back();
         let can_forward = self.nav.can_forward();
-        // The titlebar is the single owner of the new-session action in both
-        // sidebar states. Hide it on the new-session canvas: opening another
-        // blank canvas from an already blank canvas has no effect and used to
-        // leave two competing + placements across the responsive variants.
-        let plus_alpha = self.titlebar_plus_alpha(cx);
-        let show_plus = plus_alpha > 0.01;
         let island_target = if matches!(self.route, Route::Chat)
             && self.state.read(cx).selected_chat.is_none()
             && self.settings.sidebar_collapsed
@@ -524,7 +518,7 @@ impl Shell {
             .flex_row()
             .items_center()
             .pt(px(Theme::TITLEBAR_TOP_PAD))
-            .px(px(TITLEBAR_CLUSTER_PAD))
+            .px(crate::typography::ui_rems(TITLEBAR_CLUSTER_PAD))
             .child(
                 div()
                     .absolute()

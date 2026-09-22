@@ -2,18 +2,18 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use gpui::{px, Context, ListOffset, SharedString};
+use gpui::{Context, ListOffset, SharedString, px};
 use zeron_doc::MessageStatus;
 
 use crate::markdown::parser::parse_full;
 use crate::markdown::render;
 use crate::motion;
 
-use super::row::{diff_rows, rows_for_entry, tool_group_collapses, Row, RowKind, ToolItem};
-use super::stick_spring::{should_anchor_live_stream, SCROLL_BUTTON_THRESHOLD_PX};
+use super::Transcript;
+use super::row::{Row, RowKind, ToolItem, diff_rows, rows_for_entry, tool_group_collapses};
+use super::stick_spring::{SCROLL_BUTTON_THRESHOLD_PX, should_anchor_live_stream};
 use super::tool_cards::{TOOL_FIRST_ROW_DELAY_MS, TOOL_ROW_STAGGER_MS};
 use super::viewport::{SavedViewport, TranscriptReplayState};
-use super::Transcript;
 
 impl Transcript {
     /// Rebuild rows from app state; splice minimal ranges into the list.
@@ -90,6 +90,8 @@ impl Transcript {
             self.tree_cache.clear();
             self.folds.clear();
             self.tool_group_reveals.clear();
+            self.tool_details.clear();
+            self.tool_detail_scrolls.clear();
             self.last_replay_baseline = None;
             self.historical_markdown.clear();
             self.user_folds.clear();

@@ -1180,6 +1180,7 @@ struct SubagentSink {
     written: Vec<MessagePart>,
     folded: Vec<MessagePart>,
     dirty: bool,
+    reasoning_started_at: Option<std::time::Instant>,
 }
 
 impl SubagentSink {
@@ -1661,6 +1662,7 @@ async fn drive_run(
         std::collections::HashMap::new();
 
     let mut final_completed_turn = None;
+    let mut reasoning_started_at: Option<std::time::Instant> = None;
     let final_status = loop {
         let event: AgentEvent = if let Some(event) = prepared_events.pop_front() {
             event
@@ -1810,6 +1812,7 @@ async fn drive_run(
                     }
                     folded.clear();
                     dirty = false;
+                    reasoning_started_at = None;
                     entry_id = new_id();
                     segment_started = now_ms();
                     idle_since = Some(tokio::time::Instant::now());
@@ -1919,6 +1922,7 @@ async fn drive_run(
                             written: Vec::new(),
                             folded: Vec::new(),
                             dirty: false,
+                            reasoning_started_at: None,
                         },
                     );
                     if !chip_streaming {
@@ -1942,7 +1946,33 @@ async fn drive_run(
                     sink.push_user(&device_id, text);
                     continue;
                 }
+                if let AgentEvent::ReasoningDelta { text } = sub_event.as_ref() {
+                    if !text.is_empty() && sink.reasoning_started_at.is_none() {
+                        sink.reasoning_started_at = Some(std::time::Instant::now());
+                    }
+                } else if let Some(start) = sink.reasoning_started_at.take() {
+                    let duration_ms = start.elapsed().as_millis() as u64;
+                    for part in sink.folded.iter_mut().rev() {
+                        if let MessagePart::Reasoning { duration_ms: d, .. } = part {
+                            if d.is_none() {
+                                *d = Some(duration_ms.max(1));
+                            }
+                            break;
+                        }
+                    }
+                }
                 zeron_doc::fold_event_into_parts(&mut sink.folded, sub_event);
+                if done && let Some(start) = sink.reasoning_started_at.take() {
+                    let duration_ms = start.elapsed().as_millis() as u64;
+                    for part in sink.folded.iter_mut().rev() {
+                        if let MessagePart::Reasoning { duration_ms: d, .. } = part {
+                            if d.is_none() {
+                                *d = Some(duration_ms.max(1));
+                            }
+                            break;
+                        }
+                    }
+                }
                 sink.dirty = true;
                 if !chip_streaming && done {
                     // In-place chip refresh on lifecycle transitions only —
@@ -2267,6 +2297,23 @@ async fn drive_run(
 
         inner.publish(&chat_id, &event);
 
+        if let AgentEvent::ReasoningDelta { text } = &event {
+            if !text.is_empty() && reasoning_started_at.is_none() {
+                reasoning_started_at = Some(std::time::Instant::now());
+            }
+        } else if let Some(start) = reasoning_started_at.take() {
+            let duration_ms = start.elapsed().as_millis() as u64;
+            for part in folded.iter_mut().rev() {
+                if let MessagePart::Reasoning { duration_ms: d, .. } = part {
+                    if d.is_none() {
+                        *d = Some(duration_ms.max(1));
+                        dirty = true;
+                    }
+                    break;
+                }
+            }
+        }
+
         // Defensive rule from zeron: a mid-run SessionStarted re-emission (Claude SDK
         // background re-invocations) must not wipe the segment being written.
         let skip_fold = matches!(&event, AgentEvent::SessionStarted { .. }) && !folded.is_empty();
@@ -2281,6 +2328,18 @@ async fn drive_run(
         }
 
         if let AgentEvent::Done { status, .. } = &event {
+            if let Some(start) = reasoning_started_at.take() {
+                let duration_ms = start.elapsed().as_millis() as u64;
+                for part in folded.iter_mut().rev() {
+                    if let MessagePart::Reasoning { duration_ms: d, .. } = part {
+                        if d.is_none() {
+                            *d = Some(duration_ms.max(1));
+                            dirty = true;
+                        }
+                        break;
+                    }
+                }
+            }
             // A question still pending at turn end can never be legitimately
             // answered (its turn is over): drain the resolvers NOW, or a late
             // `respond_input` finds one, emits InputResolved, and un-parks

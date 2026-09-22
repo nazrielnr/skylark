@@ -6,12 +6,12 @@ impl Shell {
     /// One session row: title plus status glyph on line one; harness, status or
     /// time, and source metadata on line two. Compact keeps one-line layout.
     #[allow(clippy::too_many_arguments)]
-    pub(crate) fn render_chat_row(
+    pub(in crate::shell) fn render_chat_row(
         &self,
         id: String,
         title: SharedString,
         time_ago: SharedString,
-        space_name: SharedString,
+        _space_name: SharedString,
         branch: Option<SharedString>,
         change_request: Option<zeron_proto::ChangeRequestSummary>,
         harness: Option<zeron_proto::HarnessId>,
@@ -44,7 +44,10 @@ impl Shell {
         };
         // Compact layout retired; existing persisted preferences are ignored.
         let compact = false;
-        let show_label = search_query.is_some() || self.settings.sidebar_show_project_label;
+        let is_grouped_or_filtered = self.settings.sidebar_organization == SidebarOrganization::ByProject
+            || self.settings.space_filter.is_some();
+        let show_label = search_query.is_some()
+            || (self.settings.sidebar_show_project_label && !is_grouped_or_filtered);
         let remote = self
             .state
             .read(cx)
@@ -300,11 +303,7 @@ impl Shell {
         } else {
             crate::theme::wash(0.0)
         };
-        // A selected row must NOT drift toward the hover wash: in dark the two
-        // fills are identical so the blend is a no-op, but light's hover sits
-        // below its near-opaque selected fill, and blending toward it visibly
-        // dimmed the active row under the pointer (user report).
-        let hover_bg = if selected { selected_wash } else { hover };
+        let hover_bg = hover;
         let rest_text = if selected || search_query.is_some() {
             text
         } else if archived {
@@ -333,7 +332,13 @@ impl Shell {
             } else {
                 8.0
             }))
-            .px(crate::typography::ui_rems(Theme::SPACE_SM + 2.0))
+            .border_1()
+            .border_color(if selected {
+                crate::theme::hairline(0.12)
+            } else {
+                gpui::transparent_black()
+            })
+            .px(crate::typography::ui_rems(Theme::SPACE_SM))
             .py(crate::typography::ui_rems(6.0))
             .text_color(motion::hover_blend(&fade_key, rest_text, text))
             .bg(motion::hover_blend(&fade_key, rest_bg, hover_bg))
@@ -409,6 +414,7 @@ impl Shell {
             .child(
                 div()
                     .w_full()
+                    .h(crate::typography::ui_rems(16.0))
                     .flex()
                     .flex_row()
                     .items_center()
@@ -422,17 +428,23 @@ impl Shell {
                         harness.map(crate::pickers::harness_brand_icon),
                         |el, (path, tint)| {
                             el.child(
-                                icon(path)
-                                    .size(crate::typography::ui_rems(
-                                        SIDEBAR_ACTIVE_HARNESS_ICON_SIZE,
-                                    ))
+                                div()
+                                    .size(crate::typography::ui_rems(16.0))
                                     .flex_none()
-                                    .text_color(
-                                        tint.unwrap_or(subline).opacity(if archived_muted {
-                                            0.4
-                                        } else {
-                                            0.8
-                                        }),
+                                    .flex()
+                                    .items_center()
+                                    .justify_center()
+                                    .child(
+                                        icon(path)
+                                            .size(crate::typography::ui_rems(13.5))
+                                            .flex_none()
+                                            .text_color(
+                                                tint.unwrap_or(subline).opacity(if archived_muted {
+                                                    0.4
+                                                } else {
+                                                    0.85
+                                                }),
+                                            ),
                                     ),
                             )
                         },
@@ -452,98 +464,57 @@ impl Shell {
                         ))
                     })
                     .when(!compact, |el| {
-                        el.child(match status_label {
-                            Some(label) => div()
+                        el.child(if working {
+                            let delta = motion::pulse_delta(
+                                &motion::SHIMMER_SWEEP,
+                                self.sidebar_pane.entity_id(),
+                                cx,
+                            );
+                            sidebar_shimmer_label(
+                                "Working…".into(),
+                                12.0,
+                                16.0,
+                                delta,
+                                subline.opacity(0.45),
+                                theme.text,
+                                theme,
+                            )
+                        } else if undelivered {
+                            div()
                                 .flex_none()
-                                .text_size(crate::typography::ui_rems(11.0))
+                                .text_size(crate::typography::ui_rems(12.0))
+                                .line_height(crate::typography::ui_rems(16.0))
                                 .font_weight(gpui::FontWeight::MEDIUM)
-                                .text_color(subline)
-                                .child(SharedString::from(if working {
-                                    "Working…"
-                                } else {
-                                    label
-                                }))
-                                .into_any_element(),
-                            None => div()
+                                .text_color(theme.danger)
+                                .child("Failed")
+                                .into_any_element()
+                        } else if queued {
+                            div()
                                 .flex_none()
-                                .text_size(crate::typography::ui_rems(11.0))
+                                .text_size(crate::typography::ui_rems(12.0))
+                                .line_height(crate::typography::ui_rems(16.0))
+                                .font_weight(gpui::FontWeight::MEDIUM)
+                                .text_color(theme.warning)
+                                .child("Queued")
+                                .into_any_element()
+                        } else if status == zeron_proto::ChatIndicator::AwaitingInput {
+                            div()
+                                .flex_none()
+                                .text_size(crate::typography::ui_rems(12.0))
+                                .line_height(crate::typography::ui_rems(16.0))
+                                .font_weight(gpui::FontWeight::MEDIUM)
+                                .text_color(theme.accent)
+                                .child("Input")
+                                .into_any_element()
+                        } else {
+                            div()
+                                .flex_none()
+                                .text_size(crate::typography::ui_rems(12.0))
+                                .line_height(crate::typography::ui_rems(16.0))
                                 .text_color(subline)
                                 .child(time_ago.clone())
-                                .into_any_element(),
+                                .into_any_element()
                         })
-                        .when(branch.is_some() || show_label, |el| {
-                            el.child(
-                                div()
-                                    .flex_none()
-                                    .text_size(crate::typography::ui_rems(11.0))
-                                    .text_color(subline.opacity(0.7))
-                                    .child("•"),
-                            )
-                        })
-                        .when_some(branch, |el, branch| {
-                            el.child(
-                                icon(icons::GIT_BRANCH)
-                                    .size(crate::typography::ui_rems(11.0))
-                                    .flex_none()
-                                    .text_color(subline),
-                            )
-                            .child(sidebar_faded_label(
-                                format!("chat-branch-{content_id}").into(),
-                                false,
-                                div()
-                                    .text_size(crate::typography::ui_rems(11.0))
-                                    .line_height(crate::typography::ui_rems(14.0))
-                                    .text_color(subline)
-                                    .child(popover::search_highlight(branch, search_query, theme)),
-                            ))
-                        })
-                        .when(show_label, |el| {
-                            el.child(sidebar_faded_label(
-                                format!("chat-device-{content_id}").into(),
-                                false,
-                                div()
-                                    .text_size(crate::typography::ui_rems(11.0))
-                                    .line_height(crate::typography::ui_rems(14.0))
-                                    .text_color(subline)
-                                    .child(popover::search_highlight(
-                                        space_name,
-                                        search_query,
-                                        theme,
-                                    )),
-                            ))
-                        })
-                        .when(remote, |el| {
-                            el.child(
-                                icon(icons::REMOTE_SERVER)
-                                    .size(crate::typography::ui_rems(
-                                        SIDEBAR_ACTIVE_HARNESS_ICON_SIZE,
-                                    ))
-                                    .flex_none()
-                                    .text_color(subline),
-                            )
-                        })
-                        .child(div().flex_1().min_w_0())
-                        .when_some(
-                            change_request.clone(),
-                            |el, summary| {
-                                el.child(if preview {
-                                    crate::change_requests::pull_request_badge_preview(
-                                        format!("{row_id}-pr").into(),
-                                        summary,
-                                        crate::change_requests::ChangeRequestBadgeSurface::Sidebar,
-                                        theme,
-                                    )
-                                } else {
-                                    crate::change_requests::pull_request_badge_with_query(
-                                        format!("{row_id}-pr").into(),
-                                        summary,
-                                        crate::change_requests::ChangeRequestBadgeSurface::Sidebar,
-                                        search_query,
-                                        theme,
-                                    )
-                                })
-                            },
-                        )
                     })
                     .when(compact && (remote || corner_hovered), |el| {
                         el.child(
@@ -1186,9 +1157,17 @@ impl Shell {
                     .cursor_pointer()
                     .on_click(cx.listener(|this, _, _, cx| this.open_new_session(cx)))
                     .child(
-                        icon(icons::PLUS)
-                            .size(crate::typography::ui_rems(14.0))
-                            .text_color(theme.text_muted),
+                        div()
+                            .size(crate::typography::ui_rems(16.0))
+                            .flex_none()
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .child(
+                                icon(icons::PLUS)
+                                    .size(crate::typography::ui_rems(14.0))
+                                    .text_color(theme.text_muted),
+                            ),
                     )
                     .child("New session"),
             )
@@ -1234,4 +1213,105 @@ impl Shell {
             )
             .into_any_element()
     }
+}
+
+/// Pure horizontal light sweep shimmer text for working session indicators.
+pub(crate) fn sidebar_shimmer_label(
+    text: SharedString,
+    font_size: f32,
+    line_height: f32,
+    phase: f32,
+    base_color: gpui::Hsla,
+    peak_color: gpui::Hsla,
+    theme: &Theme,
+) -> gpui::AnyElement {
+    use gpui::{canvas, point, px, size, Bounds, ContentMask, TextAlign, TextRun};
+
+    let overlay_text = text.clone();
+    let overlay_font = gpui::font(theme.font_sans_fixed.clone());
+    let strip_width = 2.0;
+    let half_width = 0.36;
+
+    let overlay = canvas(
+        move |bounds, window, _| {
+            let probe = window.text_system().shape_line(
+                overlay_text.clone(),
+                px(font_size),
+                &[TextRun {
+                    len: overlay_text.len(),
+                    font: overlay_font.clone(),
+                    color: peak_color,
+                    background_color: None,
+                    underline: None,
+                    strikethrough: None,
+                }],
+                None,
+            );
+            let text_width = f32::from(probe.width()).min(f32::from(bounds.size.width));
+            let strip_count = (text_width / strip_width).ceil() as usize;
+            let mut strips = Vec::with_capacity(strip_count);
+            let primary_center = -2.5 + phase.clamp(0.0, 1.0) * 6.0;
+
+            for ix in 0..strip_count {
+                let left = ix as f32 * strip_width;
+                let right = ((ix + 1) as f32 * strip_width).min(text_width);
+                let x = (left + right) * 0.5 / text_width.max(1.0);
+                let amount = (-2..=2)
+                    .map(|copy| primary_center + copy as f32 * 3.0)
+                    .map(|center| (1.0 - (x - center).abs() / half_width).clamp(0.0, 1.0))
+                    .fold(0.0, f32::max);
+                if amount <= 0.001 {
+                    continue;
+                }
+                let line = window.text_system().shape_line(
+                    overlay_text.clone(),
+                    px(font_size),
+                    &[TextRun {
+                        len: overlay_text.len(),
+                        font: overlay_font.clone(),
+                        color: motion::mix(base_color, peak_color, amount),
+                        background_color: None,
+                        underline: None,
+                        strikethrough: None,
+                    }],
+                    None,
+                );
+                strips.push((left, right, line));
+            }
+            strips
+        },
+        move |bounds, strips, window, cx| {
+            for (left, right, line) in strips {
+                let mask = ContentMask {
+                    bounds: Bounds {
+                        origin: point(bounds.origin.x + px(left), bounds.origin.y),
+                        size: size(px(right - left), bounds.size.height),
+                    },
+                };
+                window.with_content_mask(Some(mask), |window| {
+                    let _ = line.paint(
+                        bounds.origin,
+                        px(line_height),
+                        TextAlign::Left,
+                        None,
+                        window,
+                        cx,
+                    );
+                });
+            }
+        },
+    )
+    .absolute()
+    .inset_0();
+
+    div()
+        .relative()
+        .flex_none()
+        .text_size(crate::typography::ui_rems(font_size))
+        .line_height(crate::typography::ui_rems(line_height))
+        .font_weight(gpui::FontWeight::MEDIUM)
+        .text_color(base_color)
+        .child(text)
+        .child(overlay)
+        .into_any_element()
 }
