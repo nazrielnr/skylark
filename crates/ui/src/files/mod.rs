@@ -373,9 +373,11 @@ impl Render for FilesSurface {
                 .h_full()
                 .pr(crate::typography::ui_rems(
                     crate::surface_chrome::CONTROL_GAP,
-                ))
-                .border_l_1()
-                .border_color(theme.border);
+                ));
+            // The tree header rides the SAME animated width as the body
+            // overlay (workspace name and branch slide with the tree in
+            // every transition), covering the frozen editor header instead
+            // of squeezing it — no per-frame breadcrumb re-flow.
             header = Some(
                 div()
                     .w_full()
@@ -384,27 +386,31 @@ impl Render for FilesSurface {
                     ))
                     .flex_none()
                     .flex()
+                    .relative()
                     .child(
                         div()
                             .flex_1()
                             .min_w_0()
                             .children(self.render_editor_header(&theme, cx)),
                     )
+                    .child(div().flex_none().w(px(
+                        (layout_width - toggle_width).max(0.0),
+                    )))
+                    .child(self.render_tree_toggle(&theme, cx))
                     .child(
                         div()
-                            .w(px((layout_width - toggle_width).max(0.0)))
-                            .h_full()
-                            .flex_none()
+                            .absolute()
+                            .top_0()
+                            .bottom_0()
+                            .right(px(toggle_width))
+                            .w(px((overlay_width - toggle_width).max(0.0)))
                             .overflow_hidden()
-                            .child(
-                                div()
-                                    .w(px((layout_width - toggle_width).max(0.0)))
-                                    .h_full()
-                                    .flex()
-                                    .child(tree_header),
-                            ),
-                    )
-                    .child(self.render_tree_toggle(&theme, cx)),
+                            .bg(theme.bg)
+                            .border_l_1()
+                            .border_color(theme.border)
+                            .child(tree_header)
+                            .child(crate::ui_trace::bounds_probe("tree-header")),
+                    ),
             );
 
             div()
@@ -423,7 +429,8 @@ impl Render for FilesSurface {
                 // above the frozen preview (later sibling). OPAQUE: the
                 // file content beneath must never bleed through the tree's
                 // transparent rows — that read as flickering during every
-                // overlay transition.
+                // overlay transition. (theme.bg is opaque; ink(0.0) is
+                // fully transparent and was a no-op here.)
                 .child(
                     div()
                         .absolute()
@@ -432,7 +439,7 @@ impl Render for FilesSurface {
                         .right_0()
                         .w(px(overlay_width.max(0.0)))
                         .overflow_hidden()
-                        .bg(crate::theme::ink(0.0))
+                        .bg(theme.bg)
                         .child(
                             div()
                                 .w(px(overlay_width.max(0.0)))
