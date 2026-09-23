@@ -4,7 +4,7 @@ use std::time::Duration;
 
 /// The cover transition window before the deferred surface swap: the tree
 /// overlay's ease duration plus a frame of margin.
-const SURFACE_COVER_MS: u64 = RESIZE.duration_ms + 250;
+const SURFACE_COVER_MS: u64 = RESIZE.duration_ms + 40;
 
 use super::*;
 use crate::motion::{self, RESIZE};
@@ -327,11 +327,17 @@ impl Shell {
                 if let Some(file) = self.file_surfaces.get(&id).cloned() {
                     // Coming from the raw workspace to an existing file tab:
                     // the tree overlay starts at full pane width and eases
-                    // to the sidebar — no instant fallback snap.
+                    // to the sidebar — no instant fallback snap. Any OTHER
+                    // activation (another file tab, a tree click) clears a
+                    // stale held cover width first.
                     if let RightSurface::Files = previous {
                         let pane_width = self.right_target(cx);
                         file.update(cx, |file, cx| {
                             file.begin_sidebar_reveal(pane_width, cx);
+                        });
+                    } else {
+                        file.update(cx, |file, cx| {
+                            file.end_cover_transition(cx);
                         });
                     }
                     file.update(cx, |file, cx| file.ensure_loaded(cx));

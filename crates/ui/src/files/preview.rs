@@ -174,6 +174,11 @@ pub(super) struct FilePreviewState {
     /// width (held by the shared tree entity); the cover transition targets
     /// the full pane width (see `begin_cover_expand`).
     tree_width_tween: Option<(f32, f32, Instant)>,
+    /// The finished cover's held width: once the cover ease reaches the
+    /// full pane width it STAYS there (falling back to the resting width
+    /// would visibly retract the tree before the shell swaps the raw
+    /// surface in). Cleared when the surface is re-activated or re-seeded.
+    cover_hold: Option<f32>,
     tree_motion: TreeSidebarMotion,
     tree_edge_bounce: Option<crate::motion::ResizeEdgeBounce>,
     tree_resize_edge: Option<crate::motion::ResizeEdge>,

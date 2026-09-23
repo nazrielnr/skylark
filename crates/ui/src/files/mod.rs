@@ -982,6 +982,13 @@ impl FilesSurface {
         cx.notify();
     }
 
+    /// Re-activation clears any held cover width (the shell's raw swap
+    /// already happened; this tab must show its normal sidebar layout).
+    pub fn end_cover_transition(&mut self, cx: &mut Context<Self>) {
+        self.preview.end_cover_hold();
+        cx.notify();
+    }
+
     /// The cover transition (raw return): the overlay tree grows from the
     /// sidebar width to the FULL pane width, covering the frozen preview.
     /// The shell swaps to the raw surface when the ease completes.

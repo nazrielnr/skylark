@@ -26,6 +26,7 @@ impl FilePreviewState {
             reload_confirmation: None,
             close_requested: false,
             tree_width_tween: None,
+            cover_hold: None,
             tree_motion: TreeSidebarMotion::default(),
             tree_edge_bounce: None,
             tree_resize_edge: None,
@@ -47,6 +48,7 @@ impl FilePreviewState {
         self.reload_confirmation = None;
         self.close_requested = false;
         self.tree_width_tween = None;
+        self.cover_hold = None;
         self.tree_motion = TreeSidebarMotion::default();
         self.tree_edge_bounce = None;
         self.tree_resize_edge = None;
@@ -219,11 +221,13 @@ impl FilePreviewState {
     /// Snap the overlay fully open (file activation path — no animation).
     pub(crate) fn snap_sidebar_open(&mut self) {
         self.tree_motion.snap_open();
+        self.cover_hold = None;
     }
 
     /// The toggle: animate the overlay between collapsed and open. The
     /// collapsed state itself is SHARED (tree entity); this animates.
     pub(crate) fn animate_sidebar_toggle(&mut self, visible: bool, resting: f32) {
+        self.cover_hold = None;
         self.tree_edge_bounce = None;
         self.tree_resize_edge = None;
         self.tree_resize_active = false;
@@ -246,6 +250,7 @@ impl FilePreviewState {
     /// sidebar width from another file tab), then ease to the resting width
     /// (held by the shared tree entity).
     pub(crate) fn seed_sidebar_transition(&mut self, from_width: f32, resting: f32) {
+        self.cover_hold = None;
         self.tree_width_tween = Some((from_width, resting, Instant::now()));
     }
 
@@ -254,6 +259,7 @@ impl FilePreviewState {
     /// the (frozen) preview instead of the content vanishing with the
     /// surface swap.
     pub(crate) fn begin_cover_expand(&mut self, from_width: f32, pane_width: f32) {
+        self.cover_hold = None;
         self.tree_width_tween = Some((from_width, pane_width, Instant::now()));
     }
 
@@ -266,6 +272,12 @@ impl FilePreviewState {
         window: &mut Window,
         cx: &App,
     ) -> f32 {
+        // A finished cover HOLDS at the full pane width until the shell
+        // swaps the raw surface in; falling back to the resting width here
+        // would visibly retract the tree (double transition).
+        if let Some(held) = self.cover_hold {
+            return held;
+        }
         if let Some((from, target, started)) = self.tree_width_tween {
             let total = Duration::from_millis(crate::motion::RESIZE.duration_ms)
                 .mul_f32(crate::motion::speed_scale());
@@ -277,8 +289,14 @@ impl FilePreviewState {
                 window.request_animation_frame();
                 return crate::motion::lerp(from, target, crate::motion::RESIZE.progress(raw));
             }
-            // Finished: drop the tween so `animation_active` reports false.
+            // Finished. A cover (target wider than resting) holds its end
+            // width; every other transition settles to the composition
+            // below and the tween is dropped.
             self.tree_width_tween = None;
+            if target > resting + 1.0 {
+                self.cover_hold = Some(target);
+                return target;
+            }
         }
         let openness = self.tree_sidebar_openness(visible, window, cx);
         let mut width = resting * openness;
@@ -301,6 +319,13 @@ impl FilePreviewState {
 
     pub(crate) fn clear_tree_width_tween(&mut self) {
         self.tree_width_tween = None;
+        self.cover_hold = None;
+    }
+
+    /// Re-activation clears any held cover width (the raw surface swap
+    /// already happened; this tab must show its normal sidebar layout).
+    pub(crate) fn end_cover_hold(&mut self) {
+        self.cover_hold = None;
     }
 
     /// Whether any tree animation is in flight (drives the frame timer).
