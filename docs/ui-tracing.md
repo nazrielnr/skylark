@@ -17,6 +17,7 @@ and `ui_trace::bounds_probe` are the only hooks.
 | `surface-new kind=file id path=?` | an editor tab was created | `Shell::add_file_surface` |
 | `watch-frame seq changes resync` | the single watcher applied a frame | `FileTreeView::apply_tree_changes` |
 | `raw-expand from to` | returning to the raw Files tab: the tree eases from the sidebar width back to full pane | `FilesSurface::begin_raw_expand` |
+| `split-frame w open surf wide tween` | one render of an editor tab's sidebar layout (width, openness, measured surface width, branch, tween) | `FilesSurface::render` |
 | `bounds <id> L T R B` | a probe element's on-screen geometry | `ui_trace::bounds_probe` |
 
 Geometry values are **window-local logical pixels**. Convert to physical

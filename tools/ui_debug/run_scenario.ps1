@@ -92,10 +92,10 @@ try {
     $map
   }
 
-  # Open the right pane and, when the picker shows, open Files.
-  Send-CtrlR
-  Start-Sleep -Milliseconds 3000
-  if (-not (Get-LastTrace "tree-rows") -and -not (Get-LastTrace "bounds files-card")) {
+  # Open the right pane and, when the picker shows, open Files. Boot timing
+  # varies with the engine connect, so retry Ctrl+R until something appears.
+  for ($try = 0; $try -lt 4; $try++) {
+    if ((Get-LastTrace "tree-rows") -or (Get-LastTrace "bounds files-card")) { break }
     Send-CtrlR
     Start-Sleep -Milliseconds 3000
   }

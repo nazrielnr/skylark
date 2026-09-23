@@ -328,6 +328,16 @@ impl Render for FilesSurface {
                 .preview
                 .tree_width_frame(self.resting_tree_width(cx), window, cx);
             let openness = self.preview.tree_sidebar_frame(window, cx);
+            if crate::ui_trace::enabled() {
+                eprintln!(
+                    "[trace] split-frame w={:.0} open={:.3} surf={:.0} wide={} tween={:?}",
+                    tree_width,
+                    openness,
+                    self.preview.surface_width_read(),
+                    wide,
+                    self.preview.tree_width_tween_debug()
+                );
+            }
             if wide && self.preview.tree_sidebar_visible() {
                 preview_split_right =
                     Some(tree_width * openness - preview::TREE_SPLIT_HITBOX_HALF_WIDTH);
@@ -511,6 +521,7 @@ impl FilesSurface {
         path: String,
         tree_view: Entity<FileTreeView>,
         initial_sidebar: Option<f32>,
+        pane_width: f32,
         autosave_enabled: bool,
         autosave_delay_ms: u64,
         editor_font_size: f32,
@@ -529,6 +540,10 @@ impl FilesSurface {
             word_wrap,
             cx,
         );
+        // Frame-1 correctness: the pane width primes the wide/narrow branch
+        // (the canvas only measures after the first paint), the sidebar seed
+        // starts the visual transition.
+        surface.preview.seed_surface_width(pane_width);
         if let Some(from_width) = initial_sidebar {
             surface.preview.seed_sidebar_transition(from_width);
         }

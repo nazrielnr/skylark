@@ -204,19 +204,30 @@ impl FilePreviewState {
         self.tree_motion.animate_to(false, true, Instant::now());
     }
 
+    /// Prime the wide/narrow measurement with the SURFACE width (the pane),
+    /// NOT the sidebar width: the measuring canvas only runs after the first
+    /// paint, so without this frame 1 would take the narrow branch, rest at
+    /// the 44% fallback, and visibly wiggle once the measurement lands.
+    pub(crate) fn seed_surface_width(&mut self, width: f32) {
+        self.surface_width.set(width);
+    }
+
     /// Seed a new editor tab so its first frame matches the layout the tree
     /// already has (full pane from the raw workspace browser, or the current
     /// sidebar width from another file tab), then ease to the resting width
-    /// (held by the shared tree entity). Also primes the wide/narrow
-    /// measurement so frame 1 picks the right layout branch (the measuring
-    /// canvas only runs after this paint).
+    /// (held by the shared tree entity).
     pub(crate) fn seed_sidebar_transition(&mut self, from_width: f32) {
-        self.surface_width.set(from_width);
         self.tree_width_tween = Some((from_width, Instant::now()));
     }
 
     pub(crate) fn clear_tree_width_tween(&mut self) {
         self.tree_width_tween = None;
+    }
+
+    /// Debug view of the width tween for tracing.
+    pub(crate) fn tree_width_tween_debug(&self) -> Option<(f32, u64)> {
+        self.tree_width_tween
+            .map(|(from, started)| (from, started.elapsed().as_millis() as u64))
     }
 
     pub(super) fn toggle_tree_sidebar(&mut self) {

@@ -289,10 +289,9 @@ impl Shell {
         // active, the current sidebar width when switching from a file tab —
         // then eases to its resting width (the tree slides aside and the
         // file emerges, instead of the layout snapping).
+        let pane_width = self.right_target(cx);
         let initial_sidebar = match self.resolved_right_active(cx) {
-            RightSurface::Files if self.files.contains_key(&panel_key) => {
-                Some(self.right_target(cx))
-            }
+            RightSurface::Files if self.files.contains_key(&panel_key) => Some(pane_width),
             RightSurface::File(active_id) => {
                 self.file_surfaces.get(&active_id).and_then(|surface| {
                     surface.read_with(cx, |surface, cx| surface.current_sidebar_width(cx))
@@ -307,6 +306,7 @@ impl Shell {
                 path.clone(),
                 tree.clone(),
                 initial_sidebar,
+                pane_width,
                 self.settings.files_autosave_enabled,
                 self.settings.files_autosave_delay_ms,
                 crate::typography::code_font_size(cx),
