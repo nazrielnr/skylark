@@ -931,7 +931,10 @@ impl FilesSurface {
             crate::motion::reduced_motion(cx),
         );
         self.preview.clear_tree_width_tween();
-        self.preview.tree_width = sample.width;
+        // The resting width is shared across the panel's tabs: write the
+        // drag result to the tree entity so every tab rests here.
+        self.tree_view
+            .update(cx, |tree, _| tree.set_sidebar_width(sample.width));
         self.preview.tree_resize_dragging = true;
         self.preview.tree_resize_active = sample.edge.is_none();
         if sample.starts_bounce {
@@ -1008,7 +1011,8 @@ impl FilesSurface {
                 gpui::MouseButton::Left,
                 cx.listener(|this, event: &gpui::MouseUpEvent, window, cx| {
                     if event.click_count == 2 {
-                        this.preview.tree_width = TREE_SPLIT_DEFAULT;
+                        this.tree_view
+                            .update(cx, |tree, _| tree.reset_sidebar_width());
                         this.preview.tree_edge_bounce = None;
                     }
                     this.preview.finish_tree_resize();

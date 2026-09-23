@@ -274,10 +274,26 @@ impl Shell {
             self.suspend_file_images(cx);
         }
         let key = self.panel_key(cx);
+        // Capture what was active BEFORE the switch (for the raw-browser
+        // expansion seed).
+        let previous = self.resolved_right_active(cx);
         self.panels.update(&key, |p| p.right_active = surface);
         match surface {
             RightSurface::Files => {
                 if let Some(files) = self.files.get(&key).cloned() {
+                    // Coming back to the raw workspace from a file tab: the
+                    // tree eases from the sidebar width back to full pane
+                    // width (anchored right, growing leftward) instead of
+                    // snapping.
+                    if let RightSurface::File(prev_id) = previous
+                        && let Some(tree) = self.workspace_trees.get(&key).cloned()
+                    {
+                        let from = tree.read_with(cx, |tree, _| tree.sidebar_width());
+                        let target = self.right_target(cx);
+                        files.update(cx, |files, cx| {
+                            files.begin_raw_expand(from, target, cx);
+                        });
+                    }
                     files.update(cx, |files, cx| files.ensure_loaded(cx));
                 }
             }

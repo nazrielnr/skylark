@@ -3,7 +3,7 @@
 use std::time::Duration;
 
 use super::*;
-use gpui::{div, px, AnyElement, Context, IntoElement, Render, SharedString, Window};
+use gpui::{AnyElement, Context, IntoElement, Render, SharedString, Window, div, px};
 
 /// The dragged surface-tab payload (strip reorder).
 pub(crate) struct RightTabDrag {
@@ -222,7 +222,12 @@ impl Shell {
 
     /// Track the hovered drop slot mid-drag (the terminal drawer's
     /// `update_drag_over`, ported: epoch bumps restart the slide tween).
-    pub(super) fn update_right_tab_drag_over(&mut self, from: usize, over: usize, cx: &mut Context<Self>) {
+    pub(super) fn update_right_tab_drag_over(
+        &mut self,
+        from: usize,
+        over: usize,
+        cx: &mut Context<Self>,
+    ) {
         match &mut self.right_tab_drag {
             Some(drag) if drag.over != over => {
                 drag.prev_over = drag.over;
@@ -441,6 +446,10 @@ impl Shell {
                     this.set_right_active(surface, cx);
                     this.focus_right_file_editor(surface, window, cx);
                 }))
+                .when(matches!(surface, RightSurface::Files), |el| {
+                    el.relative()
+                        .child(crate::ui_trace::bounds_probe("files-tab"))
+                })
                 // Middle-click closes, like every tab strip.
                 .on_mouse_down(
                     gpui::MouseButton::Middle,
@@ -503,7 +512,9 @@ impl Shell {
                                     )
                                     .into_any_element()
                                 } else if let Some(favicon) = browser_favicon {
-                                    gpui::img(favicon).size(crate::typography::ui_rems(13.0)).into_any_element()
+                                    gpui::img(favicon)
+                                        .size(crate::typography::ui_rems(13.0))
+                                        .into_any_element()
                                 } else if is_file {
                                     crate::file_icons::icon(
                                         crate::file_icons::FileIconIdentity::file(
@@ -538,7 +549,7 @@ impl Shell {
                                     icon(icons::CLOSE)
                                         .size(crate::typography::ui_rems(12.0))
                                         .text_color(theme.text_muted),
-                                 ),
+                                ),
                         ),
                 )
                 .child(
@@ -808,12 +819,22 @@ mod tests {
     fn tab_width_adapts_to_content_and_clamps() {
         let files_w = estimated_tab_width("Files", false, 1.0);
         assert!(files_w < 100.0, "Files tab should be compact: {files_w}");
-        assert!(files_w >= 52.0, "Files tab should respect minimum width: {files_w}");
+        assert!(
+            files_w >= 52.0,
+            "Files tab should respect minimum width: {files_w}"
+        );
 
         let dirty_files_w = estimated_tab_width("Files", true, 1.0);
-        assert!(dirty_files_w > files_w, "Dirty tab should account for dirty indicator");
+        assert!(
+            dirty_files_w > files_w,
+            "Dirty tab should account for dirty indicator"
+        );
 
-        let long_w = estimated_tab_width("a_very_long_file_name_that_exceeds_max_width_here.rs", false, 1.0);
+        let long_w = estimated_tab_width(
+            "a_very_long_file_name_that_exceeds_max_width_here.rs",
+            false,
+            1.0,
+        );
         assert_eq!(long_w, 200.0, "Long tab should be capped at max width");
     }
 

@@ -245,6 +245,33 @@ try {
     if ($selectPath -and $openPath -and ($selectPath -ne $openPath)) {
       $failures += ("last select {0} != last open {1}" -f $selectPath, $openPath)
     }
+
+    # --- Return to the raw Files tab: the tree should expand back to the pane
+    $tabsLine = Get-LastTrace "bounds files-tab"
+    if ($tabsLine) {
+      $tab = Parse-Numbers $tabsLine
+      $tabX = [int]($origin.X + (($tab.L + $tab.R) / 2.0) * $scale)
+      $tabY = [int]($origin.Y + (($tab.T + $tab.B) / 2.0) * $scale)
+      $expandBefore = (Select-String -Path $LogPath -Pattern "raw-expand").Count
+      Click-At $tabX $tabY
+      Start-Sleep -Milliseconds 300
+      $expandAfter = (Select-String -Path $LogPath -Pattern "raw-expand").Count
+      Write-Output ("raw return: expands +{0}" -f ($expandAfter - $expandBefore))
+      Start-Sleep -Milliseconds 400
+      $rawLine = Get-LastTrace "tree-rows"
+      if ($rawLine) {
+        $raw = Parse-Numbers $rawLine
+        Write-Output ("raw tree: L={0} R={1}" -f $raw.L, $raw.R)
+        if (($expandAfter - $expandBefore) -lt 1) {
+          $failures += "returning to the Files tab did not expand the tree"
+        }
+        if (($raw.R - $raw.L) -lt 400) {
+          $failures += ("raw tree width {0} did not expand to full pane" -f [int]($raw.R - $raw.L))
+        }
+      }
+    } else {
+      Write-Output "no files-tab probe; skipping raw return"
+    }
   }
 
   Write-Output "---- RESULT ----"

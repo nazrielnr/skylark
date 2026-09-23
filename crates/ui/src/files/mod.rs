@@ -6,8 +6,8 @@ use std::{
 };
 
 use gpui::{
-    Context, Entity, EventEmitter, ListAlignment, ListState, Pixels, Point, Render, SharedString,
-    Subscription, Window, div, prelude::*, px,
+    App, Context, Entity, EventEmitter, ListAlignment, ListState, Pixels, Point, Render,
+    SharedString, Subscription, Window, div, prelude::*, px,
 };
 
 use crate::{
@@ -188,6 +188,9 @@ pub struct FilesSurface {
     /// surface (browser + editor tabs) embeds the same entity, so tree
     /// state, loads, and the watcher exist once per panel.
     tree_view: Entity<FileTreeView>,
+    /// Raw-browser transition: expanding the tree back to full pane width
+    /// after a file tab held it as a narrow sidebar. `(from, target, start)`.
+    raw_expand_tween: Option<(f32, f32, std::time::Instant)>,
     search: Entity<ComposerInput>,
     search_state: FileSearchState,
     search_list: ListState,
@@ -318,12 +321,12 @@ impl Render for FilesSurface {
         let mut preview_split_right = None;
         let body = if split_editor {
             let wide = self.preview.is_wide();
-            // The sidebar's resting width depends on the layout branch; the
+            // The sidebar's resting width is shared (tree entity); the
             // opening transition (seeded at tab creation) eases toward it in
             // EITHER branch, so the tree slides aside continuously.
-            let tree_width =
-                self.preview
-                    .tree_width_frame(self.preview.resting_sidebar_width(), window, cx);
+            let tree_width = self
+                .preview
+                .tree_width_frame(self.resting_tree_width(cx), window, cx);
             let openness = self.preview.tree_sidebar_frame(window, cx);
             if wide && self.preview.tree_sidebar_visible() {
                 preview_split_right =
@@ -405,6 +408,30 @@ impl Render for FilesSurface {
                                     .child(tree_pane),
                             ),
                         ),
+                )
+                .into_any_element()
+        } else if let Some(width) = self.raw_tree_width_frame(window, cx) {
+            // Raw browser, expanding back from a file tab's sidebar: the tree
+            // stays anchored to the pane's right edge and grows leftward to
+            // full width — the reverse of the editor's opening transition.
+            div()
+                .size_full()
+                .min_w_0()
+                .flex()
+                .child(div().flex_1())
+                .child(
+                    div().w(px(width)).h_full().flex_none().relative().child(
+                        div().size_full().overflow_hidden().child(
+                            div()
+                                .w(px(width))
+                                .h_full()
+                                .relative()
+                                .left(px(0.0))
+                                .border_l_1()
+                                .border_color(theme.border)
+                                .child(tree_pane),
+                        ),
+                    ),
                 )
                 .into_any_element()
         } else {
@@ -566,6 +593,7 @@ impl FilesSurface {
             target_change_pending: false,
             pending_request_context: None,
             tree_view,
+            raw_expand_tween: None,
             search,
             search_state: FileSearchState::default(),
             search_list: ListState::new(0, ListAlignment::Top, px(420.0)),
@@ -791,9 +819,9 @@ impl FilesSurface {
     /// The sidebar width this surface's tree currently sits at (editor
     /// layout). `None` for the raw workspace browser — its tree fills the
     /// pane, so the shell seeds a new tab from the pane width instead.
-    pub fn current_sidebar_width(&self) -> Option<f32> {
+    pub fn current_sidebar_width(&self, cx: &App) -> Option<f32> {
         if self.presentation.is_editor() {
-            Some(self.preview.resting_sidebar_width())
+            Some(self.resting_tree_width(cx))
         } else {
             None
         }
@@ -902,6 +930,47 @@ impl FilesSurface {
 
     pub(super) fn collapse_all(&mut self, cx: &mut Context<Self>) {
         self.tree_view.update(cx, |tree, cx| tree.collapse_all(cx));
+    }
+
+    /// The sidebar width this surface rests at, derived from the SHARED
+    /// tree entity so every tab agrees (a drag on one tab persists).
+    fn resting_tree_width(&self, cx: &App) -> f32 {
+        let shared = self.tree_view.read_with(cx, |tree, _| tree.sidebar_width());
+        if self.preview.is_wide() {
+            shared
+        } else {
+            (self.preview.surface_width_read() * 0.44).clamp(152.0, shared)
+        }
+    }
+
+    /// Begin the raw-browser expansion: the tree eases from a file tab's
+    /// sidebar width back to the full pane width.
+    pub fn begin_raw_expand(&mut self, from_width: f32, pane_width: f32, cx: &mut Context<Self>) {
+        crate::ui_trace!("raw-expand from={:.0} to={:.0}", from_width, pane_width);
+        self.raw_expand_tween = Some((from_width, pane_width, std::time::Instant::now()));
+        cx.notify();
+    }
+
+    /// The tweened tree width while the raw browser expands, or `None` when
+    /// not transitioning (plain full-width raw layout).
+    fn raw_tree_width_frame(&mut self, window: &mut Window, cx: &App) -> Option<f32> {
+        let (from, target, started) = self.raw_expand_tween?;
+        let total = std::time::Duration::from_millis(crate::motion::RESIZE.duration_ms)
+            .mul_f32(crate::motion::speed_scale());
+        let raw = std::time::Instant::now()
+            .saturating_duration_since(started)
+            .as_secs_f32()
+            / total.as_secs_f32();
+        if raw >= 1.0 {
+            self.raw_expand_tween = None;
+            return None;
+        }
+        window.request_animation_frame();
+        Some(crate::motion::lerp(
+            from,
+            target,
+            crate::motion::RESIZE.progress(raw),
+        ))
     }
 
     /// The shared tree entity — the shell owns it; every surface embeds the

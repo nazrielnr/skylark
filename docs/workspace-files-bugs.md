@@ -74,31 +74,29 @@ two layouts (bug 5), and a fresh editor tab measured `surface_width`
 from a stale initial value, so the "Loading file…" state rendered at
 full width until the file arrived.
 
-**Fix — a width tween in both layout branches.** The shell seeds a new
-editor tab with the width the tree already has (full pane when opening
-from the browser, the current sidebar width when switching from a file
-tab); `FilePreviewState::seed_sidebar_transition` starts a one-shot ease
-toward the resting width (same 200 ms spec as the sidebar motion, cancel
-on drag). The first frame matches the previous layout exactly, the
-sidebar then slides right, and the file preview grows into the freed
-space — the "workspace bergeser smooth ke kanan, lalu muncul filenya"
-behavior. `tree_width_frame` takes the resting width as a parameter, so
-the tween runs in the wide AND the narrow layout branch.
+**Fix — width tweens in both layout branches + a shared resting width.**
 
-Two further overlap sources were removed with the same change:
+The sidebar's resting width lives on the shared `FileTreeView`
+(`sidebar_width`), so a drag on one tab persists across every tab of
+the panel — per-surface copies used to make each tab rest at a
+different width (the "jarak resize berbeda" report).
 
-* `show_tree_sidebar` (the file-activation path) now SNAPS the sidebar
-  open instead of animating from 0 — on narrow panes the openness
-  animation used to run on every tab open, rendering the centered
-  loading state across the tree region for ~200 ms. Only the explicit
-  sidebar toggle animates.
-* Seeding `surface_width` fixes the wide/narrow branch on frame 1
-  (the measuring canvas only runs after the first paint).
+Opening a file seeds the new tab with the width the tree already has
+(full pane from the browser, the shared sidebar width from a file
+tab); `FilePreviewState::seed_sidebar_transition` starts a one-shot
+ease toward the resting width (200 ms spec, cancel on drag). The first
+frame matches the previous layout exactly, the sidebar then slides
+right, and the file preview grows into the freed space. Activation
+snaps openness (only the explicit toggle animates), so the loading
+state never renders across the tree region — the probes report 0 px
+preview/tree overlap on every frame.
 
-Geometry verification (`bounds preview-body` probe vs `tree-rows`):
-the overlap between the preview area and the tree region is 0 px on
-every frame of the transition; the preview grows 8→360 px while the
-tree eases from the pane's left edge to its sidebar position.
+Returning to the raw Files tab runs the reverse: `begin_raw_expand`
+eases the tree from the sidebar width back to the full pane width,
+anchored right and growing leftward.
+
+Seeding `surface_width` also fixes the wide/narrow branch on frame 1
+(the measuring canvas only runs after the first paint).
 
 ## Verification
 

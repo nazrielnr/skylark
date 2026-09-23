@@ -43,9 +43,9 @@ const EDITOR_TEXT_SIZE_RATIO: f32 = EDITOR_TEXT_SIZE / crate::typography::CODE_F
 const PREVIEW_TEXT_SIZE_RATIO: f32 = PREVIEW_TEXT_SIZE / crate::typography::CODE_FONT_SIZE_DEFAULT;
 const PREVIEW_LINE_HEIGHT_RATIO: f32 = PREVIEW_LINE_HEIGHT / PREVIEW_TEXT_SIZE;
 const WIDE_BREAKPOINT: f32 = 680.0;
-const TREE_SPLIT_DEFAULT: f32 = 286.0;
-const TREE_SPLIT_MIN: f32 = 220.0;
-const TREE_SPLIT_MAX: f32 = 360.0;
+pub(crate) const TREE_SPLIT_DEFAULT: f32 = 286.0;
+pub(crate) const TREE_SPLIT_MIN: f32 = 220.0;
+pub(crate) const TREE_SPLIT_MAX: f32 = 360.0;
 pub(super) const TREE_SPLIT_HITBOX_HALF_WIDTH: f32 = 10.0;
 const EDITOR_COMMENT_CARD_WIDTH: f32 = 320.0;
 const EDITOR_COMMENT_CARD_MARGIN: f32 = 8.0;
@@ -166,11 +166,11 @@ pub(super) struct FilePreviewState {
     close_requested: bool,
     tree_sidebar_visible: bool,
     tree_sidebar_dismissed: bool,
-    tree_width: f32,
     /// One-shot width transition: the tab was opened while the tree filled
-    /// (or sat at) `from` width — the sidebar eases from there to
-    /// `tree_width` so the browser→editor switch reads as the tree sliding
-    /// aside instead of the layout snapping.
+    /// (or sat at) `from` width — the sidebar eases from there to the
+    /// resting width (held by the shared tree entity) so the
+    /// browser→editor switch reads as the tree sliding aside instead of the
+    /// layout snapping.
     tree_width_tween: Option<(f32, Instant)>,
     tree_motion: TreeSidebarMotion,
     tree_edge_bounce: Option<crate::motion::ResizeEdgeBounce>,

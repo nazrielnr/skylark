@@ -293,10 +293,11 @@ impl Shell {
             RightSurface::Files if self.files.contains_key(&panel_key) => {
                 Some(self.right_target(cx))
             }
-            RightSurface::File(active_id) => self
-                .file_surfaces
-                .get(&active_id)
-                .and_then(|surface| surface.read(cx).current_sidebar_width()),
+            RightSurface::File(active_id) => {
+                self.file_surfaces.get(&active_id).and_then(|surface| {
+                    surface.read_with(cx, |surface, cx| surface.current_sidebar_width(cx))
+                })
+            }
             _ => None,
         };
         let file = cx.new(|cx| {

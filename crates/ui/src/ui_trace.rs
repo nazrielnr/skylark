@@ -46,9 +46,8 @@ pub fn bounds_probe(id: &'static str) -> gpui::AnyElement {
                 );
             }
         };
-    gpui::div()
+    gpui::canvas(paint, |_, _, _, _| {})
         .absolute()
         .inset_0()
-        .child(gpui::canvas(paint, |_, _, _, _| {}))
         .into_any_element()
 }

@@ -29,6 +29,7 @@ use super::{
     WorkspacePathDrag,
     client::{FilesRequestContext, WorkspaceFilesClient},
     model::{DirectoryLoadState, FileTreeModel, VisibleRowKind, parent_path},
+    preview::{TREE_SPLIT_DEFAULT, TREE_SPLIT_MAX, TREE_SPLIT_MIN},
     workspace_path_drag_ghost,
 };
 use crate::state::AppState;
@@ -71,6 +72,10 @@ pub struct FileTreeView {
     watch_error: Option<SharedString>,
     error: Option<SharedString>,
     started: bool,
+    /// The sidebar's resting width, SHARED by every surface of the panel so
+    /// a drag on one tab persists across tab switches (per-surface copies
+    /// used to make each tab rest at a different width).
+    sidebar_width: f32,
     tree_scroll: UniformListScrollHandle,
     tree_focus: FocusHandle,
     tree_bar: popover::MenuScrollbarState,
@@ -105,6 +110,7 @@ impl FileTreeView {
             watch_error: None,
             error: None,
             started: false,
+            sidebar_width: TREE_SPLIT_DEFAULT,
             tree_scroll: UniformListScrollHandle::new(),
             tree_focus,
             tree_bar: popover::MenuScrollbarState::default(),
@@ -217,6 +223,19 @@ impl FileTreeView {
 
     pub fn include_ignored(&self) -> bool {
         self.tree.include_ignored()
+    }
+
+    /// The shared resting sidebar width (see the field docs).
+    pub fn sidebar_width(&self) -> f32 {
+        self.sidebar_width
+    }
+
+    pub fn set_sidebar_width(&mut self, width: f32) {
+        self.sidebar_width = width.clamp(TREE_SPLIT_MIN, TREE_SPLIT_MAX);
+    }
+
+    pub fn reset_sidebar_width(&mut self) {
+        self.sidebar_width = TREE_SPLIT_DEFAULT;
     }
 
     // -- Target sync ------------------------------------------------------

@@ -27,7 +27,6 @@ impl FilePreviewState {
             close_requested: false,
             tree_sidebar_visible: false,
             tree_sidebar_dismissed: false,
-            tree_width: TREE_SPLIT_DEFAULT,
             tree_width_tween: None,
             tree_motion: TreeSidebarMotion::default(),
             tree_edge_bounce: None,
@@ -179,6 +178,11 @@ impl FilePreviewState {
         self.surface_width.clone()
     }
 
+    /// The measured (or seeded) surface width, for layout-branch math.
+    pub(crate) fn surface_width_read(&self) -> f32 {
+        self.surface_width.get()
+    }
+
     pub(crate) fn tree_sidebar_visible(&self) -> bool {
         self.tree_sidebar_visible || (self.is_wide() && !self.tree_sidebar_dismissed)
     }
@@ -202,21 +206,13 @@ impl FilePreviewState {
 
     /// Seed a new editor tab so its first frame matches the layout the tree
     /// already has (full pane from the raw workspace browser, or the current
-    /// sidebar width from another file tab), then ease to the resting width.
-    /// Also primes the wide/narrow measurement so frame 1 picks the right
-    /// layout branch (the measuring canvas only runs after this paint).
+    /// sidebar width from another file tab), then ease to the resting width
+    /// (held by the shared tree entity). Also primes the wide/narrow
+    /// measurement so frame 1 picks the right layout branch (the measuring
+    /// canvas only runs after this paint).
     pub(crate) fn seed_sidebar_transition(&mut self, from_width: f32) {
         self.surface_width.set(from_width);
         self.tree_width_tween = Some((from_width, Instant::now()));
-    }
-
-    /// The sidebar width this surface would rest at (the tween's target).
-    pub(crate) fn resting_sidebar_width(&self) -> f32 {
-        if self.is_wide() {
-            self.tree_width
-        } else {
-            self.narrow_tree_width()
-        }
     }
 
     pub(crate) fn clear_tree_width_tween(&mut self) {
@@ -387,9 +383,5 @@ impl FilePreviewState {
 
     pub(super) fn autosave_paused_for_reload(&self, path: &str) -> bool {
         self.reload_confirmation.as_deref() == Some(path)
-    }
-
-    pub(crate) fn narrow_tree_width(&self) -> f32 {
-        (self.surface_width.get() * 0.44).clamp(152.0, self.tree_width)
     }
 }
