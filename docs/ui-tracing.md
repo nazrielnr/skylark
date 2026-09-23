@@ -18,6 +18,8 @@ and `ui_trace::bounds_probe` are the only hooks.
 | `watch-frame seq changes resync` | the single watcher applied a frame | `FileTreeView::apply_tree_changes` |
 | `raw-expand from to` | returning to the raw Files tab: the tree eases from the sidebar width back to full pane | `FilesSurface::begin_raw_expand` |
 | `split-frame w open surf wide tween` | one render of an editor tab's sidebar layout (width, openness, measured surface width, branch, tween) | `FilesSurface::render` |
+| `search-rows count row_h paths` | one render of the fuzzy search results | `FilesSurface::render_search_results` |
+| `toggle-search open` | the search field was toggled | `FilesSurface::toggle_search` |
 | `bounds <id> L T R B` | a probe element's on-screen geometry | `ui_trace::bounds_probe` |
 
 Geometry values are **window-local logical pixels**. Convert to physical

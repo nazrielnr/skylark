@@ -335,6 +335,8 @@ impl Render for FilesSurface {
             // frozen preview. That keeps every transition repaint cheap
             // (no per-frame text re-wrap) and the file content visible
             // until the tree covers it.
+            let search_open = self.search_open || !self.search_state.query.is_empty();
+            let search_row = search_open.then(|| self.render_search_input_row(&theme));
             let collapsed = self
                 .tree_view
                 .read_with(cx, |tree, _| tree.sidebar_collapsed());
@@ -447,6 +449,9 @@ impl Render for FilesSurface {
                                 .relative()
                                 .border_l_1()
                                 .border_color(theme.border)
+                                .flex()
+                                .flex_col()
+                                .when_some(search_row, |el, row| el.child(row))
                                 .child(tree_pane),
                         ),
                 )
@@ -953,6 +958,7 @@ impl FilesSurface {
     }
 
     pub(super) fn toggle_search(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        crate::ui_trace!("toggle-search open={}", !self.search_open);
         self.search_open = !self.search_open;
         if self.search_open {
             self.search.update(cx, |input, cx| {
@@ -1254,6 +1260,34 @@ impl FilesSurface {
                 .flex_none()
                 .flex()
                 .items_center()
+                .gap(crate::typography::ui_rems(2.0))
+                .child(
+                    toolbar_button(
+                        "files-split-toggle-search",
+                        if is_search_open {
+                            "Close file search"
+                        } else {
+                            "Search files"
+                        },
+                    )
+                    .when(is_search_open, |el| el.bg(crate::theme::wash(0.12)))
+                    .relative()
+                    .child(crate::ui_trace::bounds_probe("search-toggle"))
+                    .on_click(cx.listener(|this, _, window, cx| {
+                        this.toggle_search(window, cx)
+                    }))
+                    .child(
+                        crate::icons::icon(crate::icons::MAGNIFER)
+                            .size(crate::typography::ui_rems(
+                                crate::surface_chrome::ICON_SIZE,
+                            ))
+                            .text_color(if is_search_open {
+                                theme.text
+                            } else {
+                                theme.text_muted
+                            }),
+                    ),
+                )
                 .child(menu_trigger)
                 .into_any_element()
         } else {
@@ -1272,6 +1306,8 @@ impl FilesSurface {
                         },
                     )
                     .when(is_search_open, |el| el.bg(crate::theme::wash(0.12)))
+                    .relative()
+                    .child(crate::ui_trace::bounds_probe("search-toggle"))
                     .on_click(cx.listener(|this, _, window, cx| this.toggle_search(window, cx)))
                     .child(
                         crate::icons::icon(crate::icons::MAGNIFER)
@@ -1398,26 +1434,46 @@ impl FilesSurface {
                     )
                     .child(trailing_actions),
             )
-            .when(is_search_open, |parent| {
-                parent.child(
-                    div()
-                        .w_full()
-                        .px(crate::typography::ui_rems(8.0))
-                        .py(crate::typography::ui_rems(4.0))
-                        .border_b_1()
-                        .border_color(theme.border)
-                        .bg(crate::theme::wash(0.02))
-                        .child(
-                            crate::surface_chrome::input()
-                                .child(
-                                    crate::icons::icon(crate::icons::MAGNIFER)
-                                        .size(crate::typography::ui_rems(13.0))
-                                        .flex_none()
-                                        .text_color(theme.text_faint),
-                                )
-                                .child(div().min_w_0().flex_1().child(self.search.clone())),
-                        ),
-                )
+            .when(is_search_open && !is_split, |parent| {
+                parent.child(self.render_search_input_row(&theme))
             })
+    }
+
+    /// The file-search input row. In the raw workspace it sits under the
+    /// toolbar; in the split sidebar it rides the tree overlay's body (the
+    /// fixed-height header slot would clip it) so the search field is
+    /// available in BOTH layouts. No background: it blends with the pane.
+    pub(super) fn render_search_input_row(&self, theme: &crate::theme::Theme) -> gpui::Div {
+        div()
+            .w_full()
+            .px(crate::typography::ui_rems(8.0))
+            .py(crate::typography::ui_rems(4.0))
+            .border_b_1()
+            .border_color(theme.border)
+            .child(
+                div()
+                    .h(crate::typography::ui_rems(
+                        crate::surface_chrome::CONTROL_SIZE,
+                    ))
+                    .min_w_0()
+                    .flex_1()
+                    .px(crate::typography::ui_rems(8.0))
+                    .rounded(crate::typography::ui_rems(
+                        crate::surface_chrome::CONTROL_RADIUS,
+                    ))
+                    .flex()
+                    .items_center()
+                    .gap(crate::typography::ui_rems(6.0))
+                    .text_size(crate::typography::ui_rems(12.0))
+                    .child(
+                        crate::icons::icon(crate::icons::MAGNIFER)
+                            .size(crate::typography::ui_rems(13.0))
+                            .flex_none()
+                            .text_color(theme.text_faint),
+                    )
+                    .child(div().min_w_0().flex_1().child(self.search.clone())),
+            )
+            .relative()
+            .child(crate::ui_trace::bounds_probe("search-input"))
     }
 }

@@ -146,6 +146,160 @@ try {
     if (($after - $before) -lt 3) { $failures += "hover produced no repaint activity" }
   }
 
+  if ($Scenario -eq "search") {
+    # --- Search flow ------------------------------------------------------
+    # Open the search field, type a query, verify results render, the tree
+    # does not reload, and the sidebar (split) mode shows the input too.
+    $loadsBefore = (Select-String -Path $LogPath -Pattern "tree-load").Count
+    $inL = Get-LastTrace "bounds search-input"
+    if (-not $inL) {
+      # Open the search field via the toolbar's magnifier toggle.
+      $tog = Get-LastTrace "bounds search-toggle"
+      if (-not $tog) {
+        Write-Output "FAIL no search-toggle probe"
+        $failures += "no search-toggle probe"
+      } else {
+        $st = Parse-Numbers $tog
+        $stX = [int]($origin.X + (($st.L + $st.R) / 2.0) * $scale)
+        $stY = [int]($origin.Y + (($st.T + $st.B) / 2.0) * $scale)
+        Click-At $stX $stY
+        Start-Sleep -Milliseconds 400
+        $inL = Get-LastTrace "bounds search-input"
+      }
+    }
+    if (-not $inL) {
+      Write-Output "FAIL search input not visible"
+      $failures += "search input not visible in raw mode"
+    } else {
+      $in = Parse-Numbers $inL
+      $inX = [int]($origin.X + (($in.L + $in.R) / 2.0) * $scale)
+      $inY = [int]($origin.Y + (($in.T + $in.B) / 2.0) * $scale)
+      Click-At $inX $inY
+      Start-Sleep -Milliseconds 600
+      # type "readme" - README.md ranks first
+      foreach ($ch in @(0x52, 0x45, 0x41, 0x44, 0x4D, 0x45)) {
+        [Win]::keybd_event([byte]$ch, 0, 0, [UIntPtr]::Zero)
+        Start-Sleep -Milliseconds 30
+        [Win]::keybd_event([byte]$ch, 0, 2, [UIntPtr]::Zero)
+        Start-Sleep -Milliseconds 60
+      }
+      Start-Sleep -Milliseconds 900
+      $loadsAfter = (Select-String -Path $LogPath -Pattern "tree-load").Count
+      Write-Output ("search typing: tree-loads delta {0}" -f ($loadsAfter - $loadsBefore))
+      if (($loadsAfter - $loadsBefore) -ne 0) {
+        $failures += "searching reloaded the workspace tree"
+      }
+      # Click the README.md result — uses the SEARCH rows' own trace (the
+      # tree-rows line is stale while results replace the tree).
+      $resLine = Get-LastTrace "search-rows"
+      $resBox = Get-LastTrace "bounds search-results"
+      if ($resLine -and $resLine -match "paths=(.*)$" -and $resBox) {
+        $rp = $Matches[1] -split "\|"
+        $readme = -1
+        for ($i = 0; $i -lt $rp.Count; $i++) {
+          $k, $pp = $rp[$i] -split ":", 2
+          if ($pp -eq "README.md") { $readme = $i; break }
+        }
+        if ($readme -lt 0) {
+          for ($i = 0; $i -lt $rp.Count; $i++) {
+            $k, $pp = $rp[$i] -split ":", 2
+            if ($k -eq "f" -and $pp -match "README") { $readme = $i; break }
+          }
+        }
+        if ($readme -lt 0) {
+          for ($i = 0; $i -lt $rp.Count; $i++) {
+            $k, $pp = $rp[$i] -split ":", 2
+            if ($k -eq "f") { $readme = $i; break }
+          }
+        }
+        if ($readme -lt 0) { $readme = 0 }
+        $rb = Parse-Numbers $resBox
+        $rowH2 = 0.0
+        if ($resLine -match "row_h=([0-9.]+)") { $rowH2 = [double]$Matches[1] }
+        if ($rowH2 -le 0 -and $rb.count -gt 0) { $rowH2 = ($rb.B - $rb.T) / $rb.count }
+        $rx = [int]($origin.X + (($rb.L + $rb.R) / 2.0) * $scale)
+        $ry = [int]($origin.Y + ($rb.T + ($readme + 0.5) * $rowH2) * $scale)
+        [Win]::SetCursorPos($rx, $ry) | Out-Null
+        Start-Sleep -Milliseconds 40
+        [Win]::mouse_event(0x0002, 0, 0, 0, [UIntPtr]::Zero)
+        Start-Sleep -Milliseconds 30
+        [Win]::mouse_event(0x0004, 0, 0, 0, [UIntPtr]::Zero)
+        Start-Sleep -Milliseconds 900
+        # Search-result clicks open via open_tree_file (no tree-open
+        # trace — that fires on tree row clicks); the created tab is the
+        # proof.
+        $newTab = Get-LastTrace "surface-new kind=file"
+        Write-Output "opened tab: $newTab"
+        if (-not ($newTab -match "README")) {
+          $failures += "search result click did not open README.md"
+        } else {
+          # In the split sidebar the search input must be visible...
+          $inL2 = Get-LastTrace "bounds search-input"
+          Write-Output ("split search-input: {0}" -f $inL2)
+          if (-not $inL2) {
+            $failures += "search input missing in the split sidebar"
+          }
+          # ...and the RAW surface's search state must survive the switch:
+          # back to the Files tab, then to the file tab again.
+          $tabL2 = Get-LastTrace "bounds files-tab"
+          $tb2 = Parse-Numbers $tabL2
+          $tb2X = [int]($origin.X + (($tb2.L + $tb2.R) / 2.0) * $scale)
+          $tb2Y = [int]($origin.Y + (($tb2.T + $tb2.B) / 2.0) * $scale)
+          Click-At $tb2X $tb2Y
+          Start-Sleep -Milliseconds 900
+          $rawStill = Get-LastTrace "search-rows"
+          Write-Output ("raw search persists: {0}" -f [bool]$rawStill)
+          if (-not $rawStill) {
+            $failures += "raw search state reset after visiting it"
+          }
+
+          # The split sidebar must ALSO offer search: toggle it from the
+          # sidebar toolbar and the input must render INSIDE the sidebar
+          # (left edge past the preview area).
+          $ftL = Get-LastTrace "surface-new kind=file"
+          if ($ftL -match 'id=([0-9]+)') { $fileId = [int]$Matches[1] }
+          # click the search toggle (it lives in the split header)
+          $stog = Get-LastTrace "bounds search-toggle"
+          $stg = Parse-Numbers $stog
+          $stX = [int]($origin.X + (($stg.L + $stg.R) / 2.0) * $scale)
+          $stY = [int]($origin.Y + (($stg.T + $stg.B) / 2.0) * $scale)
+          # return to the file tab first
+          $treeLineF = Get-LastTrace "tree-rows"
+          $tf = Parse-Numbers $treeLineF
+          $tfX = [int]($origin.X + (($tf.L + $tf.R) / 2.0) * $scale)
+          # click the file TAB (not the tree): reuse the tab strip row
+          $ftab = Get-LastTrace "bounds files-tab"
+          $ftab2 = Get-LastTrace "bounds file-tab"
+          $ftb = Parse-Numbers $ftab2
+          $fileTabX = [int]($origin.X + (($ftb.L + $ftb.R) / 2.0) * $scale)
+          $fileTabY = [int]($origin.Y + (($ftb.T + $ftb.B) / 2.0) * $scale)
+          Click-At $fileTabX $fileTabY
+          Start-Sleep -Milliseconds 700
+          # Re-read the toggle from the SPLIT header's latest render (the
+          # raw-mode line is stale geometry).
+          $stog2 = Get-LastTrace "bounds search-toggle"
+          $stg2 = Parse-Numbers $stog2
+          $stX2 = [int]($origin.X + (($stg2.L + $stg2.R) / 2.0) * $scale)
+          $stY2 = [int]($origin.Y + (($stg2.T + $stg2.B) / 2.0) * $scale)
+          Click-At $stX2 $stY2
+          Start-Sleep -Milliseconds 500
+          $splitInput = Get-LastTrace "bounds search-input"
+          Write-Output ("split search input: {0}" -f $splitInput)
+          if ($splitInput) {
+            $si = Parse-Numbers $splitInput
+            if ($si.L -lt 1000) {
+              $failures += ("split search input at L={0}, not inside the sidebar" -f $si.L)
+            }
+          } else {
+            $failures += "search input missing in the split sidebar"
+          }
+        }
+      } else {
+        $failures += "no search results rendered"
+      }
+    }
+  }
+
   if ($Scenario -eq "collapse") {
     # --- Collapse-aware transitions -------------------------------------
     # Open one file, collapse the tree, go raw (cover from=0), return to

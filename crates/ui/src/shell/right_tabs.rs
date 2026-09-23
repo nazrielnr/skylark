@@ -450,6 +450,10 @@ impl Shell {
                     el.relative()
                         .child(crate::ui_trace::bounds_probe("files-tab"))
                 })
+                .when(matches!(surface, RightSurface::File(_)), |el| {
+                    el.relative()
+                        .child(crate::ui_trace::bounds_probe("file-tab"))
+                })
                 // Middle-click closes, like every tab strip.
                 .on_mouse_down(
                     gpui::MouseButton::Middle,

@@ -481,6 +481,29 @@ impl FilesSurface {
                 search_row_height(cx),
             );
         }
+        if crate::ui_trace::enabled() {
+            let rows = self.search_state.tree.rows();
+            let paths = rows
+                .iter()
+                .take(24)
+                .map(|row| {
+                    let kind = if row.kind == WorkspaceEntryKind::Directory {
+                        'd'
+                    } else {
+                        'f'
+                    };
+                    format!("{}:{}", kind, row.path)
+                })
+                .collect::<Vec<_>>()
+                .join("|");
+            let h = f32::from(search_row_height(cx));
+            eprintln!(
+                "[trace] search-rows count={} row_h={:.1} paths={}",
+                rows.len(),
+                h,
+                paths
+            );
+        }
         if let Some(error) = self.search_state.error.clone() {
             return centered_search_message(error, theme.danger.opacity(0.82));
         }
@@ -500,6 +523,8 @@ impl FilesSurface {
             .min_h_0()
             .flex()
             .flex_col()
+            .relative()
+            .child(crate::ui_trace::bounds_probe("search-results"))
             .when(
                 self.search_state.results.len() >= SEARCH_RESULT_LIMIT,
                 |element| {
@@ -562,6 +587,10 @@ impl FilesSurface {
                 this.search_state.active = index;
                 this.activate_search_result(cx);
             }))
+            // The fork's hover-style transition doesn't schedule a draw;
+            // notify from a listener so the row highlight follows the
+            // cursor (same treatment as the tree rows).
+            .on_hover(cx.listener(|_, _, _, cx| cx.notify()))
             .when(crate::click_activation_drag_enabled(), |element| {
                 element.on_drag(drag_payload, |payload, _, _, cx| {
                     cx.stop_propagation();
