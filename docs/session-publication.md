@@ -1,5 +1,8 @@
 # Durable session publication
 
+> **Skylark build status: local-only.** Product login/logout, cloud sync, remote control, updates, public installation, and publishing are temporarily paused. Provider agent authentication remains available. Cloud/mobile/release instructions and results below are historical reference, not current setup guidance. See [current policy](LOCAL_ONLY.md).
+
+
 A remote agent can complete a turn while every peer parks its updates on missing
 Loro dependencies. In the observed recurrence, 136 previous-writer cleanup
 operations were absent from desktop; the next writer depended on their final
@@ -44,11 +47,11 @@ history deletion or prove that every possible checkpoint-pruning defect is fixed
 
 ## Validation
 
-`cargo test --locked -p zeron-sync --lib` covers the sync client and storage,
+`cargo test --locked -p skylark-sync --lib` covers the sync client and storage,
 including cursor preservation, restart/deduplication, and injected outbox-write
 failure followed by ordinary or cursor-bearing snapshot persistence.
 
-`cargo test --locked -p zeron-engine --lib --test session_publication --test restart_resume --test local_profiles --test born_chat2_race --test codex_subagents --test message_queue --test transcript_salvage`
+`cargo test --locked -p skylark-engine --lib --test session_publication --test restart_resume --test local_profiles --test born_chat2_race --test codex_subagents --test message_queue --test transcript_salvage`
 covers actual LRU eviction, disconnected cleanup before snapshot debounce,
 engine restart/resume, command queues, and profile lifecycle. The Codex adapter
 fixture reproduces a successful-but-invisible resumed turn, then validates full

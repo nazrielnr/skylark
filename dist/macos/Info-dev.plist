@@ -5,17 +5,17 @@
     <key>CFBundleDevelopmentRegion</key>
     <string>en</string>
     <key>CFBundleDisplayName</key>
-    <string>Zeron Dev</string>
+    <string>Skylark Dev</string>
     <key>CFBundleExecutable</key>
-    <string>zeron</string>
+    <string>skylark</string>
     <key>CFBundleIconFile</key>
-    <string>zeron.icns</string>
+    <string>skylark.icns</string>
     <key>CFBundleIdentifier</key>
-    <string>sh.zeron.app.dev</string>
+    <string>sh.skylark.app.dev</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleName</key>
-    <string>Zeron Dev</string>
+    <string>Skylark Dev</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
@@ -29,9 +29,9 @@
          the same isolated development instance. -->
     <key>LSEnvironment</key>
     <dict>
-        <key>ZERON_DATA_DIR</key>
+        <key>SKYLARK_DATA_DIR</key>
         <string>__DATA_DIR__</string>
-        <key>ZERON_IPC_PORT</key>
+        <key>SKYLARK_IPC_PORT</key>
         <string>__IPC_PORT__</string>
     </dict>
     <key>NSHighResolutionCapable</key>

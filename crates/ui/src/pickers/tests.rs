@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use super::*;
 use gpui::{div, px, KeyDownEvent};
-use zeron_proto::{
+use skylark_proto::{
     FolderEntry, FolderListing, HarnessId, Model, ModelOption, ModelOptionChoice,
     ReasoningLevel, SandboxLevel, Space,
 };
@@ -845,7 +845,7 @@ fn descriptor(id: HarnessId, name: &str) -> HarnessDescriptor {
         installed: true,
         enabled: Some(true),
         reasoning_levels: Vec::new(),
-        steering_mode: zeron_proto::SteeringMode::StepBoundary,
+        steering_mode: skylark_proto::SteeringMode::StepBoundary,
         supports_steering: false,
     }
 }
@@ -1181,9 +1181,9 @@ fn completion_prefix_lengths() {
     // Case-insensitive; the length indexes into the NAME's bytes.
     assert_eq!(completion_prefix_len("Documents", "doc"), Some(3));
     assert_eq!(&"Documents"[3..], "uments");
-    assert_eq!(completion_prefix_len("zeron", "zeron"), Some(5));
-    assert_eq!(completion_prefix_len("zeron", ""), Some(0));
-    assert_eq!(completion_prefix_len("zeron", "dev"), None);
+    assert_eq!(completion_prefix_len("skylark", "skylark"), Some(5));
+    assert_eq!(completion_prefix_len("skylark", ""), Some(0));
+    assert_eq!(completion_prefix_len("skylark", "dev"), None);
     // Longer than the name → not a prefix.
     assert_eq!(completion_prefix_len("dev", "devel"), None);
     // Multibyte names slice on a char boundary.
@@ -1244,7 +1244,7 @@ fn browser_navigation_reducer() {
                 is_repo: false,
             },
             FolderEntry {
-                name: "zeron".into(),
+                name: "skylark".into(),
                 is_dir: true,
                 is_repo: true,
             },
@@ -1253,7 +1253,7 @@ fn browser_navigation_reducer() {
     };
     // Files never show as rows.
     assert_eq!(browser_rows(&listing).len(), 2);
-    assert_eq!(browser_rows(&listing)[1].name, "zeron");
+    assert_eq!(browser_rows(&listing)[1].name, "skylark");
 }
 
 #[test]
@@ -1327,7 +1327,7 @@ fn mock_harness_hidden_unless_alone() {
         id,
         name: name.into(),
         supports_steering: true,
-        steering_mode: zeron_proto::SteeringMode::StepBoundary,
+        steering_mode: skylark_proto::SteeringMode::StepBoundary,
         reasoning_levels: vec![],
         installed: true,
         enabled: None,
@@ -1342,7 +1342,7 @@ fn mock_harness_hidden_unless_alone() {
     assert_eq!(visible[0].id, HarnessId::ClaudeCode);
     let only_mock = vec![descriptor(HarnessId::Mock, "Mock")];
     assert_eq!(visible_harnesses_impl(&only_mock, false).len(), 1);
-    // …and opted back in by ZERON_HARNESS=mock (the e2e rig).
+    // …and opted back in by SKYLARK_HARNESS=mock (the e2e rig).
     assert_eq!(visible_harnesses_impl(&mixed, true).len(), 2);
     assert_eq!(visible_harnesses_impl(&mixed, true)[0].id, HarnessId::Mock);
 }
@@ -1353,7 +1353,7 @@ fn offered_harnesses_follow_the_catalog_enabled_flags() {
         id,
         name: name.into(),
         supports_steering: true,
-        steering_mode: zeron_proto::SteeringMode::StepBoundary,
+        steering_mode: skylark_proto::SteeringMode::StepBoundary,
         reasoning_levels: vec![],
         installed: true,
         enabled,
@@ -1405,7 +1405,7 @@ fn offered_harnesses_require_an_installed_cli() {
             id,
             name: name.into(),
             supports_steering: true,
-            steering_mode: zeron_proto::SteeringMode::StepBoundary,
+            steering_mode: skylark_proto::SteeringMode::StepBoundary,
             reasoning_levels: vec![],
             installed,
             enabled,

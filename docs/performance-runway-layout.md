@@ -1,5 +1,8 @@
 # Runway layout regression and performance validation — PR #261
 
+> **Skylark build status: local-only.** Product login/logout, cloud sync, remote control, updates, public installation, and publishing are temporarily paused. Provider agent authentication remains available. Cloud/mobile/release instructions and results below are historical reference, not current setup guidance. See [current policy](LOCAL_ONLY.md).
+
+
 The layout fix showed no material CPU or memory regression in eight matched
 Linux replays against v0.2.41 (`489a8c2`). The tested candidate is `d8c5760`,
 including that same sidebar fix. Streaming CPU changed by −0.26% on long replies
@@ -74,17 +77,17 @@ claim. Normal shared-host noise limits interpretation of small differences.
 
 ## Reproduction
 
-Build each revision with `cargo build --release --locked -p zeron`, copy each
+Build each revision with `cargo build --release --locked -p skylark`, copy each
 binary to an immutable path, and run `scripts/resource-profile.mjs` sequentially
 in main/candidate/candidate/main order for each workload. Use:
 
 ```sh
-DISPLAY=:108 WAYLAND_DISPLAY= LP_NUM_THREADS=4 ZERON_FRAME_STATS=0 \
-  ZERON_PROFILE_PSS=1 ZERON_PROFILE_SUBMIT_UI=1 \
-  ZERON_PROFILE_PRE_IDLE_MS=10000 ZERON_PROFILE_IDLE_MS=45000 \
-  ZERON_REPLAY_DELAY_MS=40 \
+DISPLAY=:108 WAYLAND_DISPLAY= LP_NUM_THREADS=4 SKYLARK_FRAME_STATS=0 \
+  SKYLARK_PROFILE_PSS=1 SKYLARK_PROFILE_SUBMIT_UI=1 \
+  SKYLARK_PROFILE_PRE_IDLE_MS=10000 SKYLARK_PROFILE_IDLE_MS=45000 \
+  SKYLARK_REPLAY_DELAY_MS=40 \
   CLAUDE_CODE_EXECUTABLE="$PWD/scripts/replay-claude.py" \
-  ZERON_REPLAY_JOURNAL="$PWD/scripts/fixtures/resource-stream.jsonl" \
+  SKYLARK_REPLAY_JOURNAL="$PWD/scripts/fixtures/resource-stream.jsonl" \
   node scripts/resource-profile.mjs /path/to/binary /tmp/fresh-run claude-code
 ```
 

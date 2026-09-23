@@ -1,6 +1,9 @@
 # Mugen + Pretext: Techniques for a Rust/gpui Transcript Reimplementation
 
-(Report from exploration of zeron's node_modules + app wiring. NOTE: "pretext" is NOT markdown —
+> **Skylark build status: local-only.** Product login/logout, cloud sync, remote control, updates, public installation, and publishing are temporarily paused. Provider agent authentication remains available. Cloud/mobile/release instructions and results below are historical reference, not current setup guidance. See [current policy](../LOCAL_ONLY.md).
+
+
+(Report from exploration of skylark's node_modules + app wiring. NOTE: "pretext" is NOT markdown —
 it's the text-measurement/line-break kernel. Markdown is @wingleeio/mugen-markdown.)
 
 ## 0. Package map

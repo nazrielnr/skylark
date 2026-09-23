@@ -1,7 +1,12 @@
-//! zeron-proto — wire types shared by engine, UI, and RPC.
+//! skylark-proto — wire types shared by engine, UI, and RPC.
 //!
-//! Ported from zeron's `packages/control/src/wire.ts` + `packages/harness/src/types.ts`.
+//! Ported from skylark's `packages/control/src/wire.ts` + `packages/harness/src/types.ts`.
 //! Context occupancy is replicated per chat; billing `Usage` remains a harness passthrough.
+
+/// ponytail: desktop stays local-only until Skylark-owned cloud and releases are ready.
+pub const LOCAL_ONLY_BUILD: bool = true;
+pub const LOCAL_ONLY_MESSAGE: &str =
+    "Skylark login, cloud sync, and updates are temporarily disabled in this local-only build.";
 
 pub mod agent;
 pub mod entities;

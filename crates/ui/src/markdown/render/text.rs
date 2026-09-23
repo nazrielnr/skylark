@@ -42,7 +42,7 @@ pub fn flatten_runs(runs: &[InlineRun], theme: &Theme, bold_default: bool) -> Fl
 }
 
 /// [`flatten_runs`] with an explicit base weight (table headers are 700 per
-/// zeron's `table.headerWeight`; strong runs never drop below semibold).
+/// skylark's `table.headerWeight`; strong runs never drop below semibold).
 fn flatten_runs_weighted(runs: &[InlineRun], theme: &Theme, base_weight: FontWeight) -> FlatText {
     let mut text = String::new();
     let mut out: Vec<TextRun> = Vec::with_capacity(runs.len());
@@ -69,7 +69,7 @@ fn flatten_runs_weighted(runs: &[InlineRun], theme: &Theme, base_weight: FontWei
         } else {
             FontStyle::Normal
         };
-        // Links stay monochrome — foreground with an underline (zeron's md
+        // Links stay monochrome — foreground with an underline (skylark's md
         // theme underlines in the text color; indigo is reserved for primary
         // actions).
         let is_link = run.style.link.is_some();

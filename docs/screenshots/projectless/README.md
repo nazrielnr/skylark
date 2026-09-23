@@ -1,6 +1,9 @@
 # Projectless session screenshots
 
-Real Linux desktop application captures taken on 2026-09-09 from this branch, built with `cargo build -p zeron --locked`.
+> **Skylark build status: local-only.** Product login/logout, cloud sync, remote control, updates, public installation, and publishing are temporarily paused. Provider agent authentication remains available. Cloud/mobile/release instructions and results below are historical reference, not current setup guidance. See [current policy](../../LOCAL_ONLY.md).
+
+
+Real Linux desktop application captures taken on 2026-09-09 from this branch, built with `cargo build -p skylark --locked`.
 
 The application ran in Xvfb with Openbox at a 1200 × 800 window size. A separate local engine used temporary data directories, two empty demo repositories, the mock harness, and a device renamed to “Demo workstation.” No personal session history is included.
 

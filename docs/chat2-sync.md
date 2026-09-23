@@ -1,5 +1,8 @@
 # chat2: dumb-relay session sync + thin docs
 
+> **Skylark build status: local-only.** Product login/logout, cloud sync, remote control, updates, public installation, and publishing are temporarily paused. Provider agent authentication remains available. Cloud/mobile/release instructions and results below are historical reference, not current setup guidance. See [current policy](LOCAL_ONLY.md).
+
+
 Status: PLANNED · Author: 2026-08-09 investigation (whale-doc dissection + t3code comparison)
 Prior art: `docs/registry-sync.md` (the same argument, applied to the workspace index).
 
@@ -143,7 +146,7 @@ root).
 
 Estimate: 4–5 days.
 
-**C4. iOS** (`apps/ios/Zeron/Sync/`): `ChatRoomClient.swift` cloned from
+**C4. iOS** (`apps/ios/Skylark/Sync/`): `ChatRoomClient.swift` cloned from
 `RegistryClient.swift`; delete `LoroProtocol.swift` once s2 dies. Shared framing test
 vectors across Rust/TS/Swift (registry precedent). Estimate: 3–4 days, can trail
 desktop by a release.
@@ -208,7 +211,7 @@ explicit request; the real healing is M1.
 
 ## Observability / acceptance
 
-- `zeron sync` gains per-chat `cursor / headSeq / floorLag / pendingPushes`.
+- `skylark sync` gains per-chat `cursor / headSeq / floorLag / pendingPushes`.
 - Alert-shaped stat: any room with `headSeq - checkpointSeq` bytes > 2 MB or
   checkpoint age > 7 days (the passive failure mode this design trades into — make it
   visible from day one; silent truncation of the old wedge class must not become

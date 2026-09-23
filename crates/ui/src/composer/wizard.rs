@@ -5,9 +5,9 @@ use std::time::Duration;
 use gpui::{
     div, px, Context, IntoElement, KeyDownEvent, SharedString, Window,
 };
-use zeron_doc::{MessagePart, MessageRole, SessionCommandPayload, SessionMessageEntry};
-use zeron_proto::{UserInputAnswer, UserInputQuestion};
-use zeron_rpc::methods;
+use skylark_doc::{MessagePart, MessageRole, SessionCommandPayload, SessionMessageEntry};
+use skylark_proto::{UserInputAnswer, UserInputQuestion};
+use skylark_rpc::methods;
 
 use crate::motion;
 use crate::theme::Theme;
@@ -370,7 +370,7 @@ impl Composer {
         }
     }
 
-    /// The agent-asked-a-question panel (zeron question-panel.tsx), rendered in
+    /// The agent-asked-a-question panel (skylark question-panel.tsx), rendered in
     /// place of the composer: the same floating-pill chrome (`rounded-[26px]
     /// border-white/[0.08] bg-white/[0.03] shadow-xl`), uppercase header +
     /// "1/3" counter chip, option rows with number kbd chips, a free-text
@@ -391,7 +391,7 @@ impl Composer {
 
         let options = question.options.iter().enumerate().map(|(ix, label)| {
             // Selection reads on the row only while no typed override exists
-            // (typed answers win — zeron question-panel.tsx `isSel`).
+            // (typed answers win — skylark question-panel.tsx `isSel`).
             let picked = wizard.is_picked(ix) && typed_empty;
             div()
                 .id(("wizard-option", ix))
@@ -408,7 +408,7 @@ impl Composer {
                 } else {
                     gpui::transparent_black()
                 })
-                // zeron question-panel.tsx option rows: `transition-colors`.
+                // skylark question-panel.tsx option rows: `transition-colors`.
                 .bg(if picked {
                     crate::theme::ink(0.09)
                 } else {

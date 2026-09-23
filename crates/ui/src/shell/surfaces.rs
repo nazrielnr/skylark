@@ -4,7 +4,7 @@ use gpui::{
     AnyElement, App, Context, Entity, Focusable as _, IntoElement, SharedString, Subscription,
     Task, Window, div, prelude::*, px,
 };
-use zeron_rpc::methods;
+use skylark_rpc::methods;
 
 use crate::changes::{Changes, ChangesEvent};
 use crate::files::{
@@ -110,7 +110,7 @@ impl Shell {
         }
         let mut resolved = activation.clone();
         if resolved.action == LinkAction::Primary {
-            resolved.action = if crate::settings::current(cx).open_web_links_in_zeron {
+            resolved.action = if crate::settings::current(cx).open_web_links_in_skylark {
                 LinkAction::Internal
             } else {
                 LinkAction::External
@@ -403,7 +403,7 @@ impl Shell {
     fn fan_out_files_frame(
         &mut self,
         panel_key: &str,
-        frame: &zeron_proto::WorkspaceFileChanges,
+        frame: &skylark_proto::WorkspaceFileChanges,
         resync: bool,
         cx: &mut Context<Self>,
     ) {
@@ -491,7 +491,7 @@ impl Shell {
     /// (user request).
     pub(super) fn add_commit_diff_surface(
         &mut self,
-        commit: zeron_proto::GitHistoryCommit,
+        commit: skylark_proto::GitHistoryCommit,
         cx: &mut Context<Self>,
     ) {
         let changes = cx.new(|cx| Changes::for_commit(self.state.clone(), commit, cx));
@@ -655,17 +655,17 @@ impl Shell {
                 .background_executor()
                 .spawn(async move {
                     let value = reply.ok()?;
-                    let entries: Vec<zeron_doc::SessionMessageEntry> =
+                    let entries: Vec<skylark_doc::SessionMessageEntry> =
                         serde_json::from_str(value.get("text")?.as_str()?).ok()?;
-                    let update = zeron_doc::TranscriptUpdate {
-                        replay_baseline: Some(zeron_doc::TranscriptBaseline::capture(&entries)),
-                        frame: zeron_doc::TranscriptFrame::Reset { reset: entries },
+                    let update = skylark_doc::TranscriptUpdate {
+                        replay_baseline: Some(skylark_doc::TranscriptBaseline::capture(&entries)),
+                        frame: skylark_doc::TranscriptFrame::Reset { reset: entries },
                         context_usage: None,
                     };
                     let prepared = crate::transcript::TranscriptPreparation::default()
                         .prepare(&update)
                         .ok()?;
-                    let zeron_doc::TranscriptFrame::Reset { reset } = update.frame else {
+                    let skylark_doc::TranscriptFrame::Reset { reset } = update.frame else {
                         unreachable!()
                     };
                     Some((reset, prepared))

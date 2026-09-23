@@ -1,5 +1,8 @@
 # Rounded notification sounds
 
+> **Skylark build status: local-only.** Product login/logout, cloud sync, remote control, updates, public installation, and publishing are temporarily paused. Provider agent authentication remains available. Cloud/mobile/release instructions and results below are historical reference, not current setup guidance. See [current policy](../LOCAL_ONLY.md).
+
+
 This contribution selects a compact four-cue product signature. It replaces the
 existing completion and agent-question sounds, adds one shared attention cue for
 run failures and durable connection outages, and preserves the Appshot capture cue

@@ -59,12 +59,12 @@ use std::collections::HashSet;
 use std::time::Duration;
 use tokio::sync::watch;
 
-use zeron_doc::{MessagePart, SessionCommandPayload};
-use zeron_proto::{
+use skylark_doc::{MessagePart, SessionCommandPayload};
+use skylark_proto::{
     ChatConfig, CreateWorktreeOutcome, EngineInfo, HarnessId, ProjectActionDraft, Space, ToolCall,
     WorkspaceScope,
 };
-use zeron_rpc::{LinkCache, RpcError, RpcReply, RpcService, methods, parse_params};
+use skylark_rpc::{LinkCache, RpcError, RpcReply, RpcService, methods, parse_params};
 
 use crate::agent_accounts::AgentAccounts;
 use crate::auth::Auth;
@@ -108,7 +108,7 @@ async fn update_harness_enabled<F>(
     sign_out: F,
 ) -> Result<(), RpcError>
 where
-    F: std::future::Future<Output = Result<(), zeron_harness::HarnessError>>,
+    F: std::future::Future<Output = Result<(), skylark_harness::HarnessError>>,
 {
     let enabled_harnesses = registry.enabled_set();
     let was_enabled = enabled_harnesses.contains(&harness);
@@ -147,7 +147,7 @@ struct RelayCommandParams {
     chat_id: String,
     /// The full command entry, client-minted id included — the exactly-once
     /// key the host claims in its processed ledger before executing.
-    entry: zeron_doc::SessionCommandEntry,
+    entry: skylark_doc::SessionCommandEntry,
 }
 
 #[derive(Debug, Deserialize)]
@@ -518,9 +518,9 @@ enum MutateParams {
     /// Change one pin without replacing another device's edits.
     #[serde(rename_all = "camelCase")]
     ChangeSidebarPin {
-        change: zeron_proto::SidebarPinChange,
+        change: skylark_proto::SidebarPinChange,
     },
-    /// Full-config replace on the chat row (zeron `SetChatConfig`): the
+    /// Full-config replace on the chat row (skylark `SetChatConfig`): the
     /// composer's mid-session model / reasoning / options changes, LWW-synced
     /// so they survive restarts and reach every device.
     #[serde(rename_all = "camelCase")]
@@ -549,14 +549,14 @@ pub struct EngineRpc {
     workspace_files: crate::WorkspaceFiles,
     terminals: Terminals,
     project_actions: ProjectActionsStore,
-    previews: Option<zeron_preview::PreviewService>,
+    previews: Option<skylark_preview::PreviewService>,
     change_requests: CheckoutChangeRequests,
     diff_sync: CheckoutDiffSync,
     uploads: Uploads,
     agent_accounts: AgentAccounts,
     auth: Option<Auth>,
     links: Option<std::sync::Arc<LinkCache>>,
-    updater: Option<zeron_update::Updater>,
+    updater: Option<skylark_update::Updater>,
     local_import: Option<crate::local_import::LocalImporter>,
     engine_info: EngineInfo,
 }
@@ -581,8 +581,8 @@ impl EngineRpc {
         let engine_info = EngineInfo {
             device_id: doc_host.device_id().to_string(),
             workspace_scope,
-            cursor_sdk_version: Some(zeron_harness::CursorHarness::sdk_version().into()),
-            capabilities: zeron_proto::capabilities::current(),
+            cursor_sdk_version: Some(skylark_harness::CursorHarness::sdk_version().into()),
+            capabilities: skylark_proto::capabilities::current(),
         };
         Self {
             sessions,
@@ -606,7 +606,7 @@ impl EngineRpc {
         }
     }
 
-    pub fn with_previews(mut self, previews: zeron_preview::PreviewService) -> Self {
+    pub fn with_previews(mut self, previews: skylark_preview::PreviewService) -> Self {
         self.previews = Some(previews);
         self
     }
@@ -624,7 +624,7 @@ impl EngineRpc {
     }
 
     /// Attach the release checker (UpdateStatus stream + ApplyUpdate).
-    pub fn with_updater(mut self, updater: zeron_update::Updater) -> Self {
+    pub fn with_updater(mut self, updater: skylark_update::Updater) -> Self {
         self.updater = Some(updater);
         self
     }
@@ -641,13 +641,19 @@ impl EngineRpc {
             .ok_or_else(|| RpcError::Failed("auth unavailable".into()))
     }
 
-    fn updater(&self) -> Result<&zeron_update::Updater, RpcError> {
+    fn updater(&self) -> Result<&skylark_update::Updater, RpcError> {
+        if skylark_proto::LOCAL_ONLY_BUILD {
+            return Err(RpcError::Failed(skylark_proto::LOCAL_ONLY_MESSAGE.into()));
+        }
         self.updater
             .as_ref()
             .ok_or_else(|| RpcError::Failed("updates unavailable".into()))
     }
 
     fn local_importer(&self) -> Result<&crate::local_import::LocalImporter, RpcError> {
+        if skylark_proto::LOCAL_ONLY_BUILD {
+            return Err(RpcError::Failed(skylark_proto::LOCAL_ONLY_MESSAGE.into()));
+        }
         self.local_import
             .as_ref()
             .ok_or_else(|| RpcError::Failed("local import requires a synced workspace".into()))
@@ -671,7 +677,7 @@ impl EngineRpc {
     /// name an existing linked worktree for a new chat, but it is verified
     /// against the space repository before any filesystem walk begins.
     async fn file_search_root(&self, p: &FileSearchParams) -> Result<std::path::PathBuf, RpcError> {
-        let target = zeron_proto::WorkspaceTarget {
+        let target = skylark_proto::WorkspaceTarget {
             chat_id: p.chat_id.clone(),
             space_id: p.space_id.clone(),
             checkout_path: p.path.clone(),
@@ -1123,21 +1129,21 @@ where
     .boxed()
 }
 
-/// The transcript watch as delta frames (`zeron_doc::transcript_delta`): a
+/// The transcript watch as delta frames (`skylark_doc::transcript_delta`): a
 /// full `reset` first, then only changed entries per commit — the whole-Vec
 /// serialization here was the per-tick cost that scaled with transcript size.
 fn doc_messages_stream(
     rx: watch::Receiver<crate::doc_host::TranscriptSnapshot>,
-    doc: std::sync::Arc<zeron_doc::SessionDoc>,
+    doc: std::sync::Arc<skylark_doc::SessionDoc>,
 ) -> BoxStream<'static, serde_json::Value> {
-    use zeron_doc::transcript_delta::{TranscriptFrame, diff_transcript};
+    use skylark_doc::transcript_delta::{TranscriptFrame, diff_transcript};
     futures::stream::unfold(
         (
             rx,
             None::<crate::doc_host::TranscriptSnapshot>,
             doc,
             None,
-            zeron_doc::TranscriptBaseline::default(),
+            skylark_doc::TranscriptBaseline::default(),
         ),
         |(mut rx, mut prev, doc, mut previous_usage, mut opening_baseline)| async move {
             loop {
@@ -1153,7 +1159,7 @@ fn doc_messages_stream(
                 };
                 let replay_baseline = match prev.as_ref() {
                     None => {
-                        opening_baseline = zeron_doc::TranscriptBaseline::capture(&current.entries);
+                        opening_baseline = skylark_doc::TranscriptBaseline::capture(&current.entries);
                         Some(opening_baseline.clone())
                     }
                     Some(prev)
@@ -1187,7 +1193,7 @@ fn doc_messages_stream(
                     continue;
                 }
                 previous_usage = usage;
-                let value = serde_json::to_value(zeron_doc::TranscriptUpdate {
+                let value = serde_json::to_value(skylark_doc::TranscriptUpdate {
                     frame,
                     context_usage: usage,
                     replay_baseline,
@@ -1209,10 +1215,10 @@ async fn opening_doc_messages_stream(
     let (handle, preview) = tokio::task::spawn_blocking(move || {
         let handle = host.open(&chat_id)?;
         let entries = handle.doc().read_opening_tail(128)?;
-        let mut preview = serde_json::to_value(zeron_doc::TranscriptUpdate {
-            frame: zeron_doc::TranscriptFrame::reset(&entries),
+        let mut preview = serde_json::to_value(skylark_doc::TranscriptUpdate {
+            frame: skylark_doc::TranscriptFrame::reset(&entries),
             context_usage: handle.doc().context_usage(),
-            replay_baseline: Some(zeron_doc::TranscriptBaseline::capture(&entries)),
+            replay_baseline: Some(skylark_doc::TranscriptBaseline::capture(&entries)),
         })
         .map_err(|e| crate::EngineError::Other(e.to_string()))?;
         preview["historyPending"] = serde_json::Value::Bool(true);
@@ -1272,6 +1278,9 @@ impl AuthRpc {
 #[async_trait]
 impl RpcService for AuthRpc {
     async fn handle(&self, method: &str, params: serde_json::Value) -> Result<RpcReply, RpcError> {
+        if skylark_proto::LOCAL_ONLY_BUILD && Self::handles(method) && method != methods::AUTH_STATUS {
+            return Err(RpcError::Failed(skylark_proto::LOCAL_ONLY_MESSAGE.into()));
+        }
         match method {
             methods::AUTH_STATUS => Ok(RpcReply::Stream(watch_stream(self.auth.watch_state()))),
             methods::SIGN_IN => {
@@ -1349,6 +1358,9 @@ impl RpcService for EngineRpc {
             && let Some(target) = params.get("targetDeviceId").and_then(|v| v.as_str())
             && target != self.doc_host.device_id()
         {
+            if skylark_proto::LOCAL_ONLY_BUILD {
+                return Err(RpcError::Failed(skylark_proto::LOCAL_ONLY_MESSAGE.into()));
+            }
             let target = target.to_string();
             return self.forward(&target, method, params).await;
         }
@@ -1375,7 +1387,7 @@ impl RpcService for EngineRpc {
                     &self.registry,
                     p.harness,
                     p.enabled,
-                    zeron_harness::AcpHarness::antigravity().sign_out(),
+                    skylark_harness::AcpHarness::antigravity().sign_out(),
                 )
                 .await?;
                 // Fresh catalog in the reply: the page repaints from it in one
@@ -1620,7 +1632,7 @@ impl RpcService for EngineRpc {
                 RpcReply::value(&serde_json::json!({}))
             }
             methods::SYNC_STATUS => {
-                fn room_json(s: &zeron_sync::RoomStatsSnapshot) -> serde_json::Value {
+                fn room_json(s: &skylark_sync::RoomStatsSnapshot) -> serde_json::Value {
                     serde_json::json!({
                         "connected": s.connected,
                         "synced": s.synced,
@@ -1633,7 +1645,7 @@ impl RpcService for EngineRpc {
                         "rejected": s.rejected,
                     })
                 }
-                fn chat2_json(s: &zeron_sync::ChatStatsSnapshot) -> serde_json::Value {
+                fn chat2_json(s: &skylark_sync::ChatStatsSnapshot) -> serde_json::Value {
                     serde_json::json!({
                         "connected": s.connected,
                         "cursor": s.cursor,
@@ -1676,7 +1688,7 @@ impl RpcService for EngineRpc {
                 self.doc_host.watch_transfers(),
             ))),
             methods::WATCH_PREVIEWS => {
-                let p: zeron_proto::WatchPreviewsParams = parse_params(params)?;
+                let p: skylark_proto::WatchPreviewsParams = parse_params(params)?;
                 if self
                     .workspace
                     .chat(&p.chat_id)
@@ -1892,7 +1904,7 @@ impl RpcService for EngineRpc {
                         _ => crate::diff_sync::capture_diff(&self.repos, root).await,
                     }
                     .map_err(|e| RpcError::Failed(e.to_string()))?;
-                    RpcReply::value(&zeron_proto::CheckoutDiff {
+                    RpcReply::value(&skylark_proto::CheckoutDiff {
                         checkout_id: identity.id,
                         device_id: self.doc_host.device_id().to_string(),
                         cwd: identity.root.to_string_lossy().to_string(),
@@ -1912,7 +1924,7 @@ impl RpcService for EngineRpc {
                 // behind an allocation so every unrelated RPC does not carry that
                 // state in `EngineRpc::handle`'s stack frame.
                 Box::pin(async move {
-                    let p: zeron_proto::GetCheckoutFileDiffTextRequest = parse_params(params)?;
+                    let p: skylark_proto::GetCheckoutFileDiffTextRequest = parse_params(params)?;
                     let identity =
                         Box::pin(self.repos.checkout_identity(std::path::Path::new(&p.cwd)))
                             .await
@@ -1985,7 +1997,7 @@ impl RpcService for EngineRpc {
                             (snapshot, base, None)
                         }
                     };
-                    let stale = || zeron_proto::CheckoutFileDiffText {
+                    let stale = || skylark_proto::CheckoutFileDiffText {
                         diff_checksum: p.diff_checksum.clone(),
                         old_text: None,
                         new_text: None,
@@ -2048,7 +2060,7 @@ impl RpcService for EngineRpc {
                     if current.checksum != p.diff_checksum {
                         return RpcReply::value(&stale());
                     }
-                    RpcReply::value(&zeron_proto::CheckoutFileDiffText {
+                    RpcReply::value(&skylark_proto::CheckoutFileDiffText {
                         diff_checksum: p.diff_checksum,
                         old_text: pair.old_text,
                         new_text: pair.new_text,
@@ -2240,7 +2252,7 @@ impl RpcService for EngineRpc {
                     .list_drives()
                     .await
                     .map_err(|e| RpcError::Failed(e.to_string()))?;
-                RpcReply::value(&zeron_proto::DriveListing { drives })
+                RpcReply::value(&skylark_proto::DriveListing { drives })
             }
             methods::SEARCH_FILES => {
                 let p: FileSearchParams = parse_params(params)?;
@@ -2267,7 +2279,7 @@ impl RpcService for EngineRpc {
                 RpcReply::value(&matches)
             }
             methods::LIST_WORKSPACE_DIRECTORY => {
-                let request: zeron_proto::ListWorkspaceDirectoryRequest = parse_params(params)?;
+                let request: skylark_proto::ListWorkspaceDirectoryRequest = parse_params(params)?;
                 let page = tokio::time::timeout(
                     crate::workspace_files::WORKSPACE_FILE_RPC_TIMEOUT,
                     self.workspace_files.list_directory(request),
@@ -2278,7 +2290,7 @@ impl RpcService for EngineRpc {
                 RpcReply::value(&page)
             }
             methods::SEARCH_WORKSPACE_FILES => {
-                let request: zeron_proto::SearchWorkspaceFilesRequest = parse_params(params)?;
+                let request: skylark_proto::SearchWorkspaceFilesRequest = parse_params(params)?;
                 let matches = tokio::time::timeout(
                     crate::workspace_files::WORKSPACE_FILE_RPC_TIMEOUT,
                     self.workspace_files.search(request),
@@ -2289,7 +2301,7 @@ impl RpcService for EngineRpc {
                 RpcReply::value(&matches)
             }
             methods::READ_WORKSPACE_IMAGE => {
-                let request: zeron_proto::ReadWorkspaceImageRequest = parse_params(params)?;
+                let request: skylark_proto::ReadWorkspaceImageRequest = parse_params(params)?;
                 let chunk = tokio::time::timeout(
                     crate::workspace_files::WORKSPACE_FILE_RPC_TIMEOUT,
                     self.workspace_files.read_image(request),
@@ -2300,7 +2312,7 @@ impl RpcService for EngineRpc {
                 RpcReply::value(&chunk)
             }
             methods::READ_WORKSPACE_FILE => {
-                let request: zeron_proto::ReadWorkspaceFileRequest = parse_params(params)?;
+                let request: skylark_proto::ReadWorkspaceFileRequest = parse_params(params)?;
                 let file = tokio::time::timeout(
                     crate::workspace_files::WORKSPACE_FILE_RPC_TIMEOUT,
                     self.workspace_files.read_file(request),
@@ -2311,7 +2323,7 @@ impl RpcService for EngineRpc {
                 RpcReply::value(&file)
             }
             methods::WRITE_WORKSPACE_FILE => {
-                let request: zeron_proto::WriteWorkspaceFileRequest = parse_params(params)?;
+                let request: skylark_proto::WriteWorkspaceFileRequest = parse_params(params)?;
                 let outcome = tokio::time::timeout(
                     crate::workspace_files::WORKSPACE_FILE_RPC_TIMEOUT,
                     self.workspace_files.write_file(request),
@@ -2322,7 +2334,7 @@ impl RpcService for EngineRpc {
                 RpcReply::value(&outcome)
             }
             methods::WATCH_WORKSPACE_FILES => {
-                let request: zeron_proto::WatchWorkspaceFilesRequest = parse_params(params)?;
+                let request: skylark_proto::WatchWorkspaceFilesRequest = parse_params(params)?;
                 let subscription = self
                     .workspace_files
                     .watch_files(request)
@@ -2674,23 +2686,23 @@ mod tests {
         use crate::doc_host::{DocHost, DocHostConfig};
         use std::sync::Arc;
         let dir = tempfile::tempdir().unwrap();
-        let store = Arc::new(zeron_sync::DocsStore::open(dir.path()).unwrap());
+        let store = Arc::new(skylark_sync::DocsStore::open(dir.path()).unwrap());
         let host = DocHost::new(
             store,
             DocHostConfig {
                 device_id: "viewer".into(),
-                default_harness: zeron_proto::HarnessId::Mock,
+                default_harness: skylark_proto::HarnessId::Mock,
                 edge: None,
             },
         );
         let handle = host.open("whale").unwrap();
         handle
             .doc()
-            .push_message(&zeron_doc::SessionMessageEntry {
+            .push_message(&skylark_doc::SessionMessageEntry {
                 id: "turn".into(),
-                role: zeron_doc::MessageRole::Assistant,
+                role: skylark_doc::MessageRole::Assistant,
                 parts: (0..500)
-                    .map(|i| zeron_doc::MessagePart::Text {
+                    .map(|i| skylark_doc::MessagePart::Text {
                         id: format!("part-{i}"),
                         text: "local text".into(),
                     })
@@ -2743,8 +2755,8 @@ mod tests {
             .unwrap();
         let mut entries = Vec::new();
         for value in [full, live] {
-            let update: zeron_doc::TranscriptUpdate = serde_json::from_value(value).unwrap();
-            zeron_doc::apply_transcript_frame(&mut entries, update.frame).unwrap();
+            let update: skylark_doc::TranscriptUpdate = serde_json::from_value(value).unwrap();
+            skylark_doc::apply_transcript_frame(&mut entries, update.frame).unwrap();
         }
         assert_eq!(entries.len(), 3);
         assert_eq!(entries.last().unwrap().id, "live");
@@ -2756,15 +2768,15 @@ mod tests {
         let registry = HarnessRegistry::new();
         let executable = std::env::current_exe().unwrap();
         registry.register(std::sync::Arc::new(
-            zeron_harness::AcpHarness::grok().with_executable(executable.clone()),
+            skylark_harness::AcpHarness::grok().with_executable(executable.clone()),
         ));
         registry.register(std::sync::Arc::new(
-            zeron_harness::AcpHarness::antigravity().with_executable(executable),
+            skylark_harness::AcpHarness::antigravity().with_executable(executable),
         ));
         registry.set_enabled(HarnessId::Antigravity, true).unwrap();
 
         let error = update_harness_enabled(&registry, HarnessId::Antigravity, false, async {
-            Err(zeron_harness::HarnessError::Protocol(
+            Err(skylark_harness::HarnessError::Protocol(
                 "logout rejected".into(),
             ))
         })
@@ -2777,7 +2789,7 @@ mod tests {
         assert!(registry.enabled_set().contains(&HarnessId::Antigravity));
 
         update_harness_enabled(&registry, HarnessId::Antigravity, false, async {
-            Ok::<(), zeron_harness::HarnessError>(())
+            Ok::<(), skylark_harness::HarnessError>(())
         })
         .await
         .unwrap();
@@ -2808,7 +2820,7 @@ mod tests {
         .expect("sidebar preferences params");
         assert!(matches!(
             p,
-            MutateParams::ChangeSidebarPin { change: zeron_proto::SidebarPinChange::Move { session_id, before, .. } }
+            MutateParams::ChangeSidebarPin { change: skylark_proto::SidebarPinChange::Move { session_id, before, .. } }
                 if session_id == "chat-b" && before.as_deref() == Some("chat-a")
         ));
     }
@@ -2890,14 +2902,14 @@ mod context_usage_tests {
     #[tokio::test]
     async fn replay_cutoff_travels_with_coalesced_backfill_and_live_content() {
         use crate::doc_host::{DocHost, DocHostConfig};
-        use zeron_sync::chat_client::ChatDocSink;
+        use skylark_sync::chat_client::ChatDocSink;
         let dir = tempfile::tempdir().unwrap();
-        let store = Arc::new(zeron_sync::DocsStore::open(dir.path()).unwrap());
+        let store = Arc::new(skylark_sync::DocsStore::open(dir.path()).unwrap());
         let host = DocHost::new(
             store.clone(),
             DocHostConfig {
                 device_id: "viewer".into(),
-                default_harness: zeron_proto::HarnessId::Mock,
+                default_harness: skylark_proto::HarnessId::Mock,
                 edge: None,
             },
         );
@@ -2905,23 +2917,23 @@ mod context_usage_tests {
         let sink = crate::chat2_host::EngineChatSink::new(&handle.doc_arc(), store, "replay-chat")
             .with_handle(Arc::downgrade(&handle));
         let mut stream = doc_messages_stream(handle.watch_messages(), handle.doc_arc());
-        let first: zeron_doc::TranscriptUpdate =
+        let first: skylark_doc::TranscriptUpdate =
             serde_json::from_value(stream.next().await.unwrap()).unwrap();
         assert!(first.replay_baseline.unwrap().entries.is_empty());
 
-        let source = zeron_doc::SessionDoc::init("replay-chat").unwrap();
+        let source = skylark_doc::SessionDoc::init("replay-chat").unwrap();
         let append = |id: &str| {
             source
-                .push_message(&zeron_doc::SessionMessageEntry {
+                .push_message(&skylark_doc::SessionMessageEntry {
                     id: id.into(),
-                    role: zeron_doc::MessageRole::Assistant,
-                    parts: vec![zeron_doc::MessagePart::Text {
+                    role: skylark_doc::MessageRole::Assistant,
+                    parts: vec![skylark_doc::MessagePart::Text {
                         id: "text".into(),
                         text: id.into(),
                     }],
                     created_at: 0,
                     device_id: "writer".into(),
-                    status: Some(zeron_doc::MessageStatus::Streaming),
+                    status: Some(skylark_doc::MessageStatus::Streaming),
                     continuation_of: None,
                 })
                 .unwrap()
@@ -2929,7 +2941,7 @@ mod context_usage_tests {
         append("cached");
         sink.apply_checkpoint(&source.export_snapshot().unwrap(), 0)
             .unwrap();
-        let checkpoint: zeron_doc::TranscriptUpdate = serde_json::from_value(
+        let checkpoint: skylark_doc::TranscriptUpdate = serde_json::from_value(
             tokio::time::timeout(std::time::Duration::from_secs(2), stream.next())
                 .await
                 .unwrap()
@@ -2964,7 +2976,7 @@ mod context_usage_tests {
         );
         // Neither the doc worker nor the RPC consumer ran between these
         // imports. They must not flatten their different presentation origins.
-        let update: zeron_doc::TranscriptUpdate = serde_json::from_value(
+        let update: skylark_doc::TranscriptUpdate = serde_json::from_value(
             tokio::time::timeout(std::time::Duration::from_secs(2), stream.next())
                 .await
                 .unwrap()
@@ -2975,8 +2987,8 @@ mod context_usage_tests {
         assert!(cutoff.entries.contains_key("away"));
         assert!(!cutoff.entries.contains_key("live"));
         let mut entries = vec![];
-        zeron_doc::apply_transcript_frame(&mut entries, checkpoint.frame).unwrap();
-        zeron_doc::apply_transcript_frame(&mut entries, update.frame).unwrap();
+        skylark_doc::apply_transcript_frame(&mut entries, checkpoint.frame).unwrap();
+        skylark_doc::apply_transcript_frame(&mut entries, update.frame).unwrap();
         assert_eq!(entries.len(), 3);
 
         let version = source.doc().oplog_vv();
@@ -2988,7 +3000,7 @@ mod context_usage_tests {
                 .unwrap(),
             3,
         );
-        let update: zeron_doc::TranscriptUpdate = serde_json::from_value(
+        let update: skylark_doc::TranscriptUpdate = serde_json::from_value(
             tokio::time::timeout(std::time::Duration::from_secs(2), stream.next())
                 .await
                 .unwrap()
@@ -3000,7 +3012,7 @@ mod context_usage_tests {
             "live updates must not resend the history watermark"
         );
         let mut reopened = doc_messages_stream(handle.watch_messages(), handle.doc_arc());
-        let opening: zeron_doc::TranscriptUpdate =
+        let opening: skylark_doc::TranscriptUpdate =
             serde_json::from_value(reopened.next().await.unwrap()).unwrap();
         assert_eq!(
             opening.replay_baseline.unwrap().entries.len(),
@@ -3013,14 +3025,14 @@ mod context_usage_tests {
     #[tokio::test]
     async fn replay_metadata_and_backfill_leave_interleaved_local_content_live() {
         use crate::doc_host::{DocHost, DocHostConfig};
-        use zeron_sync::chat_client::ChatDocSink;
+        use skylark_sync::chat_client::ChatDocSink;
         let dir = tempfile::tempdir().unwrap();
-        let store = Arc::new(zeron_sync::DocsStore::open(dir.path()).unwrap());
+        let store = Arc::new(skylark_sync::DocsStore::open(dir.path()).unwrap());
         let host = DocHost::new(
             store.clone(),
             DocHostConfig {
                 device_id: "host".into(),
-                default_harness: zeron_proto::HarnessId::Mock,
+                default_harness: skylark_proto::HarnessId::Mock,
                 edge: None,
             },
         );
@@ -3029,25 +3041,25 @@ mod context_usage_tests {
             .with_handle(Arc::downgrade(&handle));
         let mut stream = doc_messages_stream(handle.watch_messages(), handle.doc_arc());
         stream.next().await.unwrap();
-        let source = zeron_doc::SessionDoc::init("interleaved").unwrap();
+        let source = skylark_doc::SessionDoc::init("interleaved").unwrap();
         sink.apply_checkpoint(&source.export_snapshot().unwrap(), 0)
             .unwrap();
-        let entry = |id: &str| zeron_doc::SessionMessageEntry {
+        let entry = |id: &str| skylark_doc::SessionMessageEntry {
             id: id.into(),
-            role: zeron_doc::MessageRole::Assistant,
-            parts: vec![zeron_doc::MessagePart::Text {
+            role: skylark_doc::MessageRole::Assistant,
+            parts: vec![skylark_doc::MessagePart::Text {
                 id: "text".into(),
                 text: id.into(),
             }],
             created_at: 0,
             device_id: "host".into(),
-            status: Some(zeron_doc::MessageStatus::Streaming),
+            status: Some(skylark_doc::MessageStatus::Streaming),
             continuation_of: None,
         };
         handle.doc().push_message(&entry("local-before")).unwrap();
         source.update_context_usage(Some(10), Some(100)).unwrap();
         sink.apply_replay_row(&source.export_snapshot().unwrap(), 1);
-        let update: zeron_doc::TranscriptUpdate = serde_json::from_value(
+        let update: skylark_doc::TranscriptUpdate = serde_json::from_value(
             tokio::time::timeout(std::time::Duration::from_secs(2), stream.next())
                 .await
                 .unwrap()
@@ -3059,7 +3071,7 @@ mod context_usage_tests {
             "metadata must not reset ongoing live animations"
         );
         let mut entries = vec![];
-        zeron_doc::apply_transcript_frame(&mut entries, update.frame).unwrap();
+        skylark_doc::apply_transcript_frame(&mut entries, update.frame).unwrap();
         assert_eq!(entries[0].id, "local-before");
         let version = source.doc().oplog_vv();
         source.push_message(&entry("historical")).unwrap();
@@ -3072,7 +3084,7 @@ mod context_usage_tests {
             2,
         );
         handle.doc().push_message(&entry("local-after")).unwrap();
-        let update: zeron_doc::TranscriptUpdate = serde_json::from_value(
+        let update: skylark_doc::TranscriptUpdate = serde_json::from_value(
             tokio::time::timeout(std::time::Duration::from_secs(2), stream.next())
                 .await
                 .unwrap()
@@ -3082,7 +3094,7 @@ mod context_usage_tests {
         let baseline = update.replay_baseline.unwrap();
         assert_eq!(baseline.entries.len(), 1);
         assert!(baseline.entries.contains_key("historical"));
-        zeron_doc::apply_transcript_frame(&mut entries, update.frame).unwrap();
+        skylark_doc::apply_transcript_frame(&mut entries, update.frame).unwrap();
         assert_eq!(entries.len(), 4);
         host.shutdown_workers().await;
     }
@@ -3090,14 +3102,14 @@ mod context_usage_tests {
     #[tokio::test]
     async fn replay_preserves_each_watchers_opening_cutoff_without_consuming_live_text() {
         use crate::doc_host::{DocHost, DocHostConfig};
-        use zeron_sync::chat_client::ChatDocSink;
+        use skylark_sync::chat_client::ChatDocSink;
         let dir = tempfile::tempdir().unwrap();
-        let store = Arc::new(zeron_sync::DocsStore::open(dir.path()).unwrap());
+        let store = Arc::new(skylark_sync::DocsStore::open(dir.path()).unwrap());
         let host = DocHost::new(
             store.clone(),
             DocHostConfig {
                 device_id: "viewer".into(),
-                default_harness: zeron_proto::HarnessId::Mock,
+                default_harness: skylark_proto::HarnessId::Mock,
                 edge: None,
             },
         );
@@ -3105,9 +3117,9 @@ mod context_usage_tests {
         let sink =
             crate::chat2_host::EngineChatSink::new(&handle.doc_arc(), store, "cached-replay")
                 .with_handle(Arc::downgrade(&handle));
-        let source = zeron_doc::SessionDoc::init("cached-replay").unwrap();
-        let mut writer = zeron_doc::SegmentWriter::begin(&source, "reply", "host", 0).unwrap();
-        let text = |id: &str, value: &str| zeron_doc::MessagePart::Text {
+        let source = skylark_doc::SessionDoc::init("cached-replay").unwrap();
+        let mut writer = skylark_doc::SegmentWriter::begin(&source, "reply", "host", 0).unwrap();
+        let text = |id: &str, value: &str| skylark_doc::MessagePart::Text {
             id: id.into(),
             text: value.into(),
         };
@@ -3118,7 +3130,7 @@ mod context_usage_tests {
         // Cached content exists before the first watcher and never enters
         // the changed-parts tracker. It may not have been painted yet.
         let mut first = doc_messages_stream(handle.watch_messages(), handle.doc_arc());
-        let opening: zeron_doc::TranscriptUpdate =
+        let opening: skylark_doc::TranscriptUpdate =
             serde_json::from_value(first.next().await.unwrap()).unwrap();
         assert_eq!(
             opening.replay_baseline.unwrap().entries["reply"]["body"],
@@ -3128,7 +3140,7 @@ mod context_usage_tests {
         let live = text("body", "café histórico y nuevo");
         writer.sync(&[live.clone()]).unwrap();
         sink.apply_row(&source.export_snapshot().unwrap(), 1);
-        let update: zeron_doc::TranscriptUpdate = serde_json::from_value(
+        let update: skylark_doc::TranscriptUpdate = serde_json::from_value(
             tokio::time::timeout(std::time::Duration::from_secs(2), first.next())
                 .await
                 .unwrap()
@@ -3139,7 +3151,7 @@ mod context_usage_tests {
         // A later subscriber sees a longer historical prefix, but must not
         // change the first subscriber's ongoing live animation.
         let mut second = doc_messages_stream(handle.watch_messages(), handle.doc_arc());
-        let opening: zeron_doc::TranscriptUpdate =
+        let opening: skylark_doc::TranscriptUpdate =
             serde_json::from_value(second.next().await.unwrap()).unwrap();
         assert_eq!(
             opening.replay_baseline.unwrap().entries["reply"]["body"],
@@ -3156,7 +3168,7 @@ mod context_usage_tests {
                 (&mut first, "café histórico".len()),
                 (&mut second, "café histórico y nuevo".len()),
             ] {
-                let update: zeron_doc::TranscriptUpdate = serde_json::from_value(
+                let update: skylark_doc::TranscriptUpdate = serde_json::from_value(
                     tokio::time::timeout(std::time::Duration::from_secs(2), stream.next())
                         .await
                         .unwrap()
@@ -3182,23 +3194,23 @@ mod context_usage_tests {
     #[tokio::test]
     async fn reopening_rearms_history_for_previously_live_text() {
         use crate::doc_host::{DocHost, DocHostConfig};
-        use zeron_sync::chat_client::ChatDocSink;
+        use skylark_sync::chat_client::ChatDocSink;
         let dir = tempfile::tempdir().unwrap();
-        let store = Arc::new(zeron_sync::DocsStore::open(dir.path()).unwrap());
+        let store = Arc::new(skylark_sync::DocsStore::open(dir.path()).unwrap());
         let host = DocHost::new(
             store.clone(),
             DocHostConfig {
                 device_id: "viewer".into(),
-                default_harness: zeron_proto::HarnessId::Mock,
+                default_harness: skylark_proto::HarnessId::Mock,
                 edge: None,
             },
         );
         let handle = host.open("reopen").unwrap();
         let sink = crate::chat2_host::EngineChatSink::new(&handle.doc_arc(), store, "reopen")
             .with_handle(Arc::downgrade(&handle));
-        let source = zeron_doc::SessionDoc::init("reopen").unwrap();
-        let mut writer = zeron_doc::SegmentWriter::begin(&source, "reply", "host", 0).unwrap();
-        let part = |text: &str| zeron_doc::MessagePart::Text {
+        let source = skylark_doc::SessionDoc::init("reopen").unwrap();
+        let mut writer = skylark_doc::SegmentWriter::begin(&source, "reply", "host", 0).unwrap();
+        let part = |text: &str| skylark_doc::MessagePart::Text {
             id: "body".into(),
             text: text.into(),
         };
@@ -3217,7 +3229,7 @@ mod context_usage_tests {
         stream.next().await.unwrap();
         writer.sync(&[part("live plus recovered")]).unwrap();
         sink.apply_replay_row(&source.export_snapshot().unwrap(), 2);
-        let update: zeron_doc::TranscriptUpdate = serde_json::from_value(
+        let update: skylark_doc::TranscriptUpdate = serde_json::from_value(
             tokio::time::timeout(std::time::Duration::from_secs(2), stream.next())
                 .await
                 .unwrap()
@@ -3233,11 +3245,11 @@ mod context_usage_tests {
 
     #[tokio::test]
     async fn context_only_commits_reach_remote_watch_and_reconnect() {
-        let host = zeron_doc::SessionDoc::init("context-chat").unwrap();
+        let host = skylark_doc::SessionDoc::init("context-chat").unwrap();
         host.update_context_usage(Some(42000), Some(200000))
             .unwrap();
         // The viewing engine reads a replicated document, with no harness process.
-        let remote = Arc::new(zeron_doc::SessionDoc::from_doc(loro::LoroDoc::new()));
+        let remote = Arc::new(skylark_doc::SessionDoc::from_doc(loro::LoroDoc::new()));
         remote
             .doc()
             .import(&host.export_snapshot().unwrap())

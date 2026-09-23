@@ -28,7 +28,7 @@ pub fn titlebar_new_session_alpha(is_chat_route: bool, has_selected_chat: bool) 
 }
 
 /// Where the top-left window-control cluster starts, in px from the window's
-/// left edge (zeron window-controls.tsx: `left: fullscreen ? 12 : 88`). The
+/// left edge (skylark window-controls.tsx: `left: fullscreen ? 12 : 88`). The
 /// frameless hiddenInset chrome puts the macOS traffic lights at {14,15};
 /// fullscreen hides them and the cluster reclaims the inset.
 pub fn titlebar_cluster_start(fullscreen: bool) -> f32 {
@@ -77,7 +77,7 @@ pub fn caption_buttons_width(count: usize) -> f32 {
 }
 
 /// Where the cluster's first button starts, from the window's left edge.
-/// `linux_left_captions` is the number of caption buttons zeron draws at the
+/// `linux_left_captions` is the number of caption buttons skylark draws at the
 /// top-left on Linux (GNOME `close:…` layouts) — the app cluster follows them
 /// at the shared 2px rhythm.
 pub fn cluster_buttons_start(is_macos: bool, fullscreen: bool, linux_left_captions: usize) -> f32 {
@@ -130,7 +130,7 @@ pub const WINDOWS_CAPTION_BUTTON_WIDTH: f32 = 36.0;
 pub const WINDOWS_CAPTION_WIDTH: f32 = 117.0;
 
 /// Right padding for titlebar content: past the native Windows caption
-/// cluster, or past zeron's own Linux caption buttons (10px edge inset +
+/// cluster, or past skylark's own Linux caption buttons (10px edge inset +
 /// the button row) when the layout puts any on the right.
 pub fn titlebar_right_padding(is_windows: bool, linux_right_captions: usize, base: f32) -> f32 {
     titlebar_right_padding_scaled(is_windows, linux_right_captions, base, 1.0)
@@ -147,7 +147,7 @@ pub fn titlebar_right_padding_scaled(is_windows: bool, linux_right_captions: usi
     }) * scale
 }
 
-/// A size-6 icon button for the titlebar strip (zeron window-controls.tsx:
+/// A size-6 icon button for the titlebar strip (skylark window-controls.tsx:
 /// `grid size-6 place-items-center rounded-md text-muted-foreground`).
 pub fn window_control_button(
     id: &'static str,
@@ -166,7 +166,7 @@ pub fn window_control_button(
         .justify_center()
         .rounded(crate::typography::ui_rems(6.0))
         .cursor_pointer()
-        // zeron window-controls.tsx: `transition-colors` — the wash fades.
+        // skylark window-controls.tsx: `transition-colors` — the wash fades.
         .bg(motion::hover_blend(
             &fade_key,
             theme.glass_hover().opacity(0.0),
@@ -237,7 +237,7 @@ pub fn windows_caption_button(
         .child(glyph)
 }
 
-/// A Linux caption button in zeron's own cluster style (24px, rounded-6,
+/// A Linux caption button in skylark's own cluster style (24px, rounded-6,
 /// 16px linear icon). gpui's `WindowControlArea` hit-testing is inert on
 /// Linux, so unlike the Windows cluster these carry explicit click handlers
 /// (`minimize_window` / `zoom_window` / `remove_window`), the same calls
@@ -285,7 +285,7 @@ pub fn linux_caption_button(
         )
 }
 
-/// A titlebar history button (zeron window-controls.tsx): enabled it is a
+/// A titlebar history button (skylark window-controls.tsx): enabled it is a
 /// normal window-control button; disabled it dims to 35% opacity and ignores
 /// the pointer (`disabled:pointer-events-none disabled:opacity-35`).
 pub fn nav_history_button(
@@ -315,7 +315,7 @@ pub fn nav_history_button(
     window_control_button(id, icon_path, theme, on_click).into_any_element()
 }
 
-/// A size-7 icon button for the main-panel header (zeron __root.tsx:
+/// A size-7 icon button for the main-panel header (skylark __root.tsx:
 /// `grid size-7 place-items-center rounded-md text-muted-foreground`).
 pub fn header_icon_button(
     id: &'static str,
@@ -334,7 +334,7 @@ pub fn header_icon_button(
         .justify_center()
         .rounded(crate::typography::ui_rems(6.0))
         .cursor_pointer()
-        // zeron __root.tsx header buttons: `transition-colors`.
+        // skylark __root.tsx header buttons: `transition-colors`.
         .bg(motion::hover_blend(
             &fade_key,
             crate::theme::wash(0.0),
@@ -375,11 +375,11 @@ impl Shell {
     }
 
     /// The header's content row with the animated left inset — the native port
-    /// of zeron __root.tsx `transition-[padding-left] duration-200 ease-out` +
+    /// of skylark __root.tsx `transition-[padding-left] duration-200 ease-out` +
     /// `style={{ paddingLeft: headerInset }}`: on sidebar toggles (and macOS
     /// fullscreen flips) the SAME element's padding tweens, so the title
     /// glides to its new x-position. Route changes SNAP: the tween is killed
-    /// by every route transition (zeron remounts the keyed header variants —
+    /// by every route transition (skylark remounts the keyed header variants —
     /// instant swap, zero horizontal motion).
     /// Where unified-titlebar content (tabs / the settings label) starts: past
     /// the traffic lights + control cluster, riding the fullscreen inset tween.
@@ -422,7 +422,7 @@ impl Shell {
     }
 
     /// Make a titlebar strip drag the window — zed's platform-titlebar
-    /// pattern (zeron's `.drag` region): mark it a [`WindowControlArea::Drag`]
+    /// pattern (skylark's `.drag` region): mark it a [`WindowControlArea::Drag`]
     /// (macOS app-owned titlebar), hand the drag to the compositor once the
     /// pointer moves with the button down, and double-click zooms.
     pub(super) fn titlebar_drag_region(
@@ -474,7 +474,7 @@ impl Shell {
     }
 
     /// The ONE top-left window-control cluster (sidebar toggle + back/forward —
-    /// zeron window-controls.tsx): rendered once, in a paint-only overlay layer
+    /// skylark window-controls.tsx): rendered once, in a paint-only overlay layer
     /// pinned at the window's top-left, ABOVE the sidebar and headers. The
     /// sidebar width animates *beneath* it, so the buttons keep their element
     /// identity and never move or remount on collapse/expand; only the
@@ -589,7 +589,7 @@ impl Shell {
         )
     }
 
-    /// Native Windows caption controls integrated into Zeron's unified
+    /// Native Windows caption controls integrated into Skylark's unified
     /// titlebar. `WindowControlArea` maps these hit targets to HTMINBUTTON,
     /// HTMAXBUTTON, and HTCLOSE, so Windows owns their behavior (including
     /// Snap Layouts) while GPUI renders the system Segoe caption glyphs.
@@ -655,7 +655,7 @@ impl Shell {
         )
     }
 
-    /// Which caption buttons zeron itself must draw on Linux: under
+    /// Which caption buttons skylark itself must draw on Linux: under
     /// client-side decorations (the Wayland default) nobody else will —
     /// without these the window has NO minimize/maximize/close at all.
     /// Server-side decorations (X11 WMs, KDE with SSD) already draw real
@@ -722,7 +722,7 @@ impl Shell {
     }
 
     /// Right padding titlebar content needs to clear the platform's caption
-    /// controls (native Windows cluster / zeron-drawn Linux buttons).
+    /// controls (native Windows cluster / skylark-drawn Linux buttons).
     pub(super) fn titlebar_right_pad(&self, base: f32) -> f32 {
         titlebar_right_padding_scaled(
             cfg!(target_os = "windows"),
@@ -732,7 +732,7 @@ impl Shell {
         )
     }
 
-    /// Zeron-drawn Linux caption controls, one overlay per populated side.
+    /// Skylark-drawn Linux caption controls, one overlay per populated side.
     /// Shell-level chrome like the Windows cluster: mounted at the root so
     /// they stay above the splash and every auth/org/error gate.
     pub(super) fn render_linux_caption_controls(

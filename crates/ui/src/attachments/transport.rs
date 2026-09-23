@@ -59,7 +59,7 @@ fn name_from_path(path: &str) -> String {
 
 /// Find the refs trailer: a blank line, then a line starting (case-insensitive)
 /// with `Attached images (local files` and ending `):`. Returns
-/// `(body_end, refs_start)` byte offsets — the tolerant equivalent of zeron's
+/// `(body_end, refs_start)` byte offsets — the tolerant equivalent of skylark's
 /// `ATTACHED_IMAGES_RE`.
 fn find_refs_marker(content: &str) -> Option<(usize, usize)> {
     let lower = content.to_ascii_lowercase();

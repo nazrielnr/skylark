@@ -1,5 +1,8 @@
 # Appshots screenshot evidence
 
+> **Skylark build status: local-only.** Product login/logout, cloud sync, remote control, updates, public installation, and publishing are temporarily paused. Provider agent authentication remains available. Cloud/mobile/release instructions and results below are historical reference, not current setup guidance. See [current policy](../../LOCAL_ONLY.md).
+
+
 These 20 frames show the Appshots implementation using neutral fixtures: 14 native GPUI Metal exports and 6 iPhone 17 Pro simulator screenshots. The desktop source was unchanged by the v0.2.60 rebase. Light desktop exports omit the macOS compositor backdrop and therefore appear gray.
 
 Desktop coverage includes light/dark, narrow layouts, composer and transcript cards, queue previews, uploading/unavailable states, dedicated settings, keyboard enablement, destination selection and shortcut recording. Phone coverage includes portrait/landscape, horizontal cards, full-image preview, queue gallery and actions.

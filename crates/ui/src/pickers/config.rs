@@ -1,5 +1,5 @@
 use gpui::App;
-pub use zeron_proto::{ChatConfig, HarnessId, Model, ReasoningLevel, SandboxLevel};
+pub use skylark_proto::{ChatConfig, HarnessId, Model, ReasoningLevel, SandboxLevel};
 
 use super::model_catalog::{clamp_reasoning, default_model, offered_harnesses, offered_options};
 use super::Pickers;
@@ -57,7 +57,7 @@ pub enum CheckoutPlan {
     CurrentCheckout { branch: Option<String> },
     /// Reuse the picked ref's existing worktree (a cwd override; no git).
     ReuseWorktree { path: String, branch: String },
-    /// `CreateWorktree` off `base` on send (zeron mints a `zeron/<name>`
+    /// `CreateWorktree` off `base` on send (skylark mints a `skylark/<name>`
     /// branch). `base: None` = refs never loaded — send falls back to the
     /// space folder rather than failing.
     NewWorktree { base: Option<String> },
@@ -159,7 +159,7 @@ impl Pickers {
         // Fall back to the first OFFERED harness: the registry lists the mock
         // harness first, and resolving chips against it would boot the
         // new-chat canvas onto "Mock" instead of Claude Code + its default
-        // model (it stays available under `ZERON_HARNESS=mock`).
+        // model (it stays available under `SKYLARK_HARNESS=mock`).
         self.harnesses
             .ready()
             .and_then(|list| offered_harnesses(list).first().map(|d| d.id))

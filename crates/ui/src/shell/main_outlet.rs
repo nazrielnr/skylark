@@ -242,7 +242,7 @@ impl Shell {
                         .flex_col()
                         .items_center()
                         .child(
-                            icon(icons::ZERON_LOGO)
+                            icon(icons::SKYLARK_LOGO)
                                 .w(px(41.9))
                                 .h(px(48.0))
                                 .text_color(theme.text.opacity(0.09)),
@@ -562,7 +562,7 @@ impl Shell {
         let state = self.state.read(cx);
 
         // Aligned with the composer column: centered, same max width, small
-        // inner gutter (zeron's `mx-auto h-6 max-w-3xl px-2`).
+        // inner gutter (skylark's `mx-auto h-6 max-w-3xl px-2`).
         let strip = div()
             .h(crate::typography::ui_rems(Theme::STATUS_STRIP_HEIGHT + 2.0))
             .flex_none()

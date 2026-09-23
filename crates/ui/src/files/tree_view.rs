@@ -20,7 +20,7 @@ use gpui::{
     ListState, MouseButton, ScrollStrategy, SharedString, Subscription, Task,
     UniformListScrollHandle, Window, div, prelude::*, px, uniform_list,
 };
-use zeron_proto::{
+use skylark_proto::{
     ListWorkspaceDirectoryRequest, WorkspaceEntryKind, WorkspaceFileChangeKind,
     WorkspaceFileChanges,
 };
@@ -237,7 +237,7 @@ impl FileTreeView {
     pub fn apply_reveal(
         &mut self,
         path: &str,
-        pages: Vec<(zeron_proto::WorkspaceDirectoryPage, String)>,
+        pages: Vec<(skylark_proto::WorkspaceDirectoryPage, String)>,
         generation: u64,
         cx: &mut Context<Self>,
     ) {

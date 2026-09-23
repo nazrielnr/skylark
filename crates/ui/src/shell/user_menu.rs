@@ -33,8 +33,11 @@ impl Shell {
     /// UpdateStatus stream reports a newer release. On a macOS bundle install
     /// it drives the whole flow — click to download, then click to restart into
     /// the staged bundle. Elsewhere (managed/source installs) it is advisory
-    /// (`zeron update`); click dismisses it for that version.
+    /// (`skylark update`); click dismisses it for that version.
     pub(super) fn render_update_strip(&mut self, theme: &Theme, cx: &mut Context<Self>) -> Option<AnyElement> {
+        if skylark_proto::LOCAL_ONLY_BUILD {
+            return None;
+        }
         let status = self.state.read(cx).update.clone()?;
         if !status.update_available {
             return None;
@@ -54,7 +57,7 @@ impl Shell {
             }
         } else {
             (
-                format!("Update available — v{latest} · run `zeron update`").into(),
+                format!("Update available — v{latest} · run `skylark update`").into(),
                 true,
             )
         };
@@ -113,15 +116,18 @@ impl Shell {
         }
     }
 
-    /// Fetch the manifest and stage the new Zeron desktop bundle under the data dir
+    /// Fetch the manifest and stage the new Skylark desktop bundle under the data dir
     /// (tokio — reqwest); the strip flips to "restart to apply" when done.
     fn begin_update_download(&mut self, cx: &mut Context<Self>) {
+        if skylark_proto::LOCAL_ONLY_BUILD {
+            return;
+        }
         let edge_url = self.boot.edge_url.clone();
         let data_dir = self.data_dir.clone();
         let install = self.install.clone();
         self.update_flow = UpdateFlow::Downloading;
         let download = Tokio::spawn(cx, async move {
-            let manifest = zeron_update::fetch_latest(&edge_url).await?;
+            let manifest = skylark_update::fetch_latest(&edge_url).await?;
             install.stage_desktop(&edge_url, &manifest, &data_dir).await
         });
         self.update_task = Some(cx.spawn(async move |this, cx| {
@@ -149,6 +155,9 @@ impl Shell {
     /// relauncher, and quit — the relauncher `open`s the new bundle once this
     /// process (and its engine lock / IPC port) is gone.
     pub(super) fn apply_staged_update(&mut self, staged: PathBuf, cx: &mut Context<Self>) {
+        if skylark_proto::LOCAL_ONLY_BUILD {
+            return;
+        }
         if !self.prepare_exit(PendingExit::InstallUpdate(staged.clone()), cx) {
             return;
         }
@@ -176,7 +185,11 @@ impl Shell {
     ) -> AnyElement {
         let theme = &theme.for_popup();
         let open = self.user_menu.is_open();
-        let action = account_menu_action(self.state.read(cx).workspace_scope, self.sync_flow);
+        let action = if skylark_proto::LOCAL_ONLY_BUILD {
+            None
+        } else {
+            account_menu_action(self.state.read(cx).workspace_scope, self.sync_flow)
+        };
         // Bottom-of-sidebar identity: avatar circle + scope/account label and
         // its secondary status line.
         let initial: SharedString = user_line
@@ -224,7 +237,7 @@ impl Shell {
                 cx.notify();
             }))
             .child(
-                // Avatar: white circle, initial in near-black (zeron user-menu.tsx).
+                // Avatar: white circle, initial in near-black (skylark user-menu.tsx).
                 div()
                     .size(crate::typography::ui_rems(28.0))
                     .flex_none()
@@ -287,7 +300,11 @@ impl Shell {
                         .text_size(crate::typography::ui_rems(11.0))
                         .text_color(theme.text_muted)
                         .truncate()
-                        .child(menu_identity),
+                        .child(if skylark_proto::LOCAL_ONLY_BUILD {
+                            SharedString::from("Local only · cloud and updates paused")
+                        } else {
+                            menu_identity
+                        }),
                 )
                 .when_some(action, |menu, action| {
                     let row = match action {

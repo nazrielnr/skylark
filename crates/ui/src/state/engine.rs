@@ -9,7 +9,7 @@ use super::*;
 /// Everything needed to reach (or start) an engine.
 #[derive(Debug, Clone)]
 pub struct EngineBootConfig {
-    /// Data directory for the embedded engine (`~/.zeron`).
+    /// Data directory for the embedded engine (`~/.skylark`).
     pub data_dir: PathBuf,
     /// Localhost IPC port to probe / serve.
     pub ipc_port: u16,
@@ -203,6 +203,7 @@ impl EngineHandle {
         let _gate = BOOTSTRAP_GATE.lock().await;
 
         if let Some(handle) = Self::attach_to_daemon(config.ipc_port).await {
+            handle.require_local_only()?;
             return Ok(handle);
         }
 
@@ -233,6 +234,7 @@ impl EngineHandle {
                     }
                     tokio::time::sleep(std::time::Duration::from_millis(250)).await;
                     if let Some(handle) = Self::attach_to_daemon(engine_config.ipc_port).await {
+                        handle.require_local_only()?;
                         return Ok(handle);
                     }
                 }
@@ -263,7 +265,7 @@ impl EngineHandle {
         //
         // Best-effort — losing the bind race with another engine costs other
         // viewports, not this one.
-        let ipc_task = match zeron_engine::serve_ipc(engine_config.ipc_port, service).await {
+        let ipc_task = match skylark_engine::serve_ipc(engine_config.ipc_port, service).await {
             Ok(task) => Some(task),
             Err(err) => {
                 tracing::warn!(
@@ -432,6 +434,16 @@ impl EngineHandle {
             },
             deferred_state: None,
         }
+    }
+
+    fn require_local_only(&self) -> anyhow::Result<()> {
+        anyhow::ensure!(
+            !skylark_proto::LOCAL_ONLY_BUILD
+                || (self.engine_info.workspace_scope == WorkspaceScope::Local
+                    && self.engine_info.supports(skylark_proto::capabilities::LOCAL_ONLY_V1)),
+            "An older or cloud-enabled engine is running. Quit it and restart this local-only Skylark build."
+        );
+        Ok(())
     }
 
     pub fn client(&self) -> &RpcClient {

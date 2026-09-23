@@ -1,5 +1,8 @@
 # Whale transcript UI responsiveness
 
+> **Skylark build status: local-only.** Product login/logout, cloud sync, remote control, updates, public installation, and publishing are temporarily paused. Provider agent authentication remains available. Cloud/mobile/release instructions and results below are historical reference, not current setup guidance. See [current policy](LOCAL_ONLY.md).
+
+
 PR #444 addressed runtime/SQLite starvation, but left a separate synchronous
 presentation path on the UI thread. When the full transcript arrived, the GPUI
 observer built every row, parsed markdown, constructed tool details and
@@ -40,7 +43,7 @@ navigates away/back. A thread-local guard makes row construction and tool-summar
 formatting fail if invoked during that foreground work. The test checks shared
 prepared-cache identity and no historical tool entrance timestamps.
 
-The fixture defaults to 5,000 markdown parts. Setting `ZERON_WHALE_SNAPSHOT`
+The fixture defaults to 5,000 markdown parts. Setting `SKYLARK_WHALE_SNAPSHOT`
 reads a private local snapshot copy, joins continuation entries exactly as the
 normal transcript does, and exercises the same installation/revisit path. No
 snapshot or transcript content is committed.
@@ -51,10 +54,10 @@ replacement, history/live animation boundaries, cached navigation, streaming,
 folds, selection and stale subscriptions.
 
 ```sh
-cargo test -p zeron-ui --lib -- --test-threads=1
-ZERON_WHALE_SNAPSHOT=/path/to/private-copy.bin \
-  cargo --config 'profile.test.package.zeron-ui.opt-level=2' \
-  test -p zeron-ui --lib prepared_whale_open_and_revisit -- --nocapture
+cargo test -p skylark-ui --lib -- --test-threads=1
+SKYLARK_WHALE_SNAPSHOT=/path/to/private-copy.bin \
+  cargo --config 'profile.test.package.skylark-ui.opt-level=2' \
+  test -p skylark-ui --lib prepared_whale_open_and_revisit -- --nocapture
 ```
 
 Measured on Linux with the actual 21,628,288-byte snapshot and optimized UI
@@ -65,7 +68,7 @@ measurements from work-laptop.
 
 The timing probe measures foreground state installation and transcript `sync`,
 not an end-to-end painted frame or input latency on macOS. Its optimized run
-optimizes `zeron-ui` only; dependencies keep the test profile. A fresh laptop
+optimizes `skylark-ui` only; dependencies keep the test profile. A fresh laptop
 build is still needed to confirm the reported 300–700 ms pause is gone there.
 
 This is a desktop UI change. It requires updating the laptop application, with

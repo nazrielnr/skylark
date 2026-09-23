@@ -1,5 +1,8 @@
 # Workspace Files: lag & reload investigation
 
+> **Skylark build status: local-only.** Product login/logout, cloud sync, remote control, updates, public installation, and publishing are temporarily paused. Provider agent authentication remains available. Cloud/mobile/release instructions and results below are historical reference, not current setup guidance. See [current policy](LOCAL_ONLY.md).
+
+
 Symptoms as reported (Indonesian, paraphrased):
 
 1. Moving the cursor across the workspace file tree lags — the hover

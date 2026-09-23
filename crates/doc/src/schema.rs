@@ -322,7 +322,7 @@ impl SessionDoc {
     }
 
     /// A single atomic value prevents tokens and capacity from tearing on sync.
-    pub fn context_usage(&self) -> Option<zeron_proto::ContextUsage> {
+    pub fn context_usage(&self) -> Option<skylark_proto::ContextUsage> {
         let loro::ValueOrContainer::Value(LoroValue::String(value)) =
             self.doc.get_map("meta").get("contextUsage")?
         else {
@@ -337,7 +337,7 @@ impl SessionDoc {
         window: Option<u64>,
     ) -> Result<(), DocError> {
         let previous = self.context_usage().unwrap_or_default();
-        let next = zeron_proto::ContextUsage {
+        let next = skylark_proto::ContextUsage {
             tokens: tokens.or(previous.tokens),
             window: window.filter(|n| *n > 0).or(previous.window),
         };
@@ -725,7 +725,7 @@ impl SessionDoc {
                             loro::ValueOrContainer::Value(v) => serde_json::to_value(v).ok(),
                             _ => None,
                         })
-                        .and_then(|j| serde_json::from_value::<zeron_proto::ToolCall>(j).ok())
+                        .and_then(|j| serde_json::from_value::<skylark_proto::ToolCall>(j).ok())
                         .is_some_and(|c| c.is_subagent_spawn());
                     if !is_spawn {
                         return Ok(false);
@@ -1050,7 +1050,7 @@ pub fn join_continuation_entries(entries: Vec<SessionMessageEntry>) -> Vec<Sessi
 
 /// Incremental streaming writer for one assistant entry.
 ///
-/// Port of zeron's `DocSegmentWriter` diff discipline: called with the *folded* parts of the
+/// Port of skylark's `DocSegmentWriter` diff discipline: called with the *folded* parts of the
 /// live segment (from `fold_event_into_parts`) at each commit tick, it diffs against what's in
 /// the doc and writes only the delta:
 /// - trailing text growth → `LoroText` append (RLE-merged),
@@ -1349,7 +1349,7 @@ pub fn materialize_tail(
 mod tests {
     use super::*;
     use crate::parts::fold_event_into_parts;
-    use zeron_proto::{AgentEvent, ToolCall};
+    use skylark_proto::{AgentEvent, ToolCall};
 
     #[test]
     fn opening_tail_bounds_parts_and_preserves_continuation_ids() {
@@ -1473,7 +1473,7 @@ mod tests {
         let mut w = SegmentWriter::begin(&doc, "e1", "dev", 1).unwrap();
         let mut part = MessagePart::Tool {
             id: "call_alpha".into(),
-            call: zeron_proto::ToolCall::Unknown {
+            call: skylark_proto::ToolCall::Unknown {
                 name: "Agent: alpha".into(),
                 input: None,
             },
@@ -1526,7 +1526,7 @@ mod tests {
         // subtype and turned Run chips into dead spawn links, 2026-08-20).
         let doc = SessionDoc::init("c1").unwrap();
         let mut w = SegmentWriter::begin(&doc, "e1", "dev", 1).unwrap();
-        let tool = |id: &str, call: zeron_proto::ToolCall| MessagePart::Tool {
+        let tool = |id: &str, call: skylark_proto::ToolCall| MessagePart::Tool {
             id: id.into(),
             call,
             is_error: false,
@@ -1544,13 +1544,13 @@ mod tests {
         let parts = vec![
             tool(
                 "toolu_bash",
-                zeron_proto::ToolCall::Exec {
+                skylark_proto::ToolCall::Exec {
                     command: "git clone …".into(),
                 },
             ),
             tool(
                 "toolu_spawn",
-                zeron_proto::ToolCall::Unknown {
+                skylark_proto::ToolCall::Unknown {
                     name: "Agent: scan".into(),
                     input: None,
                 },
@@ -1833,7 +1833,7 @@ mod tests {
                 id: "t1".into(),
                 is_error: false,
                 output: Some("total 0\nmore lines".into()),
-                diff: Some(zeron_proto::ToolDiff {
+                diff: Some(skylark_proto::ToolDiff {
                     path: "/w/a.rs".into(),
                     old_text: Some("old\n".into()),
                     new_text: "new\n".into(),
@@ -1889,7 +1889,7 @@ mod tests {
                 is_error: false,
                 resolved: true,
                 output: Some("full inline output\nline 2".into()),
-                diff: Some(zeron_proto::ToolDiff {
+                diff: Some(skylark_proto::ToolDiff {
                     path: "/w/a.rs".into(),
                     old_text: Some("old".into()),
                     new_text: "new".into(),
@@ -2064,7 +2064,7 @@ mod context_usage_tests {
             .unwrap();
         assert_eq!(
             replica.context_usage(),
-            Some(zeron_proto::ContextUsage {
+            Some(skylark_proto::ContextUsage {
                 tokens: Some(0),
                 window: Some(200_000)
             })

@@ -1,7 +1,7 @@
 //! The pending-message queue, docked above the composer.
 //!
 //! Everything you typed while the agent was busy, in the order it will be sent.
-//! The rows live on the session doc ([`zeron_doc::QueuedMessage`]), so the phone
+//! The rows live on the session doc ([`skylark_doc::QueuedMessage`]), so the phone
 //! shows the same queue and either device can reorder it.
 //!
 //! Each row exposes a `Send now` control that interrupts the active response.
@@ -13,8 +13,8 @@ use gpui::{
     SharedString, StatefulInteractiveElement as _, Styled, Window, div, prelude::*, px,
 };
 
-use zeron_doc::{QueueDeliveryGate, QueuedMessage};
-use zeron_rpc::methods;
+use skylark_doc::{QueueDeliveryGate, QueuedMessage};
+use skylark_rpc::methods;
 
 use crate::composer::{Composer, QUEUE_COMPOSER_OVERLAP};
 use crate::icons::{self, icon};
@@ -285,7 +285,7 @@ mod render;
 
 #[cfg(test)]
 mod tests {
-    use zeron_rpc::methods;
+    use skylark_rpc::methods;
 
     use super::{
         PANEL_PAD_TOP, QueuePrimaryAction, ROW_SLOT, available_queue_primary_action,
@@ -329,8 +329,8 @@ mod tests {
     #[test]
     fn queue_shortcut_targets_the_most_recently_added_row() {
         let items = vec![
-            zeron_doc::QueuedMessage::new("older", "first", "device"),
-            zeron_doc::QueuedMessage::new("newer", "second", "device"),
+            skylark_doc::QueuedMessage::new("older", "first", "device"),
+            skylark_doc::QueuedMessage::new("newer", "second", "device"),
         ];
         assert_eq!(latest_queued_message(&items).unwrap().id, "newer");
         assert!(latest_queued_message(&[]).is_none());

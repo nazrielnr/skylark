@@ -91,13 +91,13 @@ impl AppState {
     /// Optimistic local echo of a `setChatConfig` mutate: stamp the row now so
     /// the chips update on click; the next chats watch frame carries the same
     /// value once the engine applies the LWW write.
-    pub fn apply_chat_config(&mut self, chat_id: &str, config: zeron_proto::ChatConfig) {
+    pub fn apply_chat_config(&mut self, chat_id: &str, config: skylark_proto::ChatConfig) {
         if let Some(chat) = self.chats.iter_mut().find(|c| c.id == chat_id) {
             chat.config = Some(config);
         }
     }
 
-    pub fn apply_connectivity(&mut self, connectivity: zeron_proto::Connectivity) {
+    pub fn apply_connectivity(&mut self, connectivity: skylark_proto::Connectivity) {
         self.connectivity = connectivity;
         self.connectivity_observed = true;
     }
@@ -108,7 +108,7 @@ impl AppState {
     /// chats degrade when the OS says offline, when the chat's own edge room
     /// is down, or when the host device has gone presence-dark.
     pub fn chat_delivery_degraded(&self, chat_id: &str) -> bool {
-        use zeron_proto::ConnectivityState as S;
+        use skylark_proto::ConnectivityState as S;
         if self.connectivity.state == S::Disabled {
             return false;
         }
@@ -237,7 +237,7 @@ impl AppState {
             .map(|s| s.id.clone())
     }
 
-    pub fn apply_update(&mut self, status: zeron_update::UpdateStatus) {
+    pub fn apply_update(&mut self, status: skylark_update::UpdateStatus) {
         self.update = Some(status);
     }
 
@@ -254,7 +254,7 @@ impl AppState {
     }
 
     /// The signed-in user, if the engine reports one.
-    pub fn auth_user(&self) -> Option<&zeron_proto::UserProfile> {
+    pub fn auth_user(&self) -> Option<&skylark_proto::UserProfile> {
         match self.auth.as_ref()? {
             AuthState::SignedIn { user, .. } | AuthState::NeedsOrganization { user } => Some(user),
             AuthState::SignedOut => None,

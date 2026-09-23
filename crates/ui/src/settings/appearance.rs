@@ -11,8 +11,8 @@ use gpui::{
     KeyDownEvent, ObjectFit, Render, SharedString, StyledImage as _, Subscription, Window, div,
     img, prelude::*, px,
 };
-use zeron_theme::vscode::{ImportReport, SourceCompilation};
-use zeron_theme::{
+use skylark_theme::vscode::{ImportReport, SourceCompilation};
+use skylark_theme::{
     AccentPreset, AccentSelection, CustomThemeEntry, CustomThemeStatus, InstallMode,
     SurfacePreference, SurfaceTreatment, ThemeRegistry, ThemeSelection,
 };
@@ -666,10 +666,10 @@ fn preview(
     }
 }
 
-fn model_appearance(appearance: Appearance) -> zeron_theme::Appearance {
+fn model_appearance(appearance: Appearance) -> skylark_theme::Appearance {
     match appearance {
-        Appearance::Dark => zeron_theme::Appearance::Dark,
-        Appearance::Light => zeron_theme::Appearance::Light,
+        Appearance::Dark => skylark_theme::Appearance::Dark,
+        Appearance::Light => skylark_theme::Appearance::Light,
     }
 }
 
@@ -708,7 +708,7 @@ fn compact_action(
         .text_size(crate::typography::ui_rems(11.5))
 }
 
-fn import_scene_preview(variant: &zeron_theme::ThemeVariant) -> AnyElement {
+fn import_scene_preview(variant: &skylark_theme::ThemeVariant) -> AnyElement {
     let theme = Theme::from_variant(
         variant,
         AccentSelection::ThemeDefault,
@@ -838,7 +838,7 @@ fn report_panel(theme: &Theme, report: &ImportReport) -> gpui::Stateful<gpui::Di
         .children(report.adjustments.iter().map(|adjustment| {
             div().mt(px(4.0)).child(SharedString::from(format!(
                 "Adjusted · {} {} → {} · {}",
-                adjustment.zeron_role, adjustment.original, adjustment.resolved, adjustment.reason
+                adjustment.skylark_role, adjustment.original, adjustment.resolved, adjustment.reason
             )))
         }))
         .children(report.fallbacks.iter().map(|message| {
@@ -865,7 +865,7 @@ fn report_panel(theme: &Theme, report: &ImportReport) -> gpui::Stateful<gpui::Di
         .children(report.mappings.iter().map(|mapping| {
             div().mt(px(4.0)).child(SharedString::from(format!(
                 "{} ← {}",
-                mapping.zeron_role, mapping.vscode_key
+                mapping.skylark_role, mapping.vscode_key
             )))
         }))
 }

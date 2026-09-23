@@ -1,6 +1,9 @@
 # Browser on Linux
 
-The sidebar browser requires the distribution's WebKitGTK 4.1 and JSON-GLib runtime packages, including when using a prebuilt Zeron release. The Linux installer does not currently install or validate these dependencies; install them separately before opening a browser tab.
+> **Skylark build status: local-only.** Product login/logout, cloud sync, remote control, updates, public installation, and publishing are temporarily paused. Provider agent authentication remains available. Cloud/mobile/release instructions and results below are historical reference, not current setup guidance. See [current policy](../LOCAL_ONLY.md).
+
+
+The sidebar browser requires the distribution's WebKitGTK 4.1 and JSON-GLib runtime packages, including when using a prebuilt Skylark release. The Linux installer does not currently install or validate these dependencies; install them separately before opening a browser tab.
 
 On Ubuntu or Debian:
 
@@ -14,7 +17,7 @@ On Fedora:
 sudo dnf install webkit2gtk4.1 json-glib
 ```
 
-Zeron starts its browser helper when a page is first opened. The main application does not link to GTK or WebKit, so other app features remain available if the browser runtime is missing. WebKit runs in a separate process and uses an ephemeral website-data context shared by the open tabs.
+Skylark starts its browser helper when a page is first opened. The main application does not link to GTK or WebKit, so other app features remain available if the browser runtime is missing. WebKit runs in a separate process and uses an ephemeral website-data context shared by the open tabs.
 
 The helper sends live offscreen frames to GPUI, which draws the page alongside the rest of the app. Both X11 and Wayland use this path, including clipping, sidebar transitions, tooltips, and frosted overlays. It uses CPU-addressable frames rather than embedding a separate native browser window. Animated pages therefore incur frame-copy and texture-upload work.
 

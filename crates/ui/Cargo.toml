@@ -1,5 +1,5 @@
 [package]
-name = "zeron-ui"
+name = "skylark-ui"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -43,15 +43,15 @@ required-features = ["project-palette-fixture"]
 
 [dependencies]
 url = "2"
-zeron-proto.workspace = true
+skylark-proto.workspace = true
 similar.workspace = true
-zeron-doc.workspace = true
-zeron-engine.workspace = true
-zeron-harness.workspace = true
-zeron-rpc.workspace = true
-zeron-update.workspace = true
-zeron-syntax.workspace = true
-zeron-theme.workspace = true
+skylark-doc.workspace = true
+skylark-engine.workspace = true
+skylark-harness.workspace = true
+skylark-rpc.workspace = true
+skylark-update.workspace = true
+skylark-syntax.workspace = true
+skylark-theme.workspace = true
 gpui.workspace = true
 gpui_platform.workspace = true
 gpui_tokio.workspace = true

@@ -15,8 +15,8 @@ public class W6 {
 "@
 [W6]::SetProcessDPIAware() | Out-Null
 if (Test-Path $LogPath) { Remove-Item $LogPath }
-$env:ZERON_UI_TRACE = "1"
-$exe = "$PSScriptRoot\..\..\target\debug\zeron.exe"
+$env:SKYLARK_UI_TRACE = "1"
+$exe = "$PSScriptRoot\..\..\target\debug\skylark.exe"
 $proc = Start-Process -FilePath $exe -WorkingDirectory "$PSScriptRoot\..\.." -RedirectStandardError $LogPath -RedirectStandardOutput "$PSScriptRoot\..\..\target\ctrl.stdout.log" -PassThru
 try {
   Start-Sleep -Seconds 25

@@ -1,5 +1,8 @@
 # Generated images in conversation threads
 
+> **Skylark build status: local-only.** Product login/logout, cloud sync, remote control, updates, public installation, and publishing are temporarily paused. Provider agent authentication remains available. Cloud/mobile/release instructions and results below are historical reference, not current setup guidance. See [current policy](LOCAL_ONLY.md).
+
+
 Codex `imageGeneration` uses `savedPath` as its only source. The engine imports a
 PNG, JPEG, WebP, or GIF of at most 24 MiB into the active profile's uploads root
 before publishing the event. Neither the original path nor `result` enters the
@@ -22,13 +25,13 @@ placeholder and uses the existing 2–15 second retry ladder.
 ## Automated checks
 
 ```sh
-cargo test -p zeron-proto -p zeron-doc
-cargo test -p zeron-engine generated_image
-cargo test -p zeron-engine --test e2e --test device_routing --test workspace_sync
-cargo test -p zeron-harness codex
-cargo test -p zeron-harness --test codex
-cargo test -p zeron-ui transcript
-cargo test -p zeron-ui attachments
+cargo test -p skylark-proto -p skylark-doc
+cargo test -p skylark-engine generated_image
+cargo test -p skylark-engine --test e2e --test device_routing --test workspace_sync
+cargo test -p skylark-harness codex
+cargo test -p skylark-harness --test codex
+cargo test -p skylark-ui transcript
+cargo test -p skylark-ui attachments
 cd edge && npm test
 ```
 
@@ -52,8 +55,8 @@ These tests stay ignored in normal runs. They require an authenticated Codex
 installation and a model/account provisioned for image generation.
 
 ```sh
-cargo test -p zeron-harness --test codex real_image_generation_smoke -- --ignored
-cargo test -p zeron-engine --test e2e real_image_generation_profile_smoke -- --ignored
+cargo test -p skylark-harness --test codex real_image_generation_smoke -- --ignored
+cargo test -p skylark-engine --test e2e real_image_generation_profile_smoke -- --ignored
 ```
 
 The harness smoke checks that the real provider returns an existing saved file;
@@ -92,7 +95,7 @@ image Base64. Other user-authored content may legitimately contain those strings
 - `cargo fmt --all -- --check` reports pre-existing formatting differences in
   10 files; each affected file also fails formatting in the original checkout.
 - Strict `cargo clippy --workspace --all-targets -- -D warnings` stops on
-  pre-existing `zeron-theme` lints. A full run with `--cap-lints warn` completes
+  pre-existing `skylark-theme` lints. A full run with `--cap-lints warn` completes
   and preserves the existing warnings for review.
 
 The full workspace command used to continue past the confirmed baseline failure:
@@ -128,10 +131,10 @@ an iPhone. Changed Swift files passed a tree-sitter syntax parse and `git diff
 On a Mac with the project dependencies installed and `SIMULATOR_UDID` set:
 
 ```sh
-xcodebuild test -project apps/ios/Zeron.xcodeproj -scheme Zeron \
+xcodebuild test -project apps/ios/Skylark.xcodeproj -scheme Skylark \
   -destination "platform=iOS Simulator,id=$SIMULATOR_UDID" \
-  -only-testing:ZeronTests/GeneratedImageTests \
-  -only-testing:ZeronTests/TranscriptLayoutTests
+  -only-testing:SkylarkTests/GeneratedImageTests \
+  -only-testing:SkylarkTests/TranscriptLayoutTests
 ```
 
 For the device check, generate an image on a desktop host and open its chat on
@@ -142,7 +145,7 @@ and dark appearances and a portrait image whose displayed height reaches the cap
 
 ## Desktop security regressions
 
-`cargo test --locked -p zeron-ui --lib generated_image -- --test-threads=1`
+`cargo test --locked -p skylark-ui --lib generated_image -- --test-threads=1`
 includes policy/alias/load-claim isolation, MIME corrections, actual format
 validation, static-frame downsampling, and a 100-image cache-history budget test.
 Existing transcript tests verify that generated history is not protected from

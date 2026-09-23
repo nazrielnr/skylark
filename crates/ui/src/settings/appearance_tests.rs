@@ -16,12 +16,12 @@ fn registry_offers_both_appearances_and_keeps_single_dark_families_valid() {
     let registry = ThemeRegistry::builtin();
     assert_eq!(
         registry
-            .variants_for(zeron_theme::Appearance::Light)
+            .variants_for(skylark_theme::Appearance::Light)
             .count(),
         10
     );
     assert_eq!(
-        registry.variants_for(zeron_theme::Appearance::Dark).count(),
+        registry.variants_for(skylark_theme::Appearance::Dark).count(),
         20
     );
 }

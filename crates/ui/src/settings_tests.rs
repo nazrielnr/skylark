@@ -14,7 +14,7 @@ fn composer_send_behavior_is_opt_in_for_old_and_partial_settings() {
 
     let loaded = UiSettings::load(dir.path());
     assert_eq!(loaded.composer_send_behavior, ComposerSendBehavior::Enter);
-    assert!(loaded.open_web_links_in_zeron);
+    assert!(loaded.open_web_links_in_skylark);
     assert!(loaded.new_thread_composer_background.is_none());
     assert_eq!(
         loaded.new_thread_background_effect,
@@ -559,7 +559,7 @@ fn round_trip() {
         git_history_author_display: GitHistoryAuthorDisplay::Name,
         ui_font_family: crate::typography::UiFontFamily::Installed("Arial".into()),
         ui_font_size: crate::typography::UiFontSize::ALL[5],
-        theme_selection: zeron_theme::ThemeSelection {
+        theme_selection: skylark_theme::ThemeSelection {
             light: "catppuccin-latte".into(),
             dark: "catppuccin-mocha".into(),
         },
@@ -567,7 +567,7 @@ fn round_trip() {
         diff_wrap: true,
         code_fences_fit_content: true,
         transcript_width: 960.0,
-        open_web_links_in_zeron: false,
+        open_web_links_in_skylark: false,
         files_autosave_enabled: true,
         files_autosave_delay_ms: 1_500,
         files_word_wrap: true,
@@ -576,10 +576,10 @@ fn round_trip() {
         code_font_family: crate::typography::UiFontFamily::Geist,
         code_font_size: 11.0,
         files_show_all: true,
-        accent: zeron_theme::AccentSelection::Preset(zeron_theme::AccentPreset::Cyan),
-        surface: zeron_theme::SurfacePreference::Frosted,
+        accent: skylark_theme::AccentSelection::Preset(skylark_theme::AccentPreset::Cyan),
+        surface: skylark_theme::SurfacePreference::Frosted,
         new_thread_composer_background: Some(NewThreadComposerBackground {
-            path: "/tmp/zeron/new-thread-background.png".into(),
+            path: "/tmp/skylark/new-thread-background.png".into(),
             name: "background.png".into(),
         }),
         new_thread_background_effect: NewThreadBackgroundEffect::Ascii,
@@ -590,7 +590,7 @@ fn round_trip() {
     assert!(json.contains(r#""diffWrap": true"#));
     assert_eq!(UiSettings::load(dir.path()), settings);
     assert!(json.contains(r#""codeFencesFitContent": true"#));
-    assert!(json.contains(r#""openWebLinksInZeron": false"#));
+    assert!(json.contains(r#""openWebLinksInSkylark": false"#));
     assert!(json.contains(r#""newThreadBackgroundEffect": "ascii""#));
     assert!(json.contains(r#""terminalFontFamily": "installed:Menlo""#));
     assert!(json.contains(r#""terminalFontSize": 15.0"#));
@@ -730,8 +730,8 @@ fn settings_without_appearance_default_to_system() {
     .unwrap();
     let loaded = UiSettings::load(dir.path());
     assert_eq!(loaded.appearance, crate::appearance::AppearanceMode::System);
-    assert_eq!(loaded.accent, zeron_theme::AccentSelection::ThemeDefault);
-    assert_eq!(loaded.surface, zeron_theme::SurfacePreference::ThemeDefault);
+    assert_eq!(loaded.accent, skylark_theme::AccentSelection::ThemeDefault);
+    assert_eq!(loaded.surface, skylark_theme::SurfacePreference::ThemeDefault);
     assert_eq!(loaded.sidebar_width, 300.0);
     assert!(loaded.sidebar_pinned_session_ids_by_profile.is_empty());
     assert!(!loaded.sound_enabled, "other keys still parse");
@@ -818,7 +818,7 @@ fn legacy_accent_color_migrates_to_an_explicit_preset() {
     let loaded = UiSettings::load(dir.path());
     assert_eq!(
         loaded.accent,
-        zeron_theme::AccentSelection::Preset(zeron_theme::AccentPreset::Cyan)
+        skylark_theme::AccentSelection::Preset(skylark_theme::AccentPreset::Cyan)
     );
     loaded.save(dir.path()).unwrap();
     let saved = std::fs::read_to_string(UiSettings::path(dir.path())).unwrap();
@@ -886,7 +886,7 @@ fn missing_and_corrupt_files_yield_defaults() {
 
 fn signed_in(user_id: &str, org_id: Option<&str>) -> AuthState {
     AuthState::SignedIn {
-        user: zeron_proto::UserProfile {
+        user: skylark_proto::UserProfile {
             id: user_id.to_string(),
             email: format!("{user_id}@example.com"),
             name: None,
@@ -1107,7 +1107,7 @@ fn nan_heals_to_default() {
 }
 
 #[test]
-fn defaults_match_zeron() {
+fn defaults_match_skylark() {
     let d = UiSettings::default();
     assert_eq!(d.sidebar_width, 256.0);
     assert_eq!(d.right_pane_width, 520.0);

@@ -13,7 +13,7 @@ pub(super) const MENTION_TOOLTIP_HEIGHT: f32 = 24.0;
 pub(super) const MENTION_SIDE_PAD: &str = "\u{00A0}";
 /// A private URI scheme keeps file mentions distinguishable from ordinary
 /// Markdown links pasted into the composer.
-pub(crate) const FILE_MENTION_SCHEME: &str = "zeron-file:";
+pub(crate) const FILE_MENTION_SCHEME: &str = "skylark-file:";
 
 /// A restorable point in the input's history: text plus where the caret and
 /// selection sat when the edit landed.

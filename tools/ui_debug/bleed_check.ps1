@@ -6,7 +6,7 @@
 # sharply once the tree covers it (tree rows are sparse text on dark bg;
 # file text is dense bright text).
 param(
-  [string]$Exe = "$PSScriptRoot\..\..\target\debug\zeron.exe",
+  [string]$Exe = "$PSScriptRoot\..\..\target\debug\skylark.exe",
   [string]$LogPath = "$PSScriptRoot\..\..\target\ui_trace.log",
   [string]$ShotDir = "$PSScriptRoot\..\..\target"
 )
@@ -28,7 +28,7 @@ public class W4 {
 "@
 [W4]::SetProcessDPIAware() | Out-Null
 if (Test-Path $LogPath) { Remove-Item $LogPath }
-$env:ZERON_UI_TRACE = "1"
+$env:SKYLARK_UI_TRACE = "1"
 $proc = Start-Process -FilePath $Exe -WorkingDirectory "$PSScriptRoot\..\.." -RedirectStandardError $LogPath -RedirectStandardOutput "$ShotDir\bleed.stdout.log" -PassThru
 try {
   Start-Sleep -Seconds 20

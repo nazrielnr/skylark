@@ -11,7 +11,7 @@ use gpui::{
     AnyElement, App, Context, Entity, FocusHandle, Pixels, SharedString, Subscription, Task,
     Window, div, px,
 };
-use zeron_proto::{Device, DriveEntry, DriveListing, FolderListing, Space};
+use skylark_proto::{Device, DriveEntry, DriveListing, FolderListing, Space};
 
 #[path = "add_flow/render.rs"]
 mod render;
@@ -74,7 +74,7 @@ fn path_under(path: &str, base: &str) -> bool {
 impl Shell {
     #[cfg(feature = "project-palette-fixture")]
     pub fn fixture_project_responses(&mut self, cx: &mut Context<Self>) {
-        if std::env::var_os("ZERON_FIXTURE_BACKGROUND").is_some() {
+        if std::env::var_os("SKYLARK_FIXTURE_BACKGROUND").is_some() {
             self.composer
                 .read(cx)
                 .pickers()
@@ -329,7 +329,7 @@ impl Shell {
 
     /// The current listing's folder rows filtered by the search query
     /// (prefix matches first â€” `popover::filter_indices`).
-    fn add_space_filtered(&self, cx: &App) -> Vec<zeron_proto::FolderEntry> {
+    fn add_space_filtered(&self, cx: &App) -> Vec<skylark_proto::FolderEntry> {
         let Some(flow) = self.add_space.as_ref() else {
             return Vec::new();
         };

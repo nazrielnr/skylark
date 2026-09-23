@@ -592,7 +592,7 @@ impl Shell {
         self.settings.window_geometry = current.window_geometry;
         self.settings.new_thread_composer_background = current.new_thread_composer_background;
         self.settings.new_thread_background_effect = current.new_thread_background_effect;
-        self.settings.open_web_links_in_zeron = current.open_web_links_in_zeron;
+        self.settings.open_web_links_in_skylark = current.open_web_links_in_skylark;
         self.settings.ui_font_family = current.ui_font_family;
         self.settings.ui_font_size = current.ui_font_size;
         self.settings.terminal_font_family = current.terminal_font_family;
@@ -611,7 +611,7 @@ impl Shell {
     /// Evaluate a width tween at the frame time (see [`WidthTween`]).
     /// Mid-flight: eased 200ms lerp, and `motion_active` is flagged so render
     /// schedules the next animation frame. Finished, stale, absent, or under
-    /// reduced motion: exactly `target`. Honors `ZERON_MOTION_SCALE`.
+    /// reduced motion: exactly `target`. Honors `SKYLARK_MOTION_SCALE`.
     pub(crate) fn eval_tween(&self, tween: Option<WidthTween>, target: f32) -> f32 {
         let Some(WidthTween { from, to, started }) = tween else {
             return target;
@@ -717,7 +717,7 @@ impl Shell {
     }
 
     pub(crate) fn render_sidebar(&mut self, _cx: &mut Context<Self>) -> AnyElement {
-        // The sidebar is part of the resolved theme. A second fixed-Zeron
+        // The sidebar is part of the resolved theme. A second fixed-Skylark
         // palette here made imported families look split in half and froze
         // activity/glyph personality independently of the selected variant.
         let inner = self.sidebar_pane.clone().cached(
@@ -909,7 +909,7 @@ impl Shell {
         );
         let main = self.render_main(window, main_content_width, transcript_width, cx);
         // The Changes pane is chat-scoped chrome: the Settings route
-        // never renders it (zeron __root.tsx `!isSettings && activeChat`
+        // never renders it (skylark __root.tsx `!isSettings && activeChat`
         // around the diff column) — the per-session open flags stay
         // intact for the return trip.
         let right_open = on_chat && self.right_pane_open(cx);
@@ -972,7 +972,7 @@ impl Shell {
             card_div = card_div.bg(bg);
         }
         let card: AnyElement = card_div.child(main).into_any_element();
-        // The whole app page is one keyed `animate-in` entrance (zeron
+        // The whole app page is one keyed `animate-in` entrance (skylark
         // App.tsx `<div key={phase} className="animate-in h-full">`):
         // arriving from the splash or any gate fades the page in; the
         // splash-out crossfades over it on boot.

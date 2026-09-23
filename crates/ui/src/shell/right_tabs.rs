@@ -383,7 +383,7 @@ impl Shell {
                         .read(cx)
                         .sub_transcript(&tab.doc_id)
                         .last()
-                        .is_some_and(|e| e.status == Some(zeron_doc::MessageStatus::Streaming))
+                        .is_some_and(|e| e.status == Some(skylark_doc::MessageStatus::Streaming))
                 }),
                 _ => false,
             };

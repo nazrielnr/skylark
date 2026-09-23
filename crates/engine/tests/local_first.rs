@@ -11,8 +11,8 @@ use tokio_tungstenite::tungstenite::Message as WsMessage;
 use tokio_tungstenite::tungstenite::handshake::server::{
     Request as WsRequest, Response as WsResponse,
 };
-use zeron_engine::{AuthState, Engine, EngineConfig, EngineInfo, HarnessId, WorkspaceScope};
-use zeron_rpc::{connect_ws, memory_client, methods};
+use skylark_engine::{AuthState, Engine, EngineConfig, EngineInfo, HarnessId, WorkspaceScope};
+use skylark_rpc::{connect_ws, memory_client, methods};
 
 fn config(
     data_dir: &std::path::Path,
@@ -29,6 +29,22 @@ fn config(
         org_id: None,
         workos_client_id: workos_client_id.map(str::to_string),
     }
+}
+
+async fn assert_paused_runtime(config: &EngineConfig) {
+    let session = config.data_dir.join("session.json");
+    let saved = std::fs::read(&session).ok();
+    let auth = Engine::build_auth(config).await;
+    assert!(!auth.loaded_workos_session());
+    assert_eq!(auth.state(), AuthState::SignedOut);
+    let scope = Engine::initial_workspace_scope(&auth);
+    assert_eq!(scope, WorkspaceScope::Local);
+    let profile = Engine::resolve_profile(config, &auth, scope).unwrap().unwrap();
+    let runtime = Engine::assemble_runtime(config, auth, profile).await.unwrap();
+    assert!(runtime.core().links().is_none());
+    assert!(runtime.core().updater().is_none());
+    runtime.shutdown().await;
+    assert_eq!(std::fs::read(&session).ok(), saved);
 }
 
 async fn rejecting_edge() -> (String, Arc<AtomicUsize>, tokio::task::JoinHandle<()>) {
@@ -350,6 +366,12 @@ async fn revoked_captured_session_stays_on_its_synced_cache() {
     .unwrap();
     let (edge_url, requests, edge_task) = rejecting_edge().await;
     let config = config(dir.path(), edge_url, Some("client_test"), None);
+    if skylark_engine::LOCAL_ONLY_BUILD {
+        assert_paused_runtime(&config).await;
+        assert_eq!(requests.load(Ordering::SeqCst), 0);
+        edge_task.abort();
+        return;
+    }
     let auth = Engine::build_auth(&config).await;
     let scope = Engine::initial_workspace_scope(&auth);
     let profile = Engine::resolve_profile(&config, &auth, scope)
@@ -395,6 +417,10 @@ async fn transient_refresh_failure_keeps_synced_recovery_supervisors_alive() {
         Some("client_test"),
         None,
     );
+    if skylark_engine::LOCAL_ONLY_BUILD {
+        assert_paused_runtime(&config).await;
+        return;
+    }
     let auth = Engine::build_auth(&config).await;
     let scope = Engine::initial_workspace_scope(&auth);
     let profile = Engine::resolve_profile(&config, &auth, scope)
@@ -431,6 +457,11 @@ async fn workspace_recovers_from_an_unreachable_edge_without_restarting() {
         r#"{"refreshToken":"still-valid","user":{"id":"user_1","email":"u@example.com"},"orgId":"org_1"}"#,
     ).unwrap();
     let config = config(dir.path(), edge.url.clone(), Some("client_test"), None);
+    if skylark_engine::LOCAL_ONLY_BUILD {
+        assert_paused_runtime(&config).await;
+        assert_eq!(edge.active_total(), 0);
+        return;
+    }
     let auth = Engine::build_auth(&config).await;
     let scope = Engine::initial_workspace_scope(&auth);
     let profile = Engine::resolve_profile(&config, &auth, scope)
@@ -442,7 +473,7 @@ async fn workspace_recovers_from_an_unreachable_edge_without_restarting() {
     let refresh_loop = auth.spawn_refresh_loop();
     assert!(matches!(
         auth.access_token().await,
-        Err(zeron_rpc::TokenError::TemporarilyUnavailable(_))
+        Err(skylark_rpc::TokenError::TemporarilyUnavailable(_))
     ));
     wait_until(
         || runtime.core().workspace.sync_status().is_some(),
@@ -475,6 +506,12 @@ async fn development_without_an_explicit_bearer_stays_offline() {
     let dir = tempfile::tempdir().unwrap();
     let (edge_url, requests, edge_task) = rejecting_edge().await;
     let config = config(dir.path(), edge_url, None, None);
+    if skylark_engine::LOCAL_ONLY_BUILD {
+        assert_paused_runtime(&config).await;
+        assert_eq!(requests.load(Ordering::SeqCst), 0);
+        edge_task.abort();
+        return;
+    }
     let auth = Engine::build_auth(&config).await;
     let scope = Engine::initial_workspace_scope(&auth);
     let profile = Engine::resolve_profile(&config, &auth, scope)
@@ -506,6 +543,11 @@ async fn explicit_dev_bearer_keeps_online_routing_enabled() {
         None,
         Some("dev-user@dev-org"),
     );
+    if skylark_engine::LOCAL_ONLY_BUILD {
+        assert_paused_runtime(&config).await;
+        assert!(!dir.path().join("orgs").exists());
+        return;
+    }
     let auth = Engine::build_auth(&config).await;
     let scope = Engine::initial_workspace_scope(&auth);
     let profile = Engine::resolve_profile(&config, &auth, scope)
@@ -594,6 +636,14 @@ async fn headless_sign_out_closes_joined_edge_rooms_and_stops_daemon() {
     })
     .await
     .expect("headless IPC did not start");
+    if skylark_engine::LOCAL_ONLY_BUILD {
+        assert!(client.call(methods::SIGN_OUT, serde_json::json!({})).await.is_err());
+        assert!(dir.path().join("session.json").exists());
+        assert_eq!(edge.active_total(), 0);
+        client.call(methods::STOP_ENGINE, serde_json::json!({})).await.unwrap();
+        tokio::time::timeout(std::time::Duration::from_secs(5), daemon).await.unwrap().unwrap().unwrap();
+        return;
+    }
     wait_until(
         || edge.active_matching("/registry/") > 0,
         "registry room did not connect",
@@ -654,11 +704,16 @@ async fn online_runtime_shutdown_stops_edge_workers_and_retires_the_graph() {
     if let Some(updater) = runtime.core().updater() {
         updater.check_now();
     }
-    wait_until(
-        || requests.load(Ordering::SeqCst) >= 2,
-        "edge workers never produced traffic before shutdown",
-    )
-    .await;
+    if skylark_engine::LOCAL_ONLY_BUILD {
+        assert_eq!(requests.load(Ordering::SeqCst), 0);
+        assert!(runtime.core().updater().is_none());
+        assert!(runtime.core().links().is_none());
+    } else {
+        wait_until(
+            || requests.load(Ordering::SeqCst) >= 2,
+            "edge workers never produced traffic before shutdown",
+        ).await;
+    }
 
     tokio::time::timeout(std::time::Duration::from_secs(30), runtime.shutdown())
         .await

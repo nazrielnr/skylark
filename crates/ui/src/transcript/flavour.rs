@@ -4,7 +4,7 @@ use super::row::fnv1a;
 
 /// Rotating flavour vocabulary (21 words / 7s, seeded per chat).
 pub const FLAVOUR_WORDS: [&str; 21] = [
-    "Zeroning",
+    "Skylarking",
     "Thinking",
     "Pondering",
     "Scheming",

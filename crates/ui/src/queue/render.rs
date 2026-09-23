@@ -22,7 +22,7 @@ impl Composer {
             let chat_id = state.selected_chat.clone()?;
             let host_supports_actions = state.chat_host_supports(
                 &chat_id,
-                zeron_proto::capabilities::MESSAGE_QUEUE_ACTIONS_V1,
+                skylark_proto::capabilities::MESSAGE_QUEUE_ACTIONS_V1,
             );
             (state.queue.clone(), chat_id, host_supports_actions)
         };

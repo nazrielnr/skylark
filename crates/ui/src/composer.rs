@@ -23,10 +23,10 @@ use gpui::{
 use unicode_segmentation::UnicodeSegmentation;
 
 #[cfg(test)]
-use zeron_doc::{MessagePart, MessageRole, SessionMessageEntry};
-use zeron_proto::{HarnessId, SlashCommand};
+use skylark_doc::{MessagePart, MessageRole, SessionMessageEntry};
+use skylark_proto::{HarnessId, SlashCommand};
 #[cfg(test)]
-use zeron_proto::UserInputQuestion;
+use skylark_proto::UserInputQuestion;
 
 use crate::appshots::CapturedAppshot;
 #[cfg(test)]
@@ -142,7 +142,7 @@ pub enum ComposerEvent {
     /// chat, even when the user has selected another chat in the meantime.
     WorktreeSetup {
         chat_id: String,
-        setup_action: Option<zeron_proto::ProjectActionRun>,
+        setup_action: Option<skylark_proto::ProjectActionRun>,
         setup_error: Option<String>,
         target_device_id: Option<String>,
     },
@@ -176,7 +176,7 @@ pub struct Composer {
     /// gets focus back on close.
     pub(super) preview_focus: FocusHandle,
     /// Focus grab deferred to the next render (open sites don't all have a
-    /// `Window` — the `ZERON_ATTACH_PREVIEW` boot knob opens in `new`).
+    /// `Window` — the `SKYLARK_ATTACH_PREVIEW` boot knob opens in `new`).
     pub(super) preview_focus_pending: bool,
     /// In-flight file-picker prompt (paperclip).
     pub(super) picker_task: Option<Task<()>>,
@@ -499,9 +499,9 @@ impl Composer {
             _input_events: input_events,
         };
         // Dev knob: pre-stage attachments (drop/paste can't be synthesized on
-        // a rig) — `ZERON_ATTACH=/path/a.png[,/path/b.png]`, and
-        // `ZERON_ATTACH_PREVIEW=1` boots with the first one's lightbox open.
-        if let Ok(spec) = std::env::var("ZERON_ATTACH") {
+        // a rig) — `SKYLARK_ATTACH=/path/a.png[,/path/b.png]`, and
+        // `SKYLARK_ATTACH_PREVIEW=1` boots with the first one's lightbox open.
+        if let Ok(spec) = std::env::var("SKYLARK_ATTACH") {
             let staged: Vec<StagedAttachment> = spec
                 .split(',')
                 .filter(|s| !s.trim().is_empty())
@@ -509,13 +509,13 @@ impl Composer {
                     match attachments::stage_file(std::path::Path::new(path.trim())) {
                         Ok(att) => Some(att),
                         Err(err) => {
-                            tracing::warn!(%path, error = %err, "ZERON_ATTACH stage failed");
+                            tracing::warn!(%path, error = %err, "SKYLARK_ATTACH stage failed");
                             None
                         }
                     }
                 })
                 .collect();
-            if std::env::var("ZERON_ATTACH_PREVIEW").is_ok_and(|v| v == "1")
+            if std::env::var("SKYLARK_ATTACH_PREVIEW").is_ok_and(|v| v == "1")
                 && let Some(first) = staged.first()
             {
                 composer.preview = Some(attachments::PreviewImage::new(
@@ -535,7 +535,7 @@ impl Composer {
         composer
     }
 
-    /// Capture-knob passthrough (`ZERON_OPEN_DIALOG=model`): open the
+    /// Capture-knob passthrough (`SKYLARK_OPEN_DIALOG=model`): open the
     /// combined harness/model menu.
     pub fn debug_open_model_menu(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.pickers

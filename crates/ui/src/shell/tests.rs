@@ -356,11 +356,18 @@ use super::*;
             edge_token: None,
             org_id: None,
             workos_client_id: Some("client_test".into()),
-            default_harness: zeron_proto::HarnessId::Mock,
+            default_harness: skylark_proto::HarnessId::Mock,
         };
         let synced = crate::state::EngineHandle::bootstrap(boot.clone())
             .await
             .expect("saved session opens its synced profile");
+        if skylark_proto::LOCAL_ONLY_BUILD {
+            assert_eq!(synced.engine_info().workspace_scope, WorkspaceScope::Local);
+            assert!(synced.client().call(methods::SIGN_OUT, serde_json::json!({})).await.is_err());
+            assert!(dir.path().join("session.json").exists());
+            synced.shutdown().await;
+            return;
+        }
         assert_eq!(synced.engine_info().workspace_scope, WorkspaceScope::Synced);
 
         synced
@@ -436,7 +443,7 @@ use super::*;
     #[test]
     fn local_sign_in_offers_the_in_place_switch() {
         let signed_in = AuthState::SignedIn {
-            user: zeron_proto::UserProfile {
+            user: skylark_proto::UserProfile {
                 id: "user-1".into(),
                 email: "user@example.com".into(),
                 name: None,
@@ -548,7 +555,7 @@ use super::*;
     #[test]
     fn dismissed_import_failure_stays_reachable_on_a_synced_runtime() {
         let signed_in = AuthState::SignedIn {
-            user: zeron_proto::UserProfile {
+            user: skylark_proto::UserProfile {
                 id: "user-1".into(),
                 email: "user@example.com".into(),
                 name: None,
@@ -591,7 +598,7 @@ use super::*;
     #[test]
     fn switch_lifecycle_survives_the_runtime_replacement_window() {
         let signed_in = AuthState::SignedIn {
-            user: zeron_proto::UserProfile {
+            user: skylark_proto::UserProfile {
                 id: "user-1".into(),
                 email: "user@example.com".into(),
                 name: None,
@@ -626,7 +633,7 @@ use super::*;
     #[test]
     fn synced_sign_out_blocks_every_viewport_and_cannot_switch_accounts() {
         let signed_in_as_another_user = AuthState::SignedIn {
-            user: zeron_proto::UserProfile {
+            user: skylark_proto::UserProfile {
                 id: "user-2".into(),
                 email: "other@example.com".into(),
                 name: None,
@@ -664,8 +671,8 @@ use super::*;
     }
 
     #[test]
-    fn titlebar_cluster_matches_zeron_window_controls() {
-        // zeron window-controls.tsx: `left: fullscreen ? 12 : 88` — the
+    fn titlebar_cluster_matches_skylark_window_controls() {
+        // skylark window-controls.tsx: `left: fullscreen ? 12 : 88` — the
         // cluster clears the {14,15} traffic lights, and reclaims the inset
         // when fullscreen hides them.
         assert_eq!(titlebar_cluster_start(false), 88.0);
@@ -744,7 +751,7 @@ use super::*;
         );
     }
 
-    // ---- per-session panel flags (§1.10/1.11 parity: zeron sessionPanels) ----
+    // ---- per-session panel flags (§1.10/1.11 parity: skylark sessionPanels) ----
 
     #[test]
     fn session_panels_default_closed_per_chat() {
@@ -886,7 +893,7 @@ use super::*;
     #[test]
     fn nav_push_truncates_the_forward_branch() {
         // a → b → c, back to a, then push d: the b/c branch is gone (browser
-        // semantics — zeron's memory history PUSH truncates entries ahead).
+        // semantics — skylark's memory history PUSH truncates entries ahead).
         let mut nav = NavHistory::new(chat("a"));
         nav.push(chat("b"));
         nav.push(chat("c"));
@@ -966,7 +973,7 @@ mod exit_regressions {
                     edge_token: None,
                     org_id: None,
                     workos_client_id: None,
-                    default_harness: zeron_proto::HarnessId::Mock,
+                    default_harness: skylark_proto::HarnessId::Mock,
                 },
                 cx,
             )
@@ -1038,7 +1045,7 @@ mod exit_regressions {
                     edge_token: None,
                     org_id: None,
                     workos_client_id: None,
-                    default_harness: zeron_proto::HarnessId::Mock,
+                    default_harness: skylark_proto::HarnessId::Mock,
                 },
                 cx,
             )
@@ -1139,7 +1146,7 @@ mod exit_regressions {
                     edge_token: None,
                     org_id: None,
                     workos_client_id: None,
-                    default_harness: zeron_proto::HarnessId::Mock,
+                    default_harness: skylark_proto::HarnessId::Mock,
                 },
                 cx,
             )
@@ -1148,13 +1155,13 @@ mod exit_regressions {
             .into_iter()
             .enumerate()
         {
-            let open_links_in_zeron = index % 2 == 0;
-            let terminal_family = if open_links_in_zeron {
+            let open_links_in_skylark = index % 2 == 0;
+            let terminal_family = if open_links_in_skylark {
                 crate::typography::UiFontFamily::System
             } else {
                 crate::typography::UiFontFamily::Geist
             };
-            let code_family = if open_links_in_zeron {
+            let code_family = if open_links_in_skylark {
                 crate::typography::UiFontFamily::Geist
             } else {
                 crate::typography::UiFontFamily::System
@@ -1178,7 +1185,7 @@ mod exit_regressions {
                     settings::set_new_thread_background_effect(effect, cx);
                     settings::update(settings::SavePolicy::Immediate, cx, |settings| {
                         settings.window_geometry = geometry;
-                        settings.open_web_links_in_zeron = open_links_in_zeron;
+                        settings.open_web_links_in_skylark = open_links_in_skylark;
                         settings.terminal_font_family = terminal_family.clone();
                         settings.terminal_font_size = terminal_size;
                         settings.code_font_family = code_family.clone();
@@ -1193,7 +1200,7 @@ mod exit_regressions {
                         let current = settings::current(cx);
                         assert_eq!(current.window_geometry, geometry);
                         assert_eq!(current.new_thread_background_effect, effect);
-                        assert_eq!(current.open_web_links_in_zeron, open_links_in_zeron);
+                        assert_eq!(current.open_web_links_in_skylark, open_links_in_skylark);
                         assert_eq!(current.terminal_font_family, terminal_family);
                         assert_eq!(current.terminal_font_size, terminal_size);
                         assert_eq!(current.code_font_family, code_family);
@@ -1204,7 +1211,7 @@ mod exit_regressions {
                     let loaded = settings::UiSettings::load(dir.path());
                     assert_eq!(loaded.window_geometry, geometry);
                     assert_eq!(loaded.new_thread_background_effect, effect);
-                    assert_eq!(loaded.open_web_links_in_zeron, open_links_in_zeron);
+                    assert_eq!(loaded.open_web_links_in_skylark, open_links_in_skylark);
                     assert_eq!(loaded.terminal_font_family, terminal_family);
                     assert_eq!(loaded.terminal_font_size, terminal_size);
                     assert_eq!(loaded.code_font_family, code_family);
@@ -1245,7 +1252,7 @@ mod exit_regressions {
                     edge_token: None,
                     org_id: None,
                     workos_client_id: None,
-                    default_harness: zeron_proto::HarnessId::Mock,
+                    default_harness: skylark_proto::HarnessId::Mock,
                 },
                 cx,
             )
@@ -1330,7 +1337,7 @@ mod exit_regressions {
                     edge_token: None,
                     org_id: None,
                     workos_client_id: None,
-                    default_harness: zeron_proto::HarnessId::Mock,
+                    default_harness: skylark_proto::HarnessId::Mock,
                 },
                 cx,
             )
@@ -1408,7 +1415,7 @@ mod exit_regressions {
                     edge_token: None,
                     org_id: None,
                     workos_client_id: None,
-                    default_harness: zeron_proto::HarnessId::Mock,
+                    default_harness: skylark_proto::HarnessId::Mock,
                 },
                 cx,
             )
@@ -1416,7 +1423,7 @@ mod exit_regressions {
         window
             .update(cx, |shell, _, cx| {
                 shell.state.update(cx, |state, _| {
-                    state.apply_spaces(vec![zeron_proto::Space {
+                    state.apply_spaces(vec![skylark_proto::Space {
                         id: "repo".into(),
                         device_id: "local".into(),
                         path: "/repo".into(),
@@ -1473,7 +1480,7 @@ mod exit_regressions {
                     edge_token: None,
                     org_id: None,
                     workos_client_id: None,
-                    default_harness: zeron_proto::HarnessId::Mock,
+                    default_harness: skylark_proto::HarnessId::Mock,
                 },
                 cx,
             )
@@ -1510,7 +1517,7 @@ mod exit_regressions {
                 shell.activate_session_link(&activation, window, cx);
                 assert_eq!(shell.browsers.len(), 2);
                 settings::update(settings::SavePolicy::Immediate, cx, |settings| {
-                    settings.open_web_links_in_zeron = false;
+                    settings.open_web_links_in_skylark = false;
                 });
                 assert_eq!(
                     shell.activate_session_link(&activation, window, cx),
@@ -1601,7 +1608,7 @@ mod exit_regressions {
                     edge_token: None,
                     org_id: None,
                     workos_client_id: None,
-                    default_harness: zeron_proto::HarnessId::Mock,
+                    default_harness: skylark_proto::HarnessId::Mock,
                 },
                 cx,
             )
@@ -1697,7 +1704,7 @@ mod exit_regressions {
                     edge_token: None,
                     org_id: None,
                     workos_client_id: None,
-                    default_harness: zeron_proto::HarnessId::Mock,
+                    default_harness: skylark_proto::HarnessId::Mock,
                 },
                 cx,
             )
@@ -1775,7 +1782,7 @@ mod exit_regressions {
                     edge_token: None,
                     org_id: None,
                     workos_client_id: None,
-                    default_harness: zeron_proto::HarnessId::Mock,
+                    default_harness: skylark_proto::HarnessId::Mock,
                 },
                 cx,
             )
@@ -1837,7 +1844,7 @@ mod exit_regressions {
                     edge_token: None,
                     org_id: None,
                     workos_client_id: None,
-                    default_harness: zeron_proto::HarnessId::Mock,
+                    default_harness: skylark_proto::HarnessId::Mock,
                 },
                 cx,
             )
@@ -1898,4 +1905,3 @@ mod exit_regressions {
         }
     }
 }
-

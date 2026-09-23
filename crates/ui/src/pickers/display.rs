@@ -53,7 +53,7 @@ impl Pickers {
             PickerKind::Device => "picker-device",
         };
         let open = self.open_kind() == Some(kind);
-        // Ghost pill (zeron composer/styles.tsx `pill`): `h-8 rounded-lg px-2.5
+        // Ghost pill (skylark composer/styles.tsx `pill`): `h-8 rounded-lg px-2.5
         // gap-1.5 text-[12px] font-medium text-muted-foreground`, icons size-4,
         // hover/open wash — no border, no caret; the actions row stays quiet.
         div()
@@ -535,7 +535,7 @@ impl Pickers {
         let theme = Theme::of(cx).for_popup();
         popover::popover_card(&theme)
             .w(px(width))
-            // zeron caps its tallest picker at min(640px, 75vh).
+            // skylark caps its tallest picker at min(640px, 75vh).
             .max_h(px(640.0))
             .track_focus(&self.focus)
             .on_key_down(cx.listener(|this, event: &KeyDownEvent, window, cx| {
@@ -571,7 +571,7 @@ impl Pickers {
     }
 
     /// [`Self::popover_frame`] without the p-1 inset — the harness/model
-    /// picker's rail + list panes bleed to the card edge (zeron
+    /// picker's rail + list panes bleed to the card edge (skylark
     /// harness-model-picker.tsx `className="w-80 p-0"`).
     pub(crate) fn popover_frame_flush(
         &self,
@@ -755,7 +755,7 @@ fn attach_overlay_end(
 impl Render for Pickers {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = Theme::of(cx).clone();
-        // A ZERON_OPEN_PICKER popover never went through `toggle`, so claim
+        // A SKYLARK_OPEN_PICKER popover never went through `toggle`, so claim
         // its keyboard focus here (re-claim until it sticks — the shell's
         // first-paint fallback focuses the composer after our first render).
         if self.boot_focus_pending {
@@ -810,7 +810,7 @@ impl Render for Pickers {
         // opens, and rail switches inside the picker are instant.
         self.ensure_harnesses(false, cx);
         self.prefetch_models(false, cx);
-        // A popover opened data-side (ZERON_OPEN_PICKER) never went through
+        // A popover opened data-side (SKYLARK_OPEN_PICKER) never went through
         // `toggle`, so kick its loads here (all ensure_* are idempotent).
         if matches!(
             self.open_kind(),
@@ -819,7 +819,7 @@ impl Render for Pickers {
         {
             self.ensure_refs(false, cx);
         }
-        // Chip shows the model's display name alone (zeron `modelText`); the
+        // Chip shows the model's display name alone (skylark `modelText`); the
         // harness reads from the brand mark beside it. Never "Default model":
         // before the catalog lands the remembered label (or the configured id)
         // names the pick; the loaded list then resolves it to a concrete row.

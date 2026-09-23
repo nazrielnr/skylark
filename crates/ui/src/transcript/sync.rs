@@ -3,7 +3,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use gpui::{Context, ListOffset, SharedString, px};
-use zeron_doc::MessageStatus;
+use skylark_doc::MessageStatus;
 
 use crate::markdown::parser::parse_full;
 use crate::markdown::render;

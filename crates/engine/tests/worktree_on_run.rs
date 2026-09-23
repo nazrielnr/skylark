@@ -1,7 +1,7 @@
 //! Host-side worktree materialization: a Run command carrying a
 //! `WorktreeSpec` creates the isolated worktree on the HOST at drain time
 //! (the durable replacement for the composer's old blocking CreateWorktree
-//! relay RPC), runs there, and stamps the chat row's cwd + `zeron/<name>`
+//! relay RPC), runs there, and stamps the chat row's cwd + `skylark/<name>`
 //! branch. A second spec-carrying Run for the same chat REUSES the checkout
 //! instead of minting another.
 
@@ -14,10 +14,10 @@ use async_trait::async_trait;
 use futures::StreamExt;
 use futures::stream::BoxStream;
 
-use zeron_doc::{MessageRole, MessageStatus, SessionCommandPayload, SessionMessageEntry};
-use zeron_engine::{EngineCore, HarnessRegistry};
-use zeron_harness::{Harness, HarnessError, RunControls};
-use zeron_proto::{
+use skylark_doc::{MessageRole, MessageStatus, SessionCommandPayload, SessionMessageEntry};
+use skylark_engine::{EngineCore, HarnessRegistry};
+use skylark_harness::{Harness, HarnessError, RunControls};
+use skylark_proto::{
     AgentEvent, DoneStatus, HarnessId, Model, ProjectActionDraft, ProjectActionIcon,
     ReasoningLevel, RunRequest, SandboxLevel, SteeringMode, WorktreeSpec,
 };
@@ -155,7 +155,7 @@ async fn check_worktree_setup_and_reuse(use_project_symlink: bool) {
     // macOS tempdirs live behind the /var → /private/var symlink.
     let tmp_path = tmp.path().canonicalize().unwrap();
     let worktrees_root = tmp_path.join("worktrees");
-    unsafe { std::env::set_var("ZERON_WORKTREES_DIR", &worktrees_root) };
+    unsafe { std::env::set_var("SKYLARK_WORKTREES_DIR", &worktrees_root) };
 
     let repo_dir = tmp_path.join("repo");
     std::fs::create_dir_all(&repo_dir).unwrap();
@@ -203,15 +203,15 @@ async fn check_worktree_setup_and_reuse(use_project_symlink: bool) {
         .expect("create project");
     // Save through the same RPC as the editor: the Space may use an alias
     // while the queued WorktreeSpec carries the canonical repository path.
-    let client = zeron_rpc::memory_client(core.rpc_service());
+    let client = skylark_rpc::memory_client(core.rpc_service());
     client
         .call(
-            zeron_rpc::methods::UPSERT_PROJECT_ACTION,
+            skylark_rpc::methods::UPSERT_PROJECT_ACTION,
             serde_json::json!({
                 "spaceId": "space-worktree-run",
                 "action": ProjectActionDraft {
                     name: "Setup".into(),
-                    command: "printf '%s' \"$ZERON_PROJECT_ROOT\" > setup-project-root; printf '%s' \"$ZERON_WORKTREE_PATH\" > setup-worktree-path; printf setup > setup-marker".into(),
+                    command: "printf '%s' \"$SKYLARK_PROJECT_ROOT\" > setup-project-root; printf '%s' \"$SKYLARK_WORKTREE_PATH\" > setup-worktree-path; printf setup > setup-marker".into(),
                     icon: ProjectActionIcon::Configure,
                     run_on_worktree_create: true,
                 }
@@ -224,7 +224,7 @@ async fn check_worktree_setup_and_reuse(use_project_symlink: bool) {
     // resolves the project folder), then the queued Run carries the spec.
     client
         .call(
-            zeron_rpc::methods::MUTATE,
+            skylark_rpc::methods::MUTATE,
             serde_json::json!({
                 "op": "createChat",
                 "chatId": CHAT,
@@ -284,7 +284,7 @@ async fn check_worktree_setup_and_reuse(use_project_symlink: bool) {
     std::fs::remove_file(first.join("setup-marker")).unwrap();
 
     // The chat row follows: cwd repointed at the worktree, branch stamped
-    // with the actual zeron/<name> (the composer only knew the base).
+    // with the actual skylark/<name> (the composer only knew the base).
     let chat = core
         .workspace
         .chat(CHAT)
@@ -293,7 +293,7 @@ async fn check_worktree_setup_and_reuse(use_project_symlink: bool) {
     assert_eq!(chat.cwd.as_deref(), Some(first_cwd.as_str()));
     let branch = chat.branch.expect("branch stamped");
     assert!(
-        branch.starts_with("zeron/"),
+        branch.starts_with("skylark/"),
         "stamped branch is the worktree's own: {branch}"
     );
 

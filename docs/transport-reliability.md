@@ -1,5 +1,8 @@
 # Transport reliability: measured Cloudflare results
 
+> **Skylark build status: local-only.** Product login/logout, cloud sync, remote control, updates, public installation, and publishing are temporarily paused. Provider agent authentication remains available. Cloud/mobile/release instructions and results below are historical reference, not current setup guidance. See [current policy](LOCAL_ONLY.md).
+
+
 ## What changed
 
 High round-trip latency exposed unnecessary retransmission: every new edit sent
@@ -109,22 +112,22 @@ regression, and the final implementation uses byte progress and fragmentation.
 ## Reproduce
 
 ```sh
-cargo test -p zeron-sync -p zeron-rpc --features zeron-sync/mock-server
-cargo test -p zeron-sync --lib socket:: -- --nocapture
-cargo clippy -p zeron-sync -p zeron-rpc --all-targets --features zeron-sync/mock-server
-cargo build -p zeron-sync --example transport_live
+cargo test -p skylark-sync -p skylark-rpc --features skylark-sync/mock-server
+cargo test -p skylark-sync --lib socket:: -- --nocapture
+cargo clippy -p skylark-sync -p skylark-rpc --all-targets --features skylark-sync/mock-server
+cargo build -p skylark-sync --example transport_live
 
 # Requires authenticated Wrangler and an account with Workers/R2 enabled.
 cd edge
 npm ci
-node_modules/.bin/wrangler r2 bucket create zeron-transport-385-20260915
+node_modules/.bin/wrangler r2 bucket create skylark-transport-385-20260915
 node_modules/.bin/wrangler deploy --config wrangler.transport-test.jsonc
 cd ..
 
 # Use the isolated workers.dev URL printed by deployment.
 python3 scripts/run-transport-matrix.py \
   --binary target/debug/examples/transport_live \
-  --origin https://zeron-transport-385-20260915.YOUR-SUBDOMAIN.workers.dev \
+  --origin https://skylark-transport-385-20260915.YOUR-SUBDOMAIN.workers.dev \
   --profile stream --output /tmp/transport-stream.json
 # Repeat with: very-slow, outage, http, catchup, upload.
 ```
@@ -140,7 +143,7 @@ After testing, delete only the isolated resources:
 ```sh
 cd edge
 node_modules/.bin/wrangler delete --config wrangler.transport-test.jsonc
-node_modules/.bin/wrangler r2 bucket delete zeron-transport-385-20260915
+node_modules/.bin/wrangler r2 bucket delete skylark-transport-385-20260915
 ```
 
 ## Scope and remaining limits

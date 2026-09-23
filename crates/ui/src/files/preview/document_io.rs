@@ -182,7 +182,7 @@ impl FilesSurface {
         content_hash: String,
         cx: &mut Context<Self>,
     ) {
-        let Some(language) = zeron_syntax::language_for_path(&path) else {
+        let Some(language) = skylark_syntax::language_for_path(&path) else {
             return;
         };
         let Some((document_key, generation, revision)) = self
@@ -226,7 +226,7 @@ impl FilesSurface {
             let highlighted = cx
                 .background_executor()
                 .spawn(async move {
-                    zeron_syntax::highlight(zeron_syntax::HighlightRequest {
+                    skylark_syntax::highlight(skylark_syntax::HighlightRequest {
                         source: &source,
                         path: Some(&request_path),
                         fence_tag: None,
@@ -324,7 +324,7 @@ impl FilesSurface {
         revision: u64,
         cx: &mut Context<Self>,
     ) {
-        let Some(language) = zeron_syntax::language_for_path(&path) else {
+        let Some(language) = skylark_syntax::language_for_path(&path) else {
             return;
         };
         let Some((document_key, generation)) = self
@@ -347,7 +347,7 @@ impl FilesSurface {
             let highlighted = cx
                 .background_executor()
                 .spawn(async move {
-                    zeron_syntax::highlight(zeron_syntax::HighlightRequest {
+                    skylark_syntax::highlight(skylark_syntax::HighlightRequest {
                         source: &source_for_parse,
                         path: Some(&request_path),
                         fence_tag: None,

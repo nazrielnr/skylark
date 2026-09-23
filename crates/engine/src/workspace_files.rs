@@ -13,7 +13,7 @@ use std::time::{Duration, Instant};
 use sha2::{Digest, Sha256};
 use tokio::sync::{Notify, broadcast, mpsc};
 use tokio_util::sync::CancellationToken;
-use zeron_proto::{
+use skylark_proto::{
     ListWorkspaceDirectoryRequest, ReadWorkspaceFileRequest, SearchWorkspaceFilesRequest,
     WatchWorkspaceFilesRequest, WorkspaceDirectoryPage, WorkspaceEntry, WorkspaceEntryKind,
     WorkspaceFileChange, WorkspaceFileChangeKind, WorkspaceFileChanges,
@@ -22,7 +22,7 @@ use zeron_proto::{
     WorkspaceTextEncoding, WorkspaceWritableEncoding, WorkspaceWritableLineEnding,
     WriteWorkspaceFileOutcome, WriteWorkspaceFileRequest,
 };
-use zeron_rpc::RpcError;
+use skylark_rpc::RpcError;
 
 use crate::{Repos, WorkspaceHost};
 
@@ -388,8 +388,8 @@ impl WorkspaceFiles {
 
     pub async fn read_image(
         &self,
-        request: zeron_proto::ReadWorkspaceImageRequest,
-    ) -> Result<zeron_proto::WorkspaceImageChunk, WorkspaceFilesError> {
+        request: skylark_proto::ReadWorkspaceImageRequest,
+    ) -> Result<skylark_proto::WorkspaceImageChunk, WorkspaceFilesError> {
         let workspace = self.resolve_target(&request.target).await?;
         if request.expected_checkout_id.is_empty()
             || request.expected_checkout_id != workspace.checkout_id
@@ -892,7 +892,7 @@ fn normalize_watch_path_including_temp(root: &Path, path: &Path) -> Option<Strin
 fn is_internal_temp_wire_path(path: &str) -> bool {
     path.rsplit('/')
         .next()
-        .is_some_and(|name| name.starts_with(".zeron-save-") && name.ends_with(".tmp"))
+        .is_some_and(|name| name.starts_with(".skylark-save-") && name.ends_with(".tmp"))
 }
 
 fn exceeds_watch_budget(root: &Path) -> bool {
@@ -1190,11 +1190,11 @@ fn compare_workspace_search_matches(
 fn read_image_blocking(
     root: &Path,
     relative: &WorkspaceRelativePath,
-    request: &zeron_proto::ReadWorkspaceImageRequest,
-) -> Result<zeron_proto::WorkspaceImageChunk, WorkspaceFilesError> {
+    request: &skylark_proto::ReadWorkspaceImageRequest,
+) -> Result<skylark_proto::WorkspaceImageChunk, WorkspaceFilesError> {
     use base64::Engine as _;
     use std::io::Read;
-    use zeron_proto::{MAX_WORKSPACE_IMAGE_BYTES, WORKSPACE_IMAGE_CHUNK_BYTES};
+    use skylark_proto::{MAX_WORKSPACE_IMAGE_BYTES, WORKSPACE_IMAGE_CHUNK_BYTES};
     let mime = match relative
         .as_path()
         .extension()
@@ -1269,7 +1269,7 @@ fn read_image_blocking(
         .offset
         .saturating_add(WORKSPACE_IMAGE_CHUNK_BYTES)
         .min(bytes.len());
-    Ok(zeron_proto::WorkspaceImageChunk {
+    Ok(skylark_proto::WorkspaceImageChunk {
         checkout_id: request.expected_checkout_id.clone(),
         content_hash: hash,
         mime_type: mime.into(),
@@ -1638,7 +1638,7 @@ fn write_file_blocking(
     let parent = target
         .parent()
         .ok_or_else(|| WorkspaceFilesError::Io("file has no parent directory".into()))?;
-    let temp_path = parent.join(format!(".zeron-save-{}.tmp", uuid::Uuid::new_v4()));
+    let temp_path = parent.join(format!(".skylark-save-{}.tmp", uuid::Uuid::new_v4()));
     let mut temp = TempFileGuard::new(temp_path.clone());
     let mut file = std::fs::OpenOptions::new()
         .write(true)
@@ -2390,7 +2390,7 @@ mod tests {
                 .unwrap()
                 .file_name()
                 .to_string_lossy()
-                .starts_with(".zeron-save-")
+                .starts_with(".skylark-save-")
         }));
     }
 
@@ -2477,7 +2477,7 @@ mod tests {
             ),
             Ok(
                 notify::Event::new(EventKind::Modify(ModifyKind::Name(RenameMode::Both)))
-                    .add_path(root.join(".zeron-save-dead.tmp"))
+                    .add_path(root.join(".skylark-save-dead.tmp"))
                     .add_path(root.join("saved.rs")),
             ),
         ];
@@ -2758,7 +2758,7 @@ mod tests {
 #[cfg(test)]
 mod image_tests {
     use super::*;
-    use zeron_proto::{ReadWorkspaceImageRequest, WORKSPACE_IMAGE_CHUNK_BYTES, WorkspaceTarget};
+    use skylark_proto::{ReadWorkspaceImageRequest, WORKSPACE_IMAGE_CHUNK_BYTES, WorkspaceTarget};
     fn request() -> ReadWorkspaceImageRequest {
         ReadWorkspaceImageRequest {
             target: WorkspaceTarget {
@@ -2806,7 +2806,7 @@ mod image_tests {
         let dir = tempfile::tempdir().unwrap();
         let root = dir.path().canonicalize().unwrap();
         let file = std::fs::File::create(root.join("image.png")).unwrap();
-        file.set_len(zeron_proto::MAX_WORKSPACE_IMAGE_BYTES as u64 + 1)
+        file.set_len(skylark_proto::MAX_WORKSPACE_IMAGE_BYTES as u64 + 1)
             .unwrap();
         assert!(
             read_image_blocking(

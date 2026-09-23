@@ -1,21 +1,21 @@
 use std::time::Duration;
 
 use gpui::Context;
-use zeron_engine::registry::HarnessDescriptor;
-use zeron_proto::{HarnessId, Model};
-use zeron_rpc::methods;
+use skylark_engine::registry::HarnessDescriptor;
+use skylark_proto::{HarnessId, Model};
+use skylark_rpc::methods;
 
 use crate::popover::Loadable;
 
 use super::model_catalog::{normalize_model_rows, offered_harnesses};
 use super::{PickerKind, Pickers};
 
-/// Dev/testing knob: `ZERON_SLOW_CATALOG_MS=<ms>` delays every harness and
+/// Dev/testing knob: `SKYLARK_SLOW_CATALOG_MS=<ms>` delays every harness and
 /// model catalog result app-side — the chip/tab/list loading states are
 /// sub-second against a warm local daemon and unstageable otherwise
-/// (headless-rig captures; same family as `ZERON_OPEN_PICKER`).
+/// (headless-rig captures; same family as `SKYLARK_OPEN_PICKER`).
 pub(crate) fn slow_catalog_delay() -> Option<Duration> {
-    std::env::var("ZERON_SLOW_CATALOG_MS")
+    std::env::var("SKYLARK_SLOW_CATALOG_MS")
         .ok()
         .and_then(|ms| ms.parse::<u64>().ok())
         .map(Duration::from_millis)

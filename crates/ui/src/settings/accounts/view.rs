@@ -82,7 +82,7 @@ impl AccountsPage {
         }
     }
 
-    /// The page-header device switcher (zeron device-switcher.tsx): a quiet
+    /// The page-header device switcher (skylark device-switcher.tsx): a quiet
     /// trigger — platform glyph · name · presence dot · sort glyph — opening a
     /// dropdown of every registered device. Selecting one retargets the page.
     pub(super) fn render_device_switcher(
@@ -95,7 +95,7 @@ impl AccountsPage {
             let s = self.state.read(cx);
             (s.devices.clone(), s.local_device_id.clone())
         };
-        // Stable row order (registration time, then id) — zeron's switcher
+        // Stable row order (registration time, then id) — skylark's switcher
         // sorts the same way so rows never reshuffle on heartbeats.
         devices.sort_by(|a, b| {
             a.created_at
@@ -326,7 +326,7 @@ impl AccountsPage {
             this.update(cx, |page, cx| {
                 match result.and_then(|value| {
                     serde_json::from_value::<AgentLoginStart>(value)
-                        .map_err(|e| zeron_rpc::RpcError::Failed(e.to_string()))
+                        .map_err(|e| skylark_rpc::RpcError::Failed(e.to_string()))
                 }) {
                     Ok(start) => {
                         cx.open_url(&start.url);

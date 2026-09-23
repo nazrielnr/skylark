@@ -39,7 +39,7 @@ fn departing_transcript_is_retained_only_until_hidden(cx: &mut gpui::TestAppCont
         });
     });
 }
-use zeron_doc::MessagePart;
+use skylark_doc::MessagePart;
 
 fn with_tool_group_navigation(
     cx: &mut gpui::TestAppContext,
@@ -157,14 +157,14 @@ fn tool_groups_stay_closed_after_rapid_new_chat_navigation(cx: &mut gpui::TestAp
 fn tool_group_revisit_skips_batched_history_but_animates_live_arrivals(
     cx: &mut gpui::TestAppContext,
 ) {
-    use zeron_doc::transcript_delta::{TranscriptFrame, diff_transcript};
+    use skylark_doc::transcript_delta::{TranscriptFrame, diff_transcript};
 
     with_tool_group_navigation(cx, |state, transcript, cx| {
         let apply_frame = |frame, replay_baseline, cx: &mut gpui::App| {
             state.update(cx, |state, cx| {
                 state
                     .receive_transcript_update(
-                        zeron_doc::TranscriptUpdate {
+                        skylark_doc::TranscriptUpdate {
                             frame,
                             replay_baseline,
                             context_usage: None,
@@ -182,7 +182,7 @@ fn tool_group_revisit_skips_batched_history_but_animates_live_arrivals(
         )];
         apply_frame(
             TranscriptFrame::reset(&cached),
-            Some(zeron_doc::TranscriptBaseline::capture(&cached)),
+            Some(skylark_doc::TranscriptBaseline::capture(&cached)),
             cx,
         );
         state.update(cx, |state, cx| state.select_chat(Some("chat-b".into()), cx));
@@ -211,7 +211,7 @@ fn tool_group_revisit_skips_batched_history_but_animates_live_arrivals(
         );
         apply_frame(
             TranscriptFrame::reset(&cached),
-            Some(zeron_doc::TranscriptBaseline::capture(&cached)),
+            Some(skylark_doc::TranscriptBaseline::capture(&cached)),
             cx,
         );
         let row_id: SharedString = "tools#g0".into();
@@ -232,7 +232,7 @@ fn tool_group_revisit_skips_batched_history_but_animates_live_arrivals(
             assert!(matches!(&frame, TranscriptFrame::Delta { .. }));
             apply_frame(
                 frame,
-                Some(zeron_doc::TranscriptBaseline::capture(next)),
+                Some(skylark_doc::TranscriptBaseline::capture(next)),
                 cx,
             );
             let reveal = &transcript.read(cx).tool_group_reveals[&row_id];
@@ -277,10 +277,10 @@ fn background_preparation_reuses_unchanged_rows_and_replaces_same_length_text() 
         assistant("b", MessageStatus::Complete, vec![tool_part("t", "pwd")]),
     ];
     let first = worker
-        .prepare(&zeron_doc::TranscriptUpdate {
-            frame: zeron_doc::TranscriptFrame::reset(&original),
+        .prepare(&skylark_doc::TranscriptUpdate {
+            frame: skylark_doc::TranscriptFrame::reset(&original),
             context_usage: None,
-            replay_baseline: Some(zeron_doc::TranscriptBaseline::capture(&original)),
+            replay_baseline: Some(skylark_doc::TranscriptBaseline::capture(&original)),
         })
         .unwrap();
     let mut changed = original.clone();
@@ -289,8 +289,8 @@ fn background_preparation_reuses_unchanged_rows_and_replaces_same_length_text() 
         text: "omega".into(),
     }];
     let next = worker
-        .prepare(&zeron_doc::TranscriptUpdate {
-            frame: zeron_doc::diff_transcript(&original, &changed),
+        .prepare(&skylark_doc::TranscriptUpdate {
+            frame: skylark_doc::diff_transcript(&original, &changed),
             context_usage: None,
             replay_baseline: None,
         })
@@ -303,18 +303,18 @@ fn background_preparation_reuses_unchanged_rows_and_replaces_same_length_text() 
 #[gpui::test]
 fn prepared_whale_open_and_revisit_do_not_build_rows_on_ui(cx: &mut gpui::TestAppContext) {
     let (update, prepared, preparation_ms) = std::thread::spawn(|| {
-                let entries = if let Ok(path) = std::env::var("ZERON_WHALE_SNAPSHOT") {
-                    let doc = zeron_doc::SessionDoc::init("fixture").unwrap();
+                let entries = if let Ok(path) = std::env::var("SKYLARK_WHALE_SNAPSHOT") {
+                    let doc = skylark_doc::SessionDoc::init("fixture").unwrap();
                     doc.doc().import(&std::fs::read(path).unwrap()).unwrap();
-                    zeron_doc::join_continuation_entries(doc.read_entries().unwrap())
+                    skylark_doc::join_continuation_entries(doc.read_entries().unwrap())
                 } else {
                     vec![assistant("whale-turn", MessageStatus::Complete, (0..5000).map(|i| {
                         MessagePart::Text { id: format!("part-{i}"), text: format!("## Result {i}\n\n**Markdown** with `code` and [links](https://example.com).\n") }
                     }).collect())]
                 };
-                let update = zeron_doc::TranscriptUpdate {
-                    replay_baseline: Some(zeron_doc::TranscriptBaseline::capture(&entries)),
-                    frame: zeron_doc::TranscriptFrame::Reset { reset: entries },
+                let update = skylark_doc::TranscriptUpdate {
+                    replay_baseline: Some(skylark_doc::TranscriptBaseline::capture(&entries)),
+                    frame: skylark_doc::TranscriptFrame::Reset { reset: entries },
                     context_usage: None,
                 };
                 let start = Instant::now();
@@ -396,9 +396,9 @@ fn opening_tail_full_history_and_cached_revisit_never_replay_tool_entrances(
             state.update(cx, |state, cx| {
                 state
                     .receive_opening_transcript_update(
-                        zeron_doc::TranscriptUpdate {
-                            frame: zeron_doc::TranscriptFrame::reset(entries),
-                            replay_baseline: Some(zeron_doc::TranscriptBaseline::capture(entries)),
+                        skylark_doc::TranscriptUpdate {
+                            frame: skylark_doc::TranscriptFrame::reset(entries),
+                            replay_baseline: Some(skylark_doc::TranscriptBaseline::capture(entries)),
                             context_usage: None,
                         },
                         pending,
@@ -450,8 +450,8 @@ fn opening_tail_full_history_and_cached_revisit_never_replay_tool_entrances(
         state.update(cx, |state, cx| {
             state
                 .receive_transcript_update(
-                    zeron_doc::TranscriptUpdate {
-                        frame: zeron_doc::diff_transcript(&full, &live),
+                    skylark_doc::TranscriptUpdate {
+                        frame: skylark_doc::diff_transcript(&full, &live),
                         replay_baseline: None,
                         context_usage: None,
                     },
@@ -487,13 +487,13 @@ fn tool_group_replay_cutoff_survives_coalesced_live_updates(cx: &mut gpui::TestA
             vec![tool_part("new", "git status")],
         ));
         state.update(cx, |state, cx| {
-            let frame = zeron_doc::diff_transcript(&state.transcript, &history);
+            let frame = skylark_doc::diff_transcript(&state.transcript, &history);
             state
                 .receive_transcript_update(
-                    zeron_doc::TranscriptUpdate {
+                    skylark_doc::TranscriptUpdate {
                         frame,
                         context_usage: None,
-                        replay_baseline: Some(zeron_doc::TranscriptBaseline::capture(&history)),
+                        replay_baseline: Some(skylark_doc::TranscriptBaseline::capture(&history)),
                     },
                     cx,
                 )
@@ -501,8 +501,8 @@ fn tool_group_replay_cutoff_survives_coalesced_live_updates(cx: &mut gpui::TestA
             // Both updates land before the transcript observes/render them.
             state
                 .receive_transcript_update(
-                    zeron_doc::TranscriptUpdate {
-                        frame: zeron_doc::diff_transcript(&history, &live),
+                    skylark_doc::TranscriptUpdate {
+                        frame: skylark_doc::diff_transcript(&history, &live),
                         context_usage: None,
                         replay_baseline: None,
                     },
@@ -531,10 +531,10 @@ fn tool_group_interleaved_history_preserves_live_animation_epochs(cx: &mut gpui:
     with_tool_group_navigation(cx, |state, transcript, cx| {
         let apply = |entries: &[SessionMessageEntry], baseline, cx: &mut gpui::App| {
             state.update(cx, |state, cx| {
-                let frame = zeron_doc::diff_transcript(&state.transcript, entries);
+                let frame = skylark_doc::diff_transcript(&state.transcript, entries);
                 state
                     .receive_transcript_update(
-                        zeron_doc::TranscriptUpdate {
+                        skylark_doc::TranscriptUpdate {
                             frame,
                             replay_baseline: baseline,
                             context_usage: None,
@@ -563,7 +563,7 @@ fn tool_group_interleaved_history_preserves_live_animation_epochs(cx: &mut gpui:
         historical[0].parts.retain(|p| p.id().starts_with("old"));
         apply(
             &entries,
-            Some(zeron_doc::TranscriptBaseline::capture(&historical)),
+            Some(skylark_doc::TranscriptBaseline::capture(&historical)),
             cx,
         );
         let reveal = &transcript.read(cx).tool_group_reveals[&row];
@@ -575,7 +575,7 @@ fn tool_group_interleaved_history_preserves_live_animation_epochs(cx: &mut gpui:
         entries[0].parts.push(tool_part("live-c", "pwd"));
         apply(
             &entries,
-            Some(zeron_doc::TranscriptBaseline::capture(&historical)),
+            Some(skylark_doc::TranscriptBaseline::capture(&historical)),
             cx,
         );
         let reveal = &transcript.read(cx).tool_group_reveals[&row];
@@ -591,8 +591,8 @@ fn tool_group_first_live_arrival_after_empty_replay_animates(cx: &mut gpui::Test
             state.select_chat(Some("new-chat".into()), cx);
             state
                 .receive_transcript_update(
-                    zeron_doc::TranscriptUpdate {
-                        frame: zeron_doc::TranscriptFrame::reset(&[]),
+                    skylark_doc::TranscriptUpdate {
+                        frame: skylark_doc::TranscriptFrame::reset(&[]),
                         context_usage: None,
                         replay_baseline: Some(Default::default()),
                     },
@@ -609,8 +609,8 @@ fn tool_group_first_live_arrival_after_empty_replay_animates(cx: &mut gpui::Test
         state.update(cx, |state, cx| {
             state
                 .receive_transcript_update(
-                    zeron_doc::TranscriptUpdate {
-                        frame: zeron_doc::diff_transcript(&[], &live),
+                    skylark_doc::TranscriptUpdate {
+                        frame: skylark_doc::diff_transcript(&[], &live),
                         context_usage: None,
                         replay_baseline: None,
                     },
@@ -639,11 +639,11 @@ fn tool_group_live_reset_does_not_become_history(cx: &mut gpui::TestAppContext) 
             ));
         }
         state.update(cx, |state, cx| {
-            let frame = zeron_doc::diff_transcript(&state.transcript, &live);
-            assert!(matches!(&frame, zeron_doc::TranscriptFrame::Reset { .. }));
+            let frame = skylark_doc::diff_transcript(&state.transcript, &live);
+            assert!(matches!(&frame, skylark_doc::TranscriptFrame::Reset { .. }));
             state
                 .receive_transcript_update(
-                    zeron_doc::TranscriptUpdate {
+                    skylark_doc::TranscriptUpdate {
                         frame,
                         context_usage: None,
                         replay_baseline: None,
@@ -778,7 +778,7 @@ fn file_badge_icon_well_counter_shades_each_appearance() {
         (Theme::dark(), crate::theme::grey(48)),
         (Theme::light(), crate::theme::grey(230)),
     ] {
-        theme.surface_treatment = zeron_theme::SurfaceTreatment::Opaque;
+        theme.surface_treatment = skylark_theme::SurfaceTreatment::Opaque;
         let badge = crate::theme::flatten(theme.ink(0.06), base);
         let icon_well = crate::theme::flatten(crate::file_icons::well_bg(&theme), badge);
         let contrast = crate::theme::contrast_ratio(icon_well, badge);
@@ -799,9 +799,9 @@ fn file_badge_icon_well_counter_shades_each_appearance() {
 #[test]
 fn file_badge_icon_well_uses_more_coverage_on_frost() {
     for mut theme in [Theme::dark(), Theme::light()] {
-        theme.surface_treatment = zeron_theme::SurfaceTreatment::Opaque;
+        theme.surface_treatment = skylark_theme::SurfaceTreatment::Opaque;
         let opaque_alpha = crate::file_icons::well_bg(&theme).a;
-        theme.surface_treatment = zeron_theme::SurfaceTreatment::Frosted;
+        theme.surface_treatment = skylark_theme::SurfaceTreatment::Frosted;
         let frosted = crate::file_icons::well_bg(&theme);
         let badge = crate::theme::flatten(theme.ink(0.06), theme.bg);
         let icon_well = crate::theme::flatten(frosted, badge);
@@ -2363,10 +2363,10 @@ mod user_fold_scroll {
                     state.select_chat(Some("chat".into()), cx);
                     state
                         .receive_transcript_update(
-                            zeron_doc::TranscriptUpdate {
-                                frame: zeron_doc::TranscriptFrame::reset(&history),
+                            skylark_doc::TranscriptUpdate {
+                                frame: skylark_doc::TranscriptFrame::reset(&history),
                                 context_usage: None,
-                                replay_baseline: Some(zeron_doc::TranscriptBaseline::capture(
+                                replay_baseline: Some(skylark_doc::TranscriptBaseline::capture(
                                     &history,
                                 )),
                             },
@@ -2391,12 +2391,12 @@ mod user_fold_scroll {
                 this.state.update(cx, |state, cx| {
                     state
                         .receive_transcript_update(
-                            zeron_doc::TranscriptUpdate {
-                                frame: zeron_doc::diff_transcript(&history, &next),
+                            skylark_doc::TranscriptUpdate {
+                                frame: skylark_doc::diff_transcript(&history, &next),
                                 context_usage: None,
                                 // The RPC must retain its opening cutoff when
                                 // publishing subsequent changed-part history.
-                                replay_baseline: Some(zeron_doc::TranscriptBaseline::capture(
+                                replay_baseline: Some(skylark_doc::TranscriptBaseline::capture(
                                     &cutoff,
                                 )),
                             },
@@ -2446,10 +2446,10 @@ mod user_fold_scroll {
                     state.select_chat(Some("chat".into()), cx);
                     state
                         .receive_transcript_update(
-                            zeron_doc::TranscriptUpdate {
-                                frame: zeron_doc::TranscriptFrame::reset(&history),
+                            skylark_doc::TranscriptUpdate {
+                                frame: skylark_doc::TranscriptFrame::reset(&history),
                                 context_usage: None,
-                                replay_baseline: Some(zeron_doc::TranscriptBaseline::capture(
+                                replay_baseline: Some(skylark_doc::TranscriptBaseline::capture(
                                     &history,
                                 )),
                             },
@@ -2458,8 +2458,8 @@ mod user_fold_scroll {
                         .unwrap();
                     state
                         .receive_transcript_update(
-                            zeron_doc::TranscriptUpdate {
-                                frame: zeron_doc::diff_transcript(&history, &live),
+                            skylark_doc::TranscriptUpdate {
+                                frame: skylark_doc::diff_transcript(&history, &live),
                                 context_usage: None,
                                 replay_baseline: None,
                             },
@@ -2508,10 +2508,10 @@ mod user_fold_scroll {
                 this.state.update(cx, |state, cx| {
                     state
                         .receive_transcript_update(
-                            zeron_doc::TranscriptUpdate {
-                                frame: zeron_doc::diff_transcript(&live, &next),
+                            skylark_doc::TranscriptUpdate {
+                                frame: skylark_doc::diff_transcript(&live, &next),
                                 context_usage: None,
-                                replay_baseline: Some(zeron_doc::TranscriptBaseline::capture(
+                                replay_baseline: Some(skylark_doc::TranscriptBaseline::capture(
                                     &next_history,
                                 )),
                             },
@@ -2545,13 +2545,13 @@ mod user_fold_scroll {
                     this.spring_kick = true;
                     updated.push(prompt(&format!("history-{}", updated.len())));
                     this.state.update(cx, |state, cx| {
-                        let frame = zeron_doc::diff_transcript(&state.transcript, &updated);
+                        let frame = skylark_doc::diff_transcript(&state.transcript, &updated);
                         state
                             .receive_transcript_update(
-                                zeron_doc::TranscriptUpdate {
+                                skylark_doc::TranscriptUpdate {
                                     frame,
                                     context_usage: None,
-                                    replay_baseline: Some(zeron_doc::TranscriptBaseline::capture(
+                                    replay_baseline: Some(skylark_doc::TranscriptBaseline::capture(
                                         &updated,
                                     )),
                                 },
@@ -2789,11 +2789,11 @@ mod user_fold_scroll {
                 feed(this, vec![prompt("prompt")], cx);
                 this.rail_enabled = false;
                 this.state.update(cx, |state, _| {
-                    state.sessions.push(zeron_proto::Session {
+                    state.sessions.push(skylark_proto::Session {
                         last_completed_turn: None,
                         chat_id: "chat".into(),
                         device_id: "test".into(),
-                        status: zeron_proto::SessionStatus::Working,
+                        status: skylark_proto::SessionStatus::Working,
                         started_at: Some(chrono::Utc::now()),
                         updated_at: chrono::Utc::now(),
                     })
@@ -3930,7 +3930,7 @@ fn user_rows_split_attachment_refs_from_text() {
 /// the RAW text either way, so projection never perturbs the diff key.
 #[test]
 fn user_rows_project_file_mentions_into_chips() {
-    let raw = "look at [composer.rs](zeron-file:crates/ui/src/composer.rs) please";
+    let raw = "look at [composer.rs](skylark-file:crates/ui/src/composer.rs) please";
     let mut entry = assistant("u3", MessageStatus::Complete, vec![]);
     entry.role = MessageRole::User;
     entry.status = None;
@@ -3940,7 +3940,7 @@ fn user_rows_project_file_mentions_into_chips() {
         panic!("expected a user row");
     };
     assert!(
-        !text.contains("zeron-file:"),
+        !text.contains("skylark-file:"),
         "raw link left visible: {text}"
     );
     assert!(text.contains("composer.rs"));
@@ -4008,7 +4008,7 @@ fn tool_diff_builds_real_hunks_with_context_and_numbers() {
     let old = (1..=20).map(|i| format!("line {i}")).collect::<Vec<_>>();
     let mut new = old.clone();
     new[9] = "LINE 10".into();
-    let diff = zeron_proto::ToolDiff {
+    let diff = skylark_proto::ToolDiff {
         path: "/w/a.rs".into(),
         old_text: Some(old.join("\n") + "\n"),
         new_text: new.join("\n") + "\n",
@@ -4045,7 +4045,7 @@ fn tool_diff_builds_real_hunks_with_context_and_numbers() {
     assert_eq!(old_text.as_deref(), diff.old_text.as_deref());
     assert_eq!(new_text.as_deref(), Some(diff.new_text.as_str()));
     // New files carry Added status (and no old numbers).
-    let created = zeron_proto::ToolDiff {
+    let created = skylark_proto::ToolDiff {
         path: "/w/new.txt".into(),
         old_text: None,
         new_text: "only\n".into(),
@@ -4274,11 +4274,11 @@ fn tool_chip_labels_per_kind() {
     );
     let todo = ToolCall::Todo {
         items: vec![
-            zeron_proto::TodoItem {
+            skylark_proto::TodoItem {
                 text: "a".into(),
                 done: true,
             },
-            zeron_proto::TodoItem {
+            skylark_proto::TodoItem {
                 text: "b".into(),
                 done: false,
             },
@@ -4351,21 +4351,21 @@ fn call_block_carries_the_full_invocation() {
     let Some(ToolDetail::Output { lines, .. }) = call_block(&ToolCall::Mcp {
         server: "gh".into(),
         tool: "issues".into(),
-        input: Some(serde_json::json!({"repo": "zeron"})),
+        input: Some(serde_json::json!({"repo": "skylark"})),
     }) else {
         panic!("expected an output block")
     };
     assert_eq!(lines[0].as_ref(), "gh · issues");
-    assert!(lines.iter().any(|l| l.contains("\"repo\": \"zeron\"")));
+    assert!(lines.iter().any(|l| l.contains("\"repo\": \"skylark\"")));
 
     // Todos list one item per line with checkbox state.
     let Some(ToolDetail::Output { lines, .. }) = call_block(&ToolCall::Todo {
         items: vec![
-            zeron_proto::TodoItem {
+            skylark_proto::TodoItem {
                 text: "a".into(),
                 done: true,
             },
-            zeron_proto::TodoItem {
+            skylark_proto::TodoItem {
                 text: "b".into(),
                 done: false,
             },

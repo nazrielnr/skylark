@@ -1,5 +1,8 @@
 # Composer performance validation — PR #271
 
+> **Skylark build status: local-only.** Product login/logout, cloud sync, remote control, updates, public installation, and publishing are temporarily paused. Provider agent authentication remains available. Cloud/mobile/release instructions and results below are historical reference, not current setup guidance. See [current policy](LOCAL_ONLY.md).
+
+
 The audit found and fixed an unbounded repaint loop in the earlier PR. Intrinsic
 layout measured the editor at a provisional 320px width and then its resolved
 width. Notifying the composer for both heights scheduled another layout forever
@@ -57,7 +60,7 @@ seeded chats in its sidebar and no streaming activity. For each binary, use a
 fresh output directory on the dedicated display:
 
 ```sh
-python3 scripts/profile-composer.py /path/to/zeron /tmp/composer-run-1 \
+python3 scripts/profile-composer.py /path/to/skylark /tmp/composer-run-1 \
   --settings /path/to/mock-ui/ui-settings.json \
   --ipc-port 27997 --display :117
 ```
@@ -83,6 +86,6 @@ Existing resize, row-reveal, overflow, editing, transcript, and picker tests rem
 in the full suite. Validation commands:
 
 ```sh
-cargo build --release --locked -p zeron
-cargo test --locked -p zeron-ui --lib -- --test-threads=1
+cargo build --release --locked -p skylark
+cargo test --locked -p skylark-ui --lib -- --test-threads=1
 ```

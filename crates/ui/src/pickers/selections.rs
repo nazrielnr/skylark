@@ -1,6 +1,6 @@
 use gpui::Context;
-use zeron_proto::{ChatConfig, HarnessId, ReasoningLevel};
-use zeron_rpc::methods;
+use skylark_proto::{ChatConfig, HarnessId, ReasoningLevel};
+use skylark_rpc::methods;
 
 use super::model_catalog::{clamp_reasoning, offered_options};
 use super::Pickers;

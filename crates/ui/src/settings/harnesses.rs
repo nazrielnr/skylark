@@ -25,12 +25,12 @@ use gpui::{
 };
 
 use std::time::Duration;
-use zeron_engine::registry::TitleSettings;
-use zeron_engine::registry::{HarnessDescriptor, descriptor_enabled};
+use skylark_engine::registry::TitleSettings;
+use skylark_engine::registry::{HarnessDescriptor, descriptor_enabled};
 
-use zeron_proto::Model;
-use zeron_proto::{AgentLoginPoll, AgentLoginStart, AgentLoginStatus, HarnessId};
-use zeron_rpc::methods;
+use skylark_proto::Model;
+use skylark_proto::{AgentLoginPoll, AgentLoginStart, AgentLoginStatus, HarnessId};
+use skylark_rpc::methods;
 
 use crate::pickers::visible_harnesses;
 use crate::popover::{self, Loadable};

@@ -1,5 +1,8 @@
 # Native macOS resource follow-up
 
+> **Skylark build status: local-only.** Product login/logout, cloud sync, remote control, updates, public installation, and publishing are temporarily paused. Provider agent authentication remains available. Cloud/mobile/release instructions and results below are historical reference, not current setup guidance. See [current policy](LOCAL_ONLY.md).
+
+
 For the subsequent v0.2.39 native scrolling crash, stuck-send recovery and
 populated-chat measurements, see the [stability follow-up](performance-macos-stability.md).
 The measurements below predate those regressions and do not establish stability
@@ -47,10 +50,10 @@ The profiling feature and its benchmark dependencies are not enabled in normal
 application builds.
 
 The final completed native replay image is pixel-identical to the baseline.
-With `ZERON_VERIFY_CACHE=1`, the example also compares the reused scene with a
+With `SKYLARK_VERIFY_CACHE=1`, the example also compares the reused scene with a
 forced fresh render after settling, hiding/restoring the sidebar and scrolling;
 all four comparisons are pixel-identical. With the bundled 80-section fixture,
-`ZERON_VERIFY_INTERACTIONS=1` also drives a text-selection drag, composer typing,
+`SKYLARK_VERIFY_INTERACTIONS=1` also drives a text-selection drag, composer typing,
 and model-menu open/outside-click dismissal. Selection, typed text and dismissal match a fresh
 render byte for byte. The model menu has no engine catalog in this isolated
 example, so its loading bars keep animating: the comparison excludes the menu
@@ -137,26 +140,26 @@ that window foreground and the display awake for the entire run. Replay uses
 an isolated profile and the bundled sanitized fixture; it makes no model API call.
 
 ```sh
-cargo build --release --locked -p zeron
-ZERON_FRAME_STATS=0 ZERON_PROFILE_IDLE_MS=10000 \
+cargo build --release --locked -p skylark
+SKYLARK_FRAME_STATS=0 SKYLARK_PROFILE_IDLE_MS=10000 \
   CLAUDE_CODE_EXECUTABLE="$PWD/scripts/replay-claude.py" \
-  ZERON_REPLAY_JOURNAL="$PWD/scripts/fixtures/resource-stream.jsonl" \
-  node scripts/resource-profile.mjs target/release/zeron /tmp/zeron-native claude-code
+  SKYLARK_REPLAY_JOURNAL="$PWD/scripts/fixtures/resource-stream.jsonl" \
+  node scripts/resource-profile.mjs target/release/skylark /tmp/skylark-native claude-code
 
 # UI-only offscreen replay of those verified protocol frames:
-cargo build --release --locked -p zeron-ui --features resource-profile \
+cargo build --release --locked -p skylark-ui --features resource-profile \
   --example macos-resource-profile
-ZERON_VERIFY_CACHE=1 ZERON_VERIFY_INTERACTIONS=1 ZERON_FRAME_STATS=0 \
+SKYLARK_VERIFY_CACHE=1 SKYLARK_VERIFY_INTERACTIONS=1 SKYLARK_FRAME_STATS=0 \
   target/release/examples/macos-resource-profile \
-  /tmp/zeron-native/frames.json /tmp/zeron-native-ui
+  /tmp/skylark-native/frames.json /tmp/skylark-native-ui
 
 # Larger/faster reply: use the foreground command above with these added:
-# ZERON_REPLAY_REPEAT=4 ZERON_REPLAY_DELAY_MS=10 ZERON_PROFILE_IDLE_MS=30000
+# SKYLARK_REPLAY_REPEAT=4 SKYLARK_REPLAY_DELAY_MS=10 SKYLARK_PROFILE_IDLE_MS=30000
 # and a fresh output directory.
 
 # Native counter usable with either process (CPU uses 100% per core):
-xcrun clang -O2 scripts/macos-resource-stat.c -o /tmp/zeron-stat
-/tmp/zeron-stat PID
+xcrun clang -O2 scripts/macos-resource-stat.c -o /tmp/skylark-stat
+/tmp/skylark-stat PID
 ```
 
 Compare fresh release builds in alternating order, with the same trace,

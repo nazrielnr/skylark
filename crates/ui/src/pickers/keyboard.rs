@@ -1,6 +1,6 @@
 use gpui::{App, Context, KeyDownEvent, Window};
-use zeron_engine::registry::HarnessDescriptor;
-use zeron_proto::{HarnessId, ReasoningLevel};
+use skylark_engine::registry::HarnessDescriptor;
+use skylark_proto::{HarnessId, ReasoningLevel};
 
 use crate::popover::{self, MenuKey};
 use super::config::{CheckoutKind, PickerKind};

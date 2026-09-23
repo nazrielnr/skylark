@@ -3,7 +3,7 @@
 //! transport that rides the prompt, the transcript read-back cache, and the
 //! full-size preview lightbox.
 //!
-//! Ports of zeron's `composer/use-attachments.ts` (staging/upload),
+//! Ports of skylark's `composer/use-attachments.ts` (staging/upload),
 //! `control/message-attachments.ts` (the `withAttachments` /
 //! `parseUserMessageImages` text transport — attachment refs are embedded in
 //! the user message's plain text, which is exactly what persists in the doc),
@@ -25,7 +25,7 @@ use gpui::{
 
 use crate::state::EngineHandle;
 use crate::theme::ink;
-use zeron_rpc::methods;
+use skylark_rpc::methods;
 
 /// use-attachments.ts `MAX_ATTACHMENT_BYTES`.
 pub const MAX_ATTACHMENT_BYTES: u64 = 24 * 1024 * 1024;
@@ -413,15 +413,15 @@ mod generated_image_tests {
     }
 
     #[async_trait::async_trait]
-    impl zeron_rpc::RpcService for ImageRpc {
+    impl skylark_rpc::RpcService for ImageRpc {
         async fn handle(
             &self,
             method: &str,
             params: serde_json::Value,
-        ) -> Result<zeron_rpc::RpcReply, zeron_rpc::RpcError> {
+        ) -> Result<skylark_rpc::RpcReply, skylark_rpc::RpcError> {
             assert_eq!(method, methods::READ_ATTACHMENT_CHUNK);
             self.calls.lock().unwrap().push(params);
-            zeron_rpc::RpcReply::value(
+            skylark_rpc::RpcReply::value(
                 &serde_json::json!({"name":"generated.png", "mimeType":"image/png", "data":BASE64.encode(&self.bytes), "nextOffset": self.bytes.len(), "done":true}),
             )
         }
@@ -442,7 +442,7 @@ mod generated_image_tests {
                 .unwrap();
             let calls = Arc::new(Mutex::new(vec![]));
             let engine =
-                EngineHandle::from_test_client(zeron_rpc::memory_client(Arc::new(ImageRpc {
+                EngineHandle::from_test_client(skylark_rpc::memory_client(Arc::new(ImageRpc {
                     calls: calls.clone(),
                     bytes: png.into_inner(),
                 })));

@@ -17,11 +17,11 @@ use gpui::{
     SharedString, Subscription, Task, Window, canvas, container_query, div, img, list, point,
     prelude::*, px,
 };
-use zeron_engine::repos::git_history_matches;
-use zeron_proto::{
+use skylark_engine::repos::git_history_matches;
+use skylark_proto::{
     GitHistoryCommit, GitHistoryComparison, GitHistoryPage, GitHistoryRef, GitHistoryRefKind,
 };
-use zeron_rpc::methods;
+use skylark_rpc::methods;
 
 use crate::composer::{ComposerInput, ComposerInputEvent};
 use crate::motion::AnimationExt;

@@ -39,7 +39,7 @@ impl Pickers {
         self.model_scroll.0.borrow().base_handle.clone()
     }
 
-    /// The combined harness + model switcher (zeron harness-model-picker.tsx):
+    /// The combined harness + model switcher (skylark harness-model-picker.tsx):
     /// a vertical harness rail of square brand-icon tabs on the left, the
     /// viewed harness's models on the right. On an existing chat the other
     /// tabs stay visible but disabled — the lock reads as a rule.

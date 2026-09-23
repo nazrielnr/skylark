@@ -2,8 +2,8 @@ use std::time::Duration;
 
 use gpui::{App, Context, Task};
 
-use zeron_proto::CheckoutDiff;
-use zeron_rpc::methods;
+use skylark_proto::CheckoutDiff;
+use skylark_rpc::methods;
 
 use crate::state::EngineHandle;
 
@@ -309,7 +309,7 @@ impl Changes {
                 changes.scoped_inflight = None;
                 match result.and_then(|value| {
                     serde_json::from_value::<CheckoutDiff>(value)
-                        .map_err(|e| zeron_rpc::RpcError::Failed(e.to_string()))
+                        .map_err(|e| skylark_rpc::RpcError::Failed(e.to_string()))
                 }) {
                     Ok(diff) => {
                         changes.scoped = Some(diff);

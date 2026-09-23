@@ -610,20 +610,20 @@ impl Shell {
             let after = index.checked_sub(1).and_then(|i| next.get(i)).cloned();
             let before = next.get(index + 1).cloned();
             if saved.contains(&payload.chat_id) {
-                zeron_proto::SidebarPinChange::Move {
+                skylark_proto::SidebarPinChange::Move {
                     session_id: payload.chat_id.clone(),
                     after,
                     before,
                 }
             } else {
-                zeron_proto::SidebarPinChange::Pin {
+                skylark_proto::SidebarPinChange::Pin {
                     session_id: payload.chat_id.clone(),
                     after,
                     before,
                 }
             }
         } else {
-            zeron_proto::SidebarPinChange::Unpin {
+            skylark_proto::SidebarPinChange::Unpin {
                 session_id: payload.chat_id.clone(),
             }
         };

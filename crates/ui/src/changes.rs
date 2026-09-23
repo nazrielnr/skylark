@@ -40,7 +40,7 @@ use gpui::{
     prelude::*, px,
 };
 
-use zeron_proto::{CheckoutDiff, GitHistoryCommit};
+use skylark_proto::{CheckoutDiff, GitHistoryCommit};
 use crate::history::{
     GitHistory, GitHistoryCount, GitHistoryEvent, GitHistoryFetchButton, GitHistorySearchControl,
     GitHistoryViewButton,

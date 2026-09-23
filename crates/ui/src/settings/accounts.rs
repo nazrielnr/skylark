@@ -2,7 +2,7 @@
 //! (Claude Code, Codex, Cursor) with account rows — email, plan badge, Active, usage
 //! meters (indigo → amber ≥80% → red ≥95%, reset time), Switch / Forget — plus
 //! the add-account dialogs (paste-code and browser-poll flows) and
-//! account-shaped loading skeletons. Zeron retargets devices from the settings
+//! account-shaped loading skeletons. Skylark retargets devices from the settings
 //! sidebar (`targetDeviceId` passthrough kept plumbed, unused single-device).
 //!
 //! The accounts RPC surface is being implemented engine-side in parallel —
@@ -16,11 +16,11 @@ use gpui::{
 };
 use std::time::Duration;
 
-use zeron_proto::{
+use skylark_proto::{
     AgentAccount, AgentAccountsSnapshot, AgentLoginMode, AgentLoginPoll, AgentLoginStart,
     AgentLoginStatus, HarnessId,
 };
-use zeron_rpc::methods;
+use skylark_rpc::methods;
 
 use crate::composer::{ComposerInput, ComposerInputEvent};
 use crate::popover::{self, Loadable};
@@ -97,7 +97,7 @@ pub fn force_usage_for(trigger: LoadTrigger) -> bool {
     }
 }
 
-/// Compact absolute reset moment (zeron settings.agents.tsx `formatReset`):
+/// Compact absolute reset moment (skylark settings.agents.tsx `formatReset`):
 /// a local clock time ("3:45 PM") when it lands within ~22h, a short weekday
 /// ("Mon") within a week, else month + day ("Sep 14") — a weekday is noise
 /// when the window is a Codex free-tier MONTHLY reset weeks out. The caller
@@ -116,7 +116,7 @@ pub fn format_reset(resets_at: Option<DateTime<Utc>>, now: DateTime<Utc>) -> Opt
 }
 
 /// The provider cards, in display order: (harness, name, CLI command — named
-/// in the empty-state copy, zeron settings.agents.tsx `PROVIDERS`).
+/// in the empty-state copy, skylark settings.agents.tsx `PROVIDERS`).
 pub const PROVIDERS: [(HarnessId, &str, &str); 3] = [
     (HarnessId::ClaudeCode, "Claude Code", "claude"),
     (HarnessId::Codex, "Codex", "codex"),
@@ -162,7 +162,7 @@ enum LoginFlow {
 }
 
 impl LoginFlow {
-    /// Dialog title (zeron: "Add Claude account" / "Add Codex account").
+    /// Dialog title (skylark: "Add Claude account" / "Add Codex account").
     fn title(&self) -> &'static str {
         let harness = match self {
             LoginFlow::Starting { harness }
@@ -181,7 +181,7 @@ pub struct AccountsPage {
     state: Entity<AppState>,
     scroll: widgets::PageScroll,
     /// Which device's logins are shown; `None` = this device (no passthrough).
-    /// Retargeted by the page-header device switcher (zeron parity: the
+    /// Retargeted by the page-header device switcher (skylark parity: the
     /// accounts RPCs are relay-forwardable, CLI logins are per-device).
     target_device: Option<String>,
     device_menu: popover::Popup<()>,
@@ -224,7 +224,7 @@ mod tests {
     }
 
     #[test]
-    fn usage_thresholds_match_zeron() {
+    fn usage_thresholds_match_skylark() {
         assert_eq!(usage_level(0.0), UsageLevel::Normal);
         assert_eq!(usage_level(0.79), UsageLevel::Normal);
         assert_eq!(usage_level(0.80), UsageLevel::Warn);

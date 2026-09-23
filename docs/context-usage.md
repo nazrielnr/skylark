@@ -1,5 +1,8 @@
 # Context usage
 
+> **Skylark build status: local-only.** Product login/logout, cloud sync, remote control, updates, public installation, and publishing are temporarily paused. Provider agent authentication remains available. Cloud/mobile/release instructions and results below are historical reference, not current setup guidance. See [current policy](LOCAL_ONLY.md).
+
+
 Every selected conversation has a context ring beneath its composer, including
 project-less and remote conversations. Hovering shows measured tokens and
 remaining capacity. The ring turns amber at 75% and red at 90%; its drawing clamps

@@ -5,7 +5,7 @@ use std::sync::{Arc, Barrier, Mutex};
 
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
-use zeron_engine::{
+use skylark_engine::{
     AuthState, Engine, EngineConfig, EngineCore, EngineProfile, HarnessId, WorkspaceScope,
     default_registry,
 };
@@ -358,7 +358,16 @@ async fn existing_session_opens_the_historical_cloud_layout_in_place() {
         .expect("resolve existing session")
         .expect("existing org is ready");
 
-    assert_eq!(scope, WorkspaceScope::Synced);
+    let resolved = if skylark_engine::LOCAL_ONLY_BUILD {
+        assert_eq!(scope, WorkspaceScope::Local);
+        assert_eq!(resolved.store_root(), dir.path().join("profiles/local"));
+        assert!(dir.path().join("session.json").exists());
+        // Open the retained store directly to verify it was neither moved nor deleted.
+        historical.clone()
+    } else {
+        assert_eq!(scope, WorkspaceScope::Synced);
+        resolved
+    };
     assert_eq!(resolved, historical);
     assert_eq!(
         resolved.store_root(),
@@ -532,14 +541,18 @@ async fn signing_in_does_not_activate_sync_for_the_running_local_profile() {
     assert_eq!(scope, WorkspaceScope::Local);
     assert!(runtime.core().links().is_none());
 
-    let sign_in_url = auth.start_headless_sign_in();
-    let state = query_param(&sign_in_url, "state").expect("sign-in state");
-    auth.complete_sign_in(&format!("{state}.authorization-code"))
-        .await
-        .expect("complete sign in");
-    assert!(
-        matches!(auth.state(), AuthState::SignedIn { org_id: Some(org), .. } if org == "cloud-org")
-    );
+    if skylark_engine::LOCAL_ONLY_BUILD {
+        let rpc = runtime.core().rpc_service();
+        assert!(skylark_rpc::RpcService::handle(rpc.as_ref(), skylark_rpc::methods::SIGN_IN, serde_json::json!({})).await.is_err());
+        assert!(matches!(auth.state(), AuthState::SignedOut));
+    } else {
+        let sign_in_url = auth.start_headless_sign_in();
+        let state = query_param(&sign_in_url, "state").expect("sign-in state");
+        auth.complete_sign_in(&format!("{state}.authorization-code"))
+            .await
+            .expect("complete sign in");
+        assert!(matches!(auth.state(), AuthState::SignedIn { org_id: Some(org), .. } if org == "cloud-org"));
+    }
 
     runtime
         .core()
@@ -591,8 +604,8 @@ async fn signing_in_does_not_activate_sync_for_the_running_local_profile() {
             .iter()
             .filter(|target| target.starts_with("/auth/exchange"))
             .count(),
-        1,
-        "the sign-in exchange itself is expected: {requests:?}"
+        usize::from(!skylark_engine::LOCAL_ONLY_BUILD),
+        "sign-in exchanges must follow the build policy: {requests:?}"
     );
     assert!(
         requests.iter().all(|target| {

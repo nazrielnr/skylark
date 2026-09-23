@@ -4,7 +4,7 @@
 //! ## EngineHandle
 //! The UI talks the same typed RPC whether the engine is in-process or a separate
 //! daemon (ARCHITECTURE §1). [`EngineHandle::bootstrap`] probes the localhost IPC
-//! port, mirroring zeron: if an engine is listening it connects over WebSocket
+//! port, mirroring skylark: if an engine is listening it connects over WebSocket
 //! ([`RemoteEngine`]); otherwise it embeds one via [`EngineCore::assemble`] and an
 //! in-memory RPC transport ([`InProcessEngine`]) — same envelopes, same dispatch.
 //!
@@ -28,13 +28,13 @@ use gpui_tokio::Tokio;
 use serde::de::DeserializeOwned;
 
 use crate::comments::ReviewComment;
-use zeron_doc::{SessionMessageEntry, TranscriptDesync, TranscriptFrame};
-use zeron_engine::{Engine, EngineConfig, EngineRuntime, InstanceLock, rpc::AuthRpc};
-use zeron_proto::{
+use skylark_doc::{SessionMessageEntry, TranscriptDesync, TranscriptFrame};
+use skylark_engine::{Engine, EngineConfig, EngineRuntime, InstanceLock, rpc::AuthRpc};
+use skylark_proto::{
     AuthState, ChangeRequestSummary, Chat, ChatIndicator, CheckoutChangeRequestStatus, Device,
     EngineInfo, HarnessId, Session, SidebarPreferencesState, Space, WorkspaceScope,
 };
-use zeron_rpc::{RpcClient, RpcError, RpcReply, RpcService, connect_ws, memory_client, methods};
+use skylark_rpc::{RpcClient, RpcError, RpcReply, RpcService, connect_ws, memory_client, methods};
 
 use crate::change_requests::{
     ChangeRequestClientState, ChangeRequestWatchKey, desired_watch_targets, watch_params,
@@ -49,7 +49,7 @@ struct CachedTranscript {
     prepared: Option<Arc<crate::transcript::PreparedTranscript>>,
     chat_id: String,
     entries: Vec<SessionMessageEntry>,
-    context_usage: Option<zeron_proto::ContextUsage>,
+    context_usage: Option<skylark_proto::ContextUsage>,
     bytes: usize,
 }
 
@@ -68,7 +68,7 @@ impl WatchPreparation {
     }
     fn prepare(
         &mut self,
-        update: &zeron_doc::TranscriptUpdate,
+        update: &skylark_doc::TranscriptUpdate,
     ) -> Result<Arc<crate::transcript::PreparedTranscript>, TranscriptDesync> {
         self.worker.as_mut().unwrap().prepare(update)
     }
@@ -98,10 +98,10 @@ pub use engine::{EngineBootConfig, EngineHandle, EngineMode};
 // ---------------------------------------------------------------------------
 
 // The frontend-agnostic derivations (sort orders, staleness gating, sidebar
-// grouping, the boot gate, relative times) live in `zeron_proto::view`, pure
+// grouping, the boot gate, relative times) live in `skylark_proto::view`, pure
 // and with their own test suite. Re-exported here because every call site in
 // this crate reads them as `state::…`.
-pub use zeron_proto::view::{
+pub use skylark_proto::view::{
     ChatGroup, ConnectionStatus, GatePhase, Indicator, SESSION_STALE_MS, attention_rank,
     chat_location, display_status, effective_indicator, format_time_ago, gate_phase, group_chats,
     parse_auth_state, project_label, sort_active, sort_chats, sort_spaces, sort_tabs,
@@ -195,7 +195,7 @@ pub struct AppState {
     session_presence_presentation: Vec<Indicator>,
     /// Live edge posture (WatchConnectivity): drives the connection pill,
     /// composer honesty ("will queue"), and the Queued send badges.
-    pub connectivity: zeron_proto::Connectivity,
+    pub connectivity: skylark_proto::Connectivity,
     /// Whether this runtime's connectivity watch has delivered its first
     /// frame. The default `Disabled` value is only a placeholder and must not
     /// seed notification decisions before the watch is authoritative.
@@ -237,14 +237,14 @@ pub struct AppState {
     /// The selected chat's pending-message queue — what was typed while the
     /// agent was busy, in the order it will be sent. Device-agnostic: the
     /// chat's doc holds them (every device sees the same queue).
-    pub queue: Vec<zeron_doc::QueuedMessage>,
-    pub context_usage: Option<zeron_proto::ContextUsage>,
+    pub queue: Vec<skylark_doc::QueuedMessage>,
+    pub context_usage: Option<skylark_proto::ContextUsage>,
     /// The selected chat has a transcript from a `WatchDocMessages` reset
     /// (including a retained reset from an earlier visit). An
     /// empty transcript is otherwise indistinguishable from the pre-replay
     /// gap after selection, where optimistic echoes may already be visible.
     pub transcript_replayed: bool,
-    transcript_baselines: HashMap<String, Arc<zeron_doc::TranscriptBaseline>>,
+    transcript_baselines: HashMap<String, Arc<skylark_doc::TranscriptBaseline>>,
     transcript_cache: std::collections::VecDeque<CachedTranscript>,
     pub(crate) prepared_transcripts: HashMap<String, Arc<crate::transcript::PreparedTranscript>>,
     /// Changes only when transcript/optimistic content changes. Presence,
@@ -272,7 +272,7 @@ pub struct AppState {
     /// the engine serves it — views degrade gracefully).
     pub local_device_id: Option<String>,
     /// Latest `UpdateStatus` frame — drives the sidebar update strip.
-    pub update: Option<zeron_update::UpdateStatus>,
+    pub update: Option<skylark_update::UpdateStatus>,
     /// Data directory (`ui-settings.json`, `composer-defaults.json`); set at
     /// bootstrap so child views can persist small preference files.
     pub data_dir: Option<PathBuf>,
@@ -323,7 +323,7 @@ impl AppState {
             devices: Vec::new(),
             device_presentation: None,
             session_presence_presentation: Vec::new(),
-            connectivity: zeron_proto::Connectivity::default(),
+            connectivity: skylark_proto::Connectivity::default(),
             connectivity_observed: false,
             spaces: Vec::new(),
             chats: Vec::new(),
@@ -497,7 +497,7 @@ impl AppState {
     /// Seed provider metadata for the isolated native sidebar review fixture.
     pub fn fixture_sidebar_change_request(
         &mut self,
-        snapshot: zeron_proto::CheckoutChangeRequestStatus,
+        snapshot: skylark_proto::CheckoutChangeRequestStatus,
     ) {
         let key = crate::change_requests::ChangeRequestWatchKey {
             device_id: snapshot.device_id.clone(),

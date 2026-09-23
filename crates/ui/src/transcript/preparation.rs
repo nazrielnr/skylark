@@ -3,7 +3,7 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
-use zeron_doc::{MessagePart, MessageStatus, SessionMessageEntry, SubagentStatus};
+use skylark_doc::{MessagePart, MessageStatus, SessionMessageEntry, SubagentStatus};
 
 use crate::markdown::parser::{parse_full, BlockTree, IncrementalParser};
 
@@ -18,29 +18,29 @@ pub(crate) struct TranscriptPreparation {
     cache: HashMap<String, Arc<Vec<Row>>>,
     live_parsers: HashMap<String, IncrementalParser>,
     tree_cache: HashMap<String, (usize, Arc<BlockTree>)>,
-    baseline: Option<zeron_doc::TranscriptBaseline>,
+    baseline: Option<skylark_doc::TranscriptBaseline>,
 }
 
 pub(crate) struct PreparedTranscript {
     pub(crate) rows: HashMap<String, Arc<Vec<Row>>>,
     pub(crate) historical: HashMap<String, Vec<Row>>,
     pub(crate) fully_historical: HashSet<String>,
-    pub(crate) navigation_baseline: Arc<zeron_doc::TranscriptBaseline>,
+    pub(crate) navigation_baseline: Arc<skylark_doc::TranscriptBaseline>,
     pub(crate) bytes: usize,
 }
 
 impl TranscriptPreparation {
     pub(crate) fn prepare(
         &mut self,
-        update: &zeron_doc::TranscriptUpdate,
-    ) -> Result<Arc<PreparedTranscript>, zeron_doc::TranscriptDesync> {
+        update: &skylark_doc::TranscriptUpdate,
+    ) -> Result<Arc<PreparedTranscript>, skylark_doc::TranscriptDesync> {
         match &update.frame {
-            zeron_doc::TranscriptFrame::Reset { .. } => {
+            skylark_doc::TranscriptFrame::Reset { .. } => {
                 self.cache.clear();
                 self.tree_cache.clear();
                 self.live_parsers.clear();
             }
-            zeron_doc::TranscriptFrame::Delta {
+            skylark_doc::TranscriptFrame::Delta {
                 upsert,
                 append,
                 remove,
@@ -59,7 +59,7 @@ impl TranscriptPreparation {
                 }
             }
         }
-        zeron_doc::apply_transcript_frame(&mut self.entries, update.frame.clone())?;
+        skylark_doc::apply_transcript_frame(&mut self.entries, update.frame.clone())?;
         if let Some(baseline) = &update.replay_baseline {
             self.baseline = Some(baseline.clone());
         }
@@ -112,7 +112,7 @@ impl TranscriptPreparation {
             historical,
             fully_historical,
             bytes,
-            navigation_baseline: Arc::new(zeron_doc::TranscriptBaseline::capture(&self.entries)),
+            navigation_baseline: Arc::new(skylark_doc::TranscriptBaseline::capture(&self.entries)),
         }))
     }
 }

@@ -1,5 +1,8 @@
 # Whale session blank-on-revisit regression
 
+> **Skylark build status: local-only.** Product login/logout, cloud sync, remote control, updates, public installation, and publishing are temporarily paused. Provider agent authentication remains available. Cloud/mobile/release instructions and results below are historical reference, not current setup guidance. See [current policy](../LOCAL_ONLY.md).
+
+
 Base: `c24e0e26` (main, v0.2.76). Verified on Linux with synthetic local data;
 `work-laptop` was not reachable from this environment, so this is not a claim
 that its particular session or installed application was tested.
@@ -57,8 +60,8 @@ laptop performance claims.
 ## Reproduce
 
 ```sh
-cargo test -p zeron-engine --lib -- --nocapture
-cargo test -p zeron-ui --lib --no-default-features -- --test-threads=1
+cargo test -p skylark-engine --lib -- --nocapture
+cargo test -p skylark-ui --lib --no-default-features -- --test-threads=1
 ```
 
 Initial revisit validation: 196 engine tests and 1,075 UI tests passed. The focused transcript view
@@ -113,7 +116,7 @@ or contaminate the full UI cache.
 Reproduce the read-only timing comparison with an exported snapshot:
 
 ```sh
-cargo run -p zeron-engine --example transcript_load_probe -- /path/to/session.bin
+cargo run -p skylark-engine --example transcript_load_probe -- /path/to/session.bin
 ```
 
 The new path removes the full-history barrier to initial content. It does not

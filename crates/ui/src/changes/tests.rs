@@ -301,7 +301,7 @@ rename to new_name.rs
 
     #[test]
     fn sticky_header_uses_the_content_theme_in_dark_and_light() {
-        use zeron_theme::{AccentSelection, SurfacePreference};
+        use skylark_theme::{AccentSelection, SurfacePreference};
 
         for (appearance, variant_id) in [
             (crate::theme::Appearance::Dark, "gruvbox-dark"),
@@ -730,7 +730,7 @@ rename to new_name.rs
         let highlight = Arc::new(DiffHighlights {
             old: None,
             new: Some(Arc::new(
-                zeron_syntax::highlight(zeron_syntax::HighlightRequest {
+                skylark_syntax::highlight(skylark_syntax::HighlightRequest {
                     source: &source,
                     path: Some("x.ts"),
                     fence_tag: None,
@@ -953,7 +953,7 @@ rename to new_name.rs
         assert_eq!(diff_phase(Some(&full)), DiffPhase::List);
         // Engine may report files without patch text (truncation edge).
         let mut summarized = diff("co", "d", "/w", "");
-        summarized.files.push(zeron_proto::DiffFileSummary {
+        summarized.files.push(skylark_proto::DiffFileSummary {
             path: "x".into(),
             old_path: None,
             status: "modified".into(),
@@ -1107,7 +1107,7 @@ rename to new_name.rs
         let new_source = "export function new(value: string) {\n    return value.trim();\n}\n";
         let parse = |source| {
             Arc::new(
-                zeron_syntax::highlight(zeron_syntax::HighlightRequest {
+                skylark_syntax::highlight(skylark_syntax::HighlightRequest {
                     source,
                     path: Some("src/derive.ts"),
                     fence_tag: None,
@@ -1162,13 +1162,13 @@ rename to new_name.rs
             highlights
                 .spans(&deleted)
                 .iter()
-                .any(|span| span.kind == zeron_syntax::HighlightKind::Function)
+                .any(|span| span.kind == skylark_syntax::HighlightKind::Function)
         );
         assert!(
             highlights
                 .spans(&added)
                 .iter()
-                .any(|span| span.kind == zeron_syntax::HighlightKind::Function)
+                .any(|span| span.kind == skylark_syntax::HighlightKind::Function)
         );
     }
 
@@ -1204,21 +1204,21 @@ rename to new_name.rs
             (
                 "src/card.tsx",
                 "const view: JSX.Element = <main id=\"app\" />;",
-                zeron_syntax::HighlightKind::Tag,
+                skylark_syntax::HighlightKind::Tag,
             ),
             (
                 "src/Greeter.kt",
                 "fun greet(name: String) = println(name)",
-                zeron_syntax::HighlightKind::Function,
+                skylark_syntax::HighlightKind::Function,
             ),
             (
                 "Dockerfile",
                 "RUN echo \"hello\"",
-                zeron_syntax::HighlightKind::Function,
+                skylark_syntax::HighlightKind::Function,
             ),
         ] {
             let document = Arc::new(
-                zeron_syntax::highlight(zeron_syntax::HighlightRequest {
+                skylark_syntax::highlight(skylark_syntax::HighlightRequest {
                     source,
                     path: Some(path),
                     fence_tag: None,
@@ -1311,13 +1311,13 @@ rename to new_name.rs
             highlights
                 .spans(deleted)
                 .iter()
-                .any(|span| span.kind == zeron_syntax::HighlightKind::Comment)
+                .any(|span| span.kind == skylark_syntax::HighlightKind::Comment)
         );
         assert!(
             highlights
                 .spans(added)
                 .iter()
-                .any(|span| span.kind == zeron_syntax::HighlightKind::Comment)
+                .any(|span| span.kind == skylark_syntax::HighlightKind::Comment)
         );
     }
 
@@ -1350,7 +1350,7 @@ rename to new_name.rs
             deletions: 1,
             max_line: 1,
         };
-        let response = zeron_proto::CheckoutFileDiffText {
+        let response = skylark_proto::CheckoutFileDiffText {
             diff_checksum: "sum".into(),
             old_text: Some("let old = 1;\n".into()),
             new_text: Some("different snapshot\n".into()),

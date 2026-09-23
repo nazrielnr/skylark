@@ -1,62 +1,45 @@
-# Zeron
+# Skylark
 
-Control your coding agents (Claude Code, Codex, Cursor, Devin, Grok, Hermes, Pi, Antigravity) locally by default, with optional multi-device sync.
+Local desktop controller for coding agents, based on [Zeron](https://github.com/zeronsh/zeron).
 
 *English | [简体中文](README.zh-CN.md)*
 
-![Zeron driving a Claude Code session with a live branch diff sidebar](apps/landing/public/assets/app-screenshot.jpg)
+## Current status: local-only development
 
-Every device runs a small engine that stores sessions on that device. A new installation starts in local-only mode without an account or a network connection.
+Product login/logout, cloud sync, organization setup, remote-device control, local-to-cloud import, and application updates are temporarily disabled. Saved cloud sessions and account data are preserved but not loaded. Cloud environment variables and portable update-feed configuration cannot enable these features.
 
-## Install and run locally (Linux)
+Local chat history, files, Git, terminals, and local previews remain available. Provider agent authentication and adapter installation remain enabled: agents, Git remotes, package downloads, and pages you open can still use the network. **Local-only does not mean an offline sandbox.**
 
-```bash
-curl -fsSL https://zeron.sh/install.sh | sh
-zeron status
+## Run from source
+
+Use your current checkout; public installers, downloads, and release publishing are paused. Do not use upstream installers to install Skylark.
+
+With Rust and your platform's build tools installed:
+
+```sh
+cargo run --locked -p skylark
 ```
 
-The installer starts the daemon immediately and keeps it running across reboots. No sign-in or sync configuration is required.
+For a local engine without the UI:
 
-The desktop sidebar browser also needs the [Linux browser runtime](docs/reference/linux-browser.md).
-
-Day-to-day:
-
-```bash
-zeron status      # local/synced mode and engine status
-zeron update      # update to the latest release
-zeron daemon start|stop|restart|status
+```sh
+cargo run --locked -p skylark -- headless
 ```
 
-## Optional multi-device sync
+See [the running guide](docs/RUNNING.md), [Windows prerequisites](docs/reference/windows-development.md), and [Linux browser requirements](docs/reference/linux-browser.md).
 
-Sign in only when you want to open your account's synced workspace. Authentication changes the profile selected by the next engine start, so stop the daemon before changing it:
+`skylark status` reports local engine status. `login`, `logout`, `sync`, and `update` return a disabled error; they do not contact product services or modify saved cloud credentials. Quit older Zeron/Skylark engines before starting this build.
 
-```bash
-zeron daemon stop
-zeron login
-zeron daemon start
-```
+## Development boundaries
 
-You can then start an agent on one synced device and follow or drive it from another. An always-on machine such as a VPS can keep those agents working after you close your laptop.
+- Runtime behavior and re-enablement requirements: [Local-only policy](docs/LOCAL_ONLY.md).
+- Native UI dependency repositories remain upstream dependencies, pinned in `Cargo.toml` and `Cargo.lock`.
+- `edge/`, `apps/ios/`, and website sources are retained for future work, not active Skylark services.
+- Cloud, release, and TestFlight workflows have `.yml.disabled` extensions. Source build/test workflows remain active.
+- Historical cloud architecture and test reports remain reference material, not current setup instructions.
 
-Devices signed in to the same synced account are trusted with remote workspace access. A device controlling a workspace on another device can list, read, and write its files; enabling `Show ignored files` also makes gitignored files such as `.env` available remotely. `.git` is always excluded. Only sign in devices you trust with the full contents of your workspaces.
+Skylark does not migrate Zeron's data directory automatically. See the running guide before selecting a data directory.
 
-Signing in does not upload, move, or import existing local sessions. Local sessions and their attachments remain under the local profile and reappear when you return to local-only mode:
+## License and attribution
 
-```bash
-zeron daemon stop
-zeron logout
-zeron daemon start
-```
-
-`zeron login` and `zeron logout` refuse to modify credentials while an engine owns the data directory. The desktop app follows the same next-restart profile boundary.
-
-On macOS: use the desktop release, or build `zeron` from source and run `zeron daemon install` to install the launchd service.
-
-On Windows: extract the portable release ZIP and run `zeron.exe`. Keep `zeron-update.json` beside it for in-app updates. See the [development notes](docs/reference/windows-development.md) and [running guide](docs/RUNNING.md) for source builds and execution instructions.
-
----
-
-Developing or curious how it works? [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/zeronsh/zeron) or check out [ARCHITECTURE.md](ARCHITECTURE.md).
-
-Licensed under the [MIT License](LICENSE).
+Based on Zeron under the [MIT License](LICENSE). Original copyright notices and [third-party notices](THIRD_PARTY_NOTICES.md) are retained. Renaming the app does not rename or transfer ownership of upstream services.

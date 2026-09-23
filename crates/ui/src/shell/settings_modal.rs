@@ -257,7 +257,7 @@ impl Shell {
         }
     }
 
-    /// Settings-mode sidebar (zeron settings-sidebar.tsx): window-control
+    /// Settings-mode sidebar (skylark settings-sidebar.tsx): window-control
     /// strip, "Settings" heading, icon section rows styled like session rows,
     /// and a Back row pinned to the bottom.
     pub(super) fn render_settings_nav(
@@ -418,7 +418,7 @@ impl Shell {
                             }),
                     ),
             )
-            // Back pinned to the bottom (zeron settings-sidebar.tsx), matching user_menu container padding.
+            // Back pinned to the bottom (skylark settings-sidebar.tsx), matching user_menu container padding.
             .child(
                 div()
                     .p(crate::typography::ui_rems(Theme::SPACE_SM))
@@ -444,7 +444,7 @@ impl Shell {
                             }))
                             .on_click(cx.listener(|this, _, _, cx| this.close_settings(cx)))
                             .child(
-                                // AltArrowLeft chevron (zeron settings-sidebar.tsx),
+                                // AltArrowLeft chevron (skylark settings-sidebar.tsx),
                                 // not the straight history arrow.
                                 icon(icons::ALT_ARROW_LEFT)
                                     .size(crate::typography::ui_rems(16.0))

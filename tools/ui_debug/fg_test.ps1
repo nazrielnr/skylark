@@ -13,10 +13,10 @@ public class W7 {
 }
 "@
 [W7]::SetProcessDPIAware() | Out-Null
-$env:ZERON_UI_TRACE = "1"
-$exe = "C:\Users\BiuBiu\Documents\my_app\zeron\target\debug\zeron.exe"
-$log = "C:\Users\BiuBiu\Documents\my_app\zeron\target\ui_trace.log"
-$proc = Start-Process -FilePath $exe -WorkingDirectory "C:\Users\BiuBiu\Documents\my_app\zeron" -RedirectStandardError $log -RedirectStandardOutput "C:\Users\BiuBiu\Documents\my_app\zeron\target\fg.stdout.log" -PassThru
+$env:SKYLARK_UI_TRACE = "1"
+$exe = "C:\Users\BiuBiu\Documents\my_app\skylark\target\debug\skylark.exe"
+$log = "C:\Users\BiuBiu\Documents\my_app\skylark\target\ui_trace.log"
+$proc = Start-Process -FilePath $exe -WorkingDirectory "C:\Users\BiuBiu\Documents\my_app\skylark" -RedirectStandardError $log -RedirectStandardOutput "C:\Users\BiuBiu\Documents\my_app\skylark\target\fg.stdout.log" -PassThru
 Start-Sleep -Seconds 25
 $hwnd = $proc.MainWindowHandle
 function Title([IntPtr]$h) {

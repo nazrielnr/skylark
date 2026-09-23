@@ -13,7 +13,7 @@ fn srgb_u8(c: [f32; 3]) -> [u8; 3] {
 
 #[test]
 fn neutral_950_is_0a0a0a() {
-    // oklch(0.145 0 0) is Tailwind neutral-950, zeron's app background.
+    // oklch(0.145 0 0) is Tailwind neutral-950, skylark's app background.
     let rgb = srgb_u8(oklch_to_srgb(0.145, 0.0, 0.0));
     assert_eq!(rgb, [10, 10, 10]);
 }
@@ -73,10 +73,10 @@ fn contrast_ratio_hits_known_anchors() {
 }
 
 #[test]
-fn zeron_accent_is_the_exact_upstream_default() {
+fn skylark_accent_is_the_exact_upstream_default() {
     let dark = Theme::dark();
     let light = Theme::light();
-    assert_eq!(dark.accent_color, AccentColor::Zeron);
+    assert_eq!(dark.accent_color, AccentColor::Skylark);
     assert_eq!(dark.accent, oklch(0.673, 0.182, 276.935));
     assert_eq!(dark.accent_strong, oklch(0.585, 0.233, 277.117));
     assert_eq!(dark.code_text, dark.accent);
@@ -96,7 +96,7 @@ fn previous_preview_accent_names_migrate_without_resetting_settings() {
     for old_default in ["violet", "indigo", "red", "purple"] {
         assert_eq!(
             serde_json::from_str::<AccentColor>(&format!(r#""{old_default}""#)).unwrap(),
-            AccentColor::Zeron
+            AccentColor::Skylark
         );
     }
     assert_eq!(
@@ -113,8 +113,8 @@ fn theme_recommendation_and_surface_override_resolve_independently() {
         AccentSelection::ThemeDefault,
         SurfacePreference::ThemeDefault,
     );
-    let zeron = Theme::dark();
-    assert_ne!(catppuccin.surface, zeron.surface);
+    let skylark = Theme::dark();
+    assert_ne!(catppuccin.surface, skylark.surface);
     assert_eq!(catppuccin.busy, catppuccin.accent);
     assert_eq!(catppuccin.glyph.mid, catppuccin.accent);
     assert_eq!(catppuccin.surface_treatment, SurfaceTreatment::Opaque);
@@ -142,14 +142,14 @@ fn theme_recommendation_and_surface_override_resolve_independently() {
         assert!(frosted.is_frost());
     }
 
-    let opaque_zeron = Theme::for_selection(
+    let opaque_skylark = Theme::for_selection(
         Appearance::Dark,
-        "zeron-dark",
+        "skylark-dark",
         AccentSelection::ThemeDefault,
         SurfacePreference::Opaque,
     );
-    assert_eq!(opaque_zeron.surface_treatment, SurfaceTreatment::Opaque);
-    assert_eq!(opaque_zeron.glass(), opaque_zeron.surface);
+    assert_eq!(opaque_skylark.surface_treatment, SurfaceTreatment::Opaque);
+    assert_eq!(opaque_skylark.glass(), opaque_skylark.surface);
 }
 
 #[test]
@@ -202,7 +202,7 @@ fn forced_frost_preserves_shell_text_contrast_for_every_builtin() {
 #[test]
 fn runtime_hardening_protects_native_custom_theme_edits() {
     let mut variant = ThemeRegistry::builtin()
-        .variant("zeron-dark")
+        .variant("skylark-dark")
         .unwrap()
         .clone();
     variant.colors.text = variant.colors.background;
@@ -303,7 +303,7 @@ fn every_accent_is_one_coherent_color_identity() {
             assert_eq!(theme.success, baseline.success);
             assert_eq!(theme.diff_add, baseline.diff_add);
             assert_eq!(theme.diff_del, baseline.diff_del);
-            if accent != AccentColor::Zeron {
+            if accent != AccentColor::Skylark {
                 assert_ne!(theme.code_text, baseline.code_text);
                 assert_ne!(theme.busy, baseline.busy);
                 assert_ne!(theme.selection, baseline.selection);
@@ -929,7 +929,7 @@ fn composer_tint_moves_toward_sidebar_without_hiding_backdrop() {
 }
 
 #[test]
-fn layout_numbers_match_zeron() {
+fn layout_numbers_match_skylark() {
     assert_eq!(Theme::HEADER_HEIGHT, 44.0); // h-11
     assert_eq!(Theme::STATUS_STRIP_HEIGHT, 24.0); // h-6
     assert_eq!(Theme::BUBBLE_RADIUS, 16.0);

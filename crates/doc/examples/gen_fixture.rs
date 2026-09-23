@@ -1,12 +1,12 @@
 //! Generates a session-doc snapshot fixture for the cross-language compat check
-//! (`edge/scripts/compat-check.mjs`). Usage: `cargo run -p zeron-doc --example gen_fixture -- <out>`
+//! (`edge/scripts/compat-check.mjs`). Usage: `cargo run -p skylark-doc --example gen_fixture -- <out>`
 
-use zeron_doc::{
+use skylark_doc::{
     MessagePart, MessageRole, MessageStatus, SegmentWriter, SessionCommandEntry,
     SessionCommandPayload, SessionCommandStatus, SessionDoc, SessionMessageEntry,
     fold_event_into_parts,
 };
-use zeron_proto::{AgentEvent, ToolCall};
+use skylark_proto::{AgentEvent, ToolCall};
 
 fn main() {
     let out = std::env::args()

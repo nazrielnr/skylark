@@ -75,7 +75,7 @@ impl Changes {
             theme.ink(0.05)
         };
 
-        // Chevron (zeron checkout-diff-sidebar): chevron-right closed,
+        // Chevron (skylark checkout-diff-sidebar): chevron-right closed,
         // chevron-down open; gpui divs have no rotation transform at the
         // pinned rev, so the glyph swap crossfades over the same 200 ms.
         let chevron_icon = if collapsed {
@@ -643,7 +643,7 @@ impl Render for Changes {
                 } else if message.contains("unknown method") {
                     (
                         SharedString::from(
-                            "This chat's device is running an older Zeron — update it to view branch and turn diffs",
+                            "This chat's device is running an older Skylark — update it to view branch and turn diffs",
                         ),
                         false,
                     )

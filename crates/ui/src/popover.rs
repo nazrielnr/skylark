@@ -17,7 +17,7 @@ use gpui::{
 };
 use std::time::{Duration, Instant};
 
-use crate::motion::{self, ZERON_PULSE};
+use crate::motion::{self, SKYLARK_PULSE};
 use crate::theme::{Theme, hairline, ink};
 
 // ---------------------------------------------------------------------------
@@ -295,7 +295,7 @@ pub fn classify_key(key: &str, cmd: bool, ctrl: bool) -> MenuKey {
 // Elements
 // ---------------------------------------------------------------------------
 
-/// The floating-menu surface (zeron `.glass-surface` + `menuSurface`):
+/// The floating-menu surface (skylark `.glass-surface` + `menuSurface`):
 /// Shared floating surface used by palettes, popovers, dropdowns and menus.
 /// Windows 11 uses 8.0px (OverlayCornerRadius) for popovers and context menus.
 #[cfg(target_os = "windows")]

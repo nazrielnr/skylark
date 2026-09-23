@@ -4,7 +4,7 @@ use gpui::Context;
 
 use super::{Route, SettingsSection, Shell};
 
-/// One route-history entry (zeron parity: the renderer's TanStack memory
+/// One route-history entry (skylark parity: the renderer's TanStack memory
 /// history — every route the user visited, browser-style).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NavEntry {
@@ -14,7 +14,7 @@ pub enum NavEntry {
 }
 
 /// Browser-style navigation history for the titlebar back/forward buttons
-/// (zeron window-controls.tsx semantics): every route change pushes an entry;
+/// (skylark window-controls.tsx semantics): every route change pushes an entry;
 /// Back/Forward walk the stack without changing it; pushing while behind the
 /// tip truncates the entries ahead (a new branch, exactly like a browser).
 #[derive(Debug)]
@@ -48,7 +48,7 @@ impl NavHistory {
     }
 
     /// Swap the current entry in place without growing the stack — the native
-    /// equivalent of a `replace: true` navigation (zeron's boot redirect from
+    /// equivalent of a `replace: true` navigation (skylark's boot redirect from
     /// `/` into the last-used chat leaves no dead Back target behind).
     pub fn replace(&mut self, entry: NavEntry) {
         self.entries[self.index] = entry;
@@ -59,7 +59,7 @@ impl NavHistory {
     }
 
     /// Memory history keeps every entry, so "behind the last entry" is exactly
-    /// "can go forward" (zeron window-controls.tsx).
+    /// "can go forward" (skylark window-controls.tsx).
     pub fn can_forward(&self) -> bool {
         self.index + 1 < self.entries.len()
     }

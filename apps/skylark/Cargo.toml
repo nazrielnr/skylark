@@ -1,19 +1,19 @@
 [package]
-name = "zeron"
+name = "skylark"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 publish.workspace = true
 
 [[bin]]
-name = "zeron"
+name = "skylark"
 path = "src/main.rs"
 
 [dependencies]
-zeron-engine.workspace = true
-zeron-rpc.workspace = true
-zeron-ui.workspace = true
-zeron-update.workspace = true
+skylark-engine.workspace = true
+skylark-rpc.workspace = true
+skylark-ui.workspace = true
+skylark-update.workspace = true
 tokio.workspace = true
 clap.workspace = true
 anyhow.workspace = true

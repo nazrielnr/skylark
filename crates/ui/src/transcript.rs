@@ -38,10 +38,10 @@ use gpui::{
 };
 
 #[allow(unused_imports)]
-pub(crate) use zeron_doc::{
+pub(crate) use skylark_doc::{
     MessagePart, MessageRole, MessageStatus, SessionMessageEntry, SubagentStatus,
 };
-use zeron_proto::ToolCall;
+use skylark_proto::ToolCall;
 
 use crate::markdown::parser::{
     Block, BlockTree, IncrementalParser, InlineRun, InlineStyle, parse_full,
@@ -153,7 +153,7 @@ pub struct Transcript {
     /// Entrance state follows stable groups through completion so fast calls
     /// finish revealing. Replay rows have no entrance timestamps.
     pub(crate) tool_group_reveals: HashMap<SharedString, ToolGroupReveal>,
-    pub(super) last_replay_baseline: Option<Arc<zeron_doc::TranscriptBaseline>>,
+    pub(super) last_replay_baseline: Option<Arc<skylark_doc::TranscriptBaseline>>,
     /// Parsed historical prefixes, used to seed text before a coalesced live
     /// suffix is painted. The wire watermark contains lengths, not text.
     pub(super) historical_markdown: HashMap<SharedString, Row>,
@@ -264,7 +264,7 @@ pub struct Transcript {
     /// Hovered rail tick (grows + shows the preview card).
     rail_hover: Option<usize>,
     /// `(row id, entry id)` under the pointer — reveals the entry's timestamp
-    /// strip (zeron chat-view.tsx `group-hover`; the rows report hover
+    /// strip (skylark chat-view.tsx `group-hover`; the rows report hover
     /// themselves). Keyed by ROW so a row→row move within one entry can't
     /// clear the reveal when the old row's leave event arrives after the new
     /// row's enter (enter/leave order across rows is not guaranteed).

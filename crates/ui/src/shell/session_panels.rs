@@ -2,7 +2,7 @@
 
 use super::RightSurface;
 
-/// Per-chat panel open flags (zeron parity: `sessionPanels` — the terminal and
+/// Per-chat panel open flags (skylark parity: `sessionPanels` — the terminal and
 /// changes panels open *per session*, in memory only; heights and every other
 /// persisted setting stay global).
 ///

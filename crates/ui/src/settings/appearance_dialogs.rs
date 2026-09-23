@@ -348,7 +348,7 @@ impl AppearancePage {
                             .mt(px(1.0))
                             .flex_none(),
                     )
-                    .child("Zeron finds light and dark variants automatically."),
+                    .child("Skylark finds light and dark variants automatically."),
             );
         }
 

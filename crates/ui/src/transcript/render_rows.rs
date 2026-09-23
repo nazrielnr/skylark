@@ -7,7 +7,7 @@ use gpui::{
     canvas, div, prelude::*, px, quad, AnyElement, BorderStyle, ClipboardItem, Context,
     SharedString, StyledText, TextRun, Window,
 };
-use zeron_doc::{MessageRole, MessageStatus};
+use skylark_doc::{MessageRole, MessageStatus};
 
 use crate::markdown::render::{self, RenderOptions};
 use crate::markdown::veil::RowVeil;
@@ -195,7 +195,7 @@ impl Transcript {
                 let params = serde_json::json!({ "chatId": chat_id });
                 if let Err(err) = engine
                     .client()
-                    .call(zeron_rpc::methods::RETRY_DELIVERY, params)
+                    .call(skylark_rpc::methods::RETRY_DELIVERY, params)
                     .await
                 {
                     tracing::warn!(error = %err, "delivery retry RPC failed");

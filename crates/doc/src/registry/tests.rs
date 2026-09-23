@@ -4,7 +4,7 @@
 //! tested, not asserted.
 
 use super::*;
-use zeron_proto::{HarnessId, SandboxLevel, SessionStatus};
+use skylark_proto::{HarnessId, SandboxLevel, SessionStatus};
 
 fn ts(ms: i64) -> DateTime<Utc> {
     DateTime::from_timestamp_millis(ms).unwrap_or(DateTime::UNIX_EPOCH)
@@ -348,7 +348,7 @@ fn server_round(
 fn rows_round_trip_and_upsert_refreshes() {
     let mut doc = RegistryDoc::new("dev-a");
     let mut device = device("dev-a", "laptop");
-    device.capabilities = vec![zeron_proto::capabilities::MESSAGE_QUEUE_V1.into()];
+    device.capabilities = vec![skylark_proto::capabilities::MESSAGE_QUEUE_V1.into()];
     doc.upsert_device(&device).unwrap();
     doc.upsert_chat(&chat("chat-1", "dev-a")).unwrap();
     doc.upsert_session(&session("chat-1", "dev-a", SessionStatus::Working))
@@ -844,7 +844,7 @@ fn pin_sessions(doc: &mut RegistryDoc, ids: &[&str]) {
         if doc.chat(id).unwrap().is_none() {
             doc.upsert_chat(&chat(id, "desktop")).unwrap();
         }
-        doc.change_sidebar_pin(&zeron_proto::SidebarPinChange::Pin {
+        doc.change_sidebar_pin(&skylark_proto::SidebarPinChange::Pin {
             session_id: (*id).into(),
             after: None,
             before: None,
@@ -920,7 +920,7 @@ fn sidebar_ignores_old_whole_list_preferences() {
 
 #[test]
 fn sidebar_rejects_invalid_or_missing_sessions_before_writing() {
-    use zeron_proto::SidebarPinChange;
+    use skylark_proto::SidebarPinChange;
     let mut doc = RegistryDoc::new("dev-a");
     for id in ["", "invalid id", "missing"] {
         assert!(
@@ -937,7 +937,7 @@ fn sidebar_rejects_invalid_or_missing_sessions_before_writing() {
 
 #[test]
 fn sidebar_independent_moves_merge_and_only_write_the_moved_pin() {
-    use zeron_proto::SidebarPinChange;
+    use skylark_proto::SidebarPinChange;
     let mut desktop = RegistryDoc::new("desktop");
     let mut phone = RegistryDoc::new("phone");
     let mut server = HashMap::new();
@@ -981,7 +981,7 @@ fn sidebar_independent_moves_merge_and_only_write_the_moved_pin() {
 
 #[test]
 fn sidebar_unpin_survives_concurrent_move_and_replayed_pin() {
-    use zeron_proto::SidebarPinChange;
+    use skylark_proto::SidebarPinChange;
     for reverse in [false, true] {
         let mut a = RegistryDoc::new("a");
         let mut b = RegistryDoc::new("b");
@@ -1020,7 +1020,7 @@ fn sidebar_unpin_survives_concurrent_move_and_replayed_pin() {
 
 #[test]
 fn sidebar_concurrent_additions_keep_overflow_and_allow_removal_and_moves() {
-    use zeron_proto::SidebarPinChange;
+    use skylark_proto::SidebarPinChange;
     let mut a = RegistryDoc::new("a");
     let mut b = RegistryDoc::new("b");
     let mut server = HashMap::new();
@@ -1077,7 +1077,7 @@ fn sidebar_concurrent_additions_keep_overflow_and_allow_removal_and_moves() {
 
 #[test]
 fn sidebar_keys_and_pending_membership_survive_restart() {
-    use zeron_proto::SidebarPinChange;
+    use skylark_proto::SidebarPinChange;
     let mut a = RegistryDoc::new("a");
     a.upsert_chat(&chat("pin", "a")).unwrap();
     a.change_sidebar_pin(&SidebarPinChange::Pin {
@@ -1093,7 +1093,7 @@ fn sidebar_keys_and_pending_membership_survive_restart() {
 
 #[test]
 fn sidebar_local_edits_follow_an_observed_future_clock() {
-    use zeron_proto::SidebarPinChange;
+    use skylark_proto::SidebarPinChange;
     let mut doc = RegistryDoc::new("local");
     pin_sessions(&mut doc, &["pin"]);
     let remote = RowOp {
@@ -1132,7 +1132,7 @@ fn sidebar_local_edits_follow_an_observed_future_clock() {
 
 #[test]
 fn sidebar_concurrent_moves_of_one_pin_converge_by_clock_in_either_order() {
-    use zeron_proto::SidebarPinChange;
+    use skylark_proto::SidebarPinChange;
     for reverse in [false, true] {
         let mut a = RegistryDoc::new("a");
         let mut b = RegistryDoc::new("b");

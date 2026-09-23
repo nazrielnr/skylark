@@ -1,5 +1,8 @@
 # Shared message queue
 
+> **Skylark build status: local-only.** Product login/logout, cloud sync, remote control, updates, public installation, and publishing are temporarily paused. Provider agent authentication remains available. Cloud/mobile/release instructions and results below are historical reference, not current setup guidance. See [current policy](../LOCAL_ONLY.md).
+
+
 Ported from `jg-personal-cut` at `fd3f97b`. The queue spans the session document,
 host executor, RPC, desktop composer and iOS client.
 
@@ -83,7 +86,7 @@ numbers. Older hosts retain the existing command-send path.
 - Device-routing tests race local and remote consumers over the same row.
 - Desktop tests cover action selection, modifier submission, optimistic echo,
   settings compatibility and transcript anchoring.
-- `apps/ios/ZeronTests/MessageQueueTests.swift` covers projection, policy,
+- `apps/ios/SkylarkTests/MessageQueueTests.swift` covers projection, policy,
   attachment text, action acknowledgements and keyboard submission. Run with
   the iOS Xcode test suite on macOS.
 

@@ -1,5 +1,8 @@
 # Cursor authentication-error follow-up
 
+> **Skylark build status: local-only.** Product login/logout, cloud sync, remote control, updates, public installation, and publishing are temporarily paused. Provider agent authentication remains available. Cloud/mobile/release instructions and results below are historical reference, not current setup guidance. See [current policy](../../LOCAL_ONLY.md).
+
+
 Investigated against main `10c9d3e2` using the supplied redacted JSONL export.
 No user prompt, tool argument, output, credential, or original transcript is
 checked into this repository.
@@ -73,10 +76,10 @@ Run the passing check with an authenticated SDK:
 
 ```sh
 cursor_auth_probe=$(mktemp -d)
-ZERON_CURSOR_STATE_DIR="$cursor_auth_probe/state" \
-ZERON_CURSOR_AUTH_CLOCK="$cursor_auth_probe/clock" \
+SKYLARK_CURSOR_STATE_DIR="$cursor_auth_probe/state" \
+SKYLARK_CURSOR_AUTH_CLOCK="$cursor_auth_probe/clock" \
 NODE_OPTIONS="--import=$PWD/crates/harness/tests/fixtures/cursor-auth-clock.mjs" \
-cargo run -p zeron-harness --example cursor_stability_probe -- parked 2
+cargo run -p skylark-harness --example cursor_stability_probe -- parked 2
 ```
 
 The preload records only exchange counts, process IDs, and timestamps. The
@@ -101,7 +104,7 @@ control file and isolated state must not be shared with a real user process.
 - Log failed Cursor runs at warning level, with session ID and error details,
   so default engine logs retain the failure without verbose logging.
 - Allow the opt-in live probe to choose its model with
-  `ZERON_CURSOR_TEST_MODEL`.
+  `SKYLARK_CURSOR_TEST_MODEL`.
 
 ## Validation and limits
 
@@ -122,15 +125,15 @@ saved checkpoints; it cannot manufacture provider state that was never saved.
 Reproduce without credentials:
 
 ```sh
-cargo test -p zeron-harness
+cargo test -p skylark-harness
 ```
 
 Opt-in live checks (use provider quota and disposable workspaces):
 
 ```sh
-cargo run -p zeron-harness --example cursor_stability_probe -- models 1000
-ZERON_CURSOR_STATE_DIR=$(mktemp -d) cargo run -p zeron-harness --example cursor_stability_probe -- sessions 6
-ZERON_CURSOR_STATE_DIR=$(mktemp -d) ZERON_CURSOR_TEST_MODEL=grok-4.6 cargo run -p zeron-harness --example cursor_stability_probe -- parked 6
+cargo run -p skylark-harness --example cursor_stability_probe -- models 1000
+SKYLARK_CURSOR_STATE_DIR=$(mktemp -d) cargo run -p skylark-harness --example cursor_stability_probe -- sessions 6
+SKYLARK_CURSOR_STATE_DIR=$(mktemp -d) SKYLARK_CURSOR_TEST_MODEL=grok-4.6 cargo run -p skylark-harness --example cursor_stability_probe -- parked 6
 ```
 
 ## Ongoing safeguards

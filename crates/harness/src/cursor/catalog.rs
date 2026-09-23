@@ -6,7 +6,7 @@ use std::{
     future::Future,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
-use zeron_proto::Model;
+use skylark_proto::Model;
 
 #[derive(Default)]
 pub(super) struct Catalog {

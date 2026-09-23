@@ -7,8 +7,8 @@ use gpui::{
     div, px, Context, Focusable, IntoElement, MouseButton, PathPromptOptions,
     SharedString, Window, prelude::*,
 };
-use zeron_proto::{FileSearchMatch, HarnessId, SlashCommand};
-use zeron_rpc::{methods, RpcError};
+use skylark_proto::{FileSearchMatch, HarnessId, SlashCommand};
+use skylark_rpc::{methods, RpcError};
 
 use crate::theme::Theme;
 use super::Composer;
@@ -122,7 +122,7 @@ pub fn mention_response_is_current(state: &FileMentionState, request: u64) -> bo
 pub fn mention_error_message(err: &RpcError) -> SharedString {
     match err {
         RpcError::UnknownMethod(_) => {
-            "The session's device runs an older zeron — update it to search its files".into()
+            "The session's device runs an older skylark — update it to search its files".into()
         }
         RpcError::Transport(_) | RpcError::Closed => "The session's device is unreachable".into(),
         RpcError::BadParams(_) | RpcError::Failed(_) => "File search failed".into(),
@@ -133,7 +133,7 @@ pub fn mention_error_message(err: &RpcError) -> SharedString {
 pub fn slash_error_message(err: &RpcError) -> SharedString {
     match err {
         RpcError::UnknownMethod(_) => {
-            "The session's device runs an older zeron — update it to list commands".into()
+            "The session's device runs an older skylark — update it to list commands".into()
         }
         RpcError::Transport(_) | RpcError::Closed => "The session's device is unreachable".into(),
         RpcError::BadParams(_) | RpcError::Failed(_) => {

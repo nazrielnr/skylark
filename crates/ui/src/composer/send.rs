@@ -4,9 +4,9 @@ use std::collections::HashMap;
 use std::time::Duration;
 
 use gpui::{div, px, App, Context, IntoElement, prelude::*};
-use zeron_doc::{MessagePart, SessionCommandPayload, SessionMessageEntry};
-use zeron_proto::{capabilities, RunRequest, SandboxLevel};
-use zeron_rpc::methods;
+use skylark_doc::{MessagePart, SessionCommandPayload, SessionMessageEntry};
+use skylark_proto::{capabilities, RunRequest, SandboxLevel};
+use skylark_rpc::methods;
 
 use crate::appshots;
 use crate::attachments;
@@ -333,7 +333,7 @@ impl Composer {
         // so the doc frame dedups it away).
         let echo = SessionMessageEntry {
             id: message_id.clone(),
-            role: zeron_doc::MessageRole::User,
+            role: skylark_doc::MessageRole::User,
             parts: vec![MessagePart::Text {
                 id: "t0".into(),
                 text: echo_text.clone(),
@@ -498,7 +498,7 @@ impl Composer {
                     if should_publish_optimistic_echo(queue) {
                         let refreshed = SessionMessageEntry {
                             id: message_id.clone(),
-                            role: zeron_doc::MessageRole::User,
+                            role: skylark_doc::MessageRole::User,
                             parts: vec![MessagePart::Text {
                                 id: "t0".into(),
                                 text: content.clone(),
@@ -541,7 +541,7 @@ impl Composer {
                 // a blocking CreateWorktree relay RPC here: the RPC had no
                 // timeout, so a lost relay frame wedged the send on "Sending…"
                 // forever while the session ran remotely anyway (2026-08-18).
-                let mut run_worktree: Option<zeron_proto::WorktreeSpec> = None;
+                let mut run_worktree: Option<skylark_proto::WorktreeSpec> = None;
                 // The picked ref rides createChat so the session footer names
                 // it from the first frame (it read "Select ref" until the
                 // host's diff reconciler got around to stamping the branch).
@@ -558,7 +558,7 @@ impl Composer {
                         }
                         crate::pickers::CheckoutPlan::NewWorktree { base } => {
                             // Footer shows the base until the host stamps the
-                            // actual zeron/<name> branch post-creation. cwd
+                            // actual skylark/<name> branch post-creation. cwd
                             // stays the repo folder — an old host that doesn't
                             // know the spec degrades to the main checkout
                             // instead of failing the run.
@@ -574,7 +574,7 @@ impl Composer {
                                 // current checkout state.
                                 let base =
                                     base.clone().unwrap_or_else(|| "HEAD".to_string());
-                                run_worktree = Some(zeron_proto::WorktreeSpec {
+                                run_worktree = Some(skylark_proto::WorktreeSpec {
                                     repo_path: repo_path.clone(),
                                     base,
                                     space_id: space_id.clone(),
@@ -919,7 +919,7 @@ impl Composer {
         cx: &mut Context<Self>,
     ) -> gpui::AnyElement {
         let theme = Theme::of(cx);
-        // Zeron composer-actions.tsx: a size-7 filled circle — up-arrow to
+        // Skylark composer-actions.tsx: a size-7 filled circle — up-arrow to
         // send/queue, a dark rounded square on the same light circle to stop.
         match mode {
             SendButtonMode::Stop => div()

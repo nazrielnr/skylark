@@ -3,8 +3,8 @@ use std::path::PathBuf;
 
 use anyhow::{Context as _, Result};
 use clap::{Parser, ValueEnum};
-use zeron_theme::Appearance;
-use zeron_theme::vscode::{ImportOptions, import_file};
+use skylark_theme::Appearance;
+use skylark_theme::vscode::{ImportOptions, import_file};
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
 enum AppearanceArg {
@@ -21,7 +21,7 @@ impl From<AppearanceArg> for Appearance {
     }
 }
 
-/// Convert a VS Code JSON/JSONC color theme into a complete Zeron theme draft.
+/// Convert a VS Code JSON/JSONC color theme into a complete Skylark theme draft.
 #[derive(Debug, Parser)]
 struct Args {
     #[arg(long)]

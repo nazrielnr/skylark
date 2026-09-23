@@ -43,7 +43,7 @@ impl Shell {
         }
     }
 
-    pub(super) fn copy_zeron_conversation_link(&mut self, chat_id: &str, cx: &mut Context<Self>) {
+    pub(super) fn copy_skylark_conversation_link(&mut self, chat_id: &str, cx: &mut Context<Self>) {
         let link = {
             let state = self.state.read(cx);
             crate::links::workspace_locator(
@@ -51,11 +51,11 @@ impl Shell {
                 state.auth.as_ref(),
                 state.local_device_id.as_deref(),
             )
-            .map(|workspace| crate::links::zeron_conversation_link(chat_id, &workspace))
+            .map(|workspace| crate::links::skylark_conversation_link(chat_id, &workspace))
         };
         if let Some(link) = link {
             cx.write_to_clipboard(ClipboardItem::new_string(link));
-            self.sidebar_notice = Some("Zeron conversation link copied".into());
+            self.sidebar_notice = Some("Skylark conversation link copied".into());
         } else {
             self.sidebar_notice = Some("Conversation link is not ready yet".into());
         }
@@ -236,7 +236,7 @@ impl Shell {
             Err("Pins are still syncing")
         } else {
             let current = self.active_sidebar_pins(cx);
-            zeron_proto::validate_sidebar_pin_update(&current, pins)
+            skylark_proto::validate_sidebar_pin_update(&current, pins)
         };
         if let Err(message) = result {
             self.sidebar_notice = Some(message.into());
@@ -249,7 +249,7 @@ impl Shell {
     pub(super) fn apply_sidebar_pin_change(
         &mut self,
         profile_key: String,
-        change: zeron_proto::SidebarPinChange,
+        change: skylark_proto::SidebarPinChange,
         cx: &mut Context<Self>,
     ) -> bool {
         let mut pinned_session_ids = self.active_sidebar_pins(cx);
@@ -300,13 +300,13 @@ impl Shell {
             return;
         }
         let change = if pinned {
-            zeron_proto::SidebarPinChange::Pin {
+            skylark_proto::SidebarPinChange::Pin {
                 session_id: chat_id,
                 after: pins.last().cloned(),
                 before: None,
             }
         } else {
-            zeron_proto::SidebarPinChange::Unpin {
+            skylark_proto::SidebarPinChange::Unpin {
                 session_id: chat_id,
             }
         };
@@ -525,7 +525,7 @@ impl Shell {
                     .as_ref()
                     .and_then(|chat| chat.harness_session_id.as_deref())
                     .is_some_and(|id| !id.trim().is_empty());
-                let zeron_id = chat_id.clone();
+                let skylark_id = chat_id.clone();
                 let harness_id = chat_id.clone();
                 let session_chat_id = chat_id.clone();
                 menu.child(
@@ -546,17 +546,17 @@ impl Shell {
                 )
                 .child(popover::menu_separator())
                 .child(
-                    popover::menu_row(&theme, false, format!("chat-copy-zeron-{chat_id}"))
-                        .id("chat-copy-zeron")
+                    popover::menu_row(&theme, false, format!("chat-copy-skylark-{chat_id}"))
+                        .id("chat-copy-skylark")
                         .on_click(cx.listener(move |this: &mut Shell, _, _, cx| {
-                            this.copy_zeron_conversation_link(&zeron_id, cx)
+                            this.copy_skylark_conversation_link(&skylark_id, cx)
                         }))
                         .child(
                             icon(icons::COPY)
                                 .size(px(16.0))
                                 .text_color(theme.text_muted),
                         )
-                        .child(SharedString::from("Zeron conversation link")),
+                        .child(SharedString::from("Skylark conversation link")),
                 )
                 .when_some(harness_link, |menu, link| {
                     menu.child(

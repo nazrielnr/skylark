@@ -12,7 +12,7 @@ use gpui::{
     div, font, list, prelude::*, px,
 };
 use gpui_base::input::{RopeExt as _, TextDecoration, TextDecorationCollection};
-use zeron_proto::{
+use skylark_proto::{
     ReadWorkspaceFileRequest, WorkspaceFileSearchMatch, WorkspaceReadOnlyReason,
     WriteWorkspaceFileOutcome, WriteWorkspaceFileRequest,
 };
@@ -59,7 +59,7 @@ const MAX_RETAINED_DOCUMENT_BYTES: usize = 32 * 1024 * 1024;
 
 struct HighlightedFile {
     content_hash: String,
-    document: Arc<zeron_syntax::HighlightedDocument>,
+    document: Arc<skylark_syntax::HighlightedDocument>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -502,15 +502,15 @@ mod markdown_buffer_tests {
                                 checkout_id: Some("checkout".into()),
                                 path: "README.md".into(),
                             });
-                            document.set_loaded(zeron_proto::WorkspaceFileText {
+                            document.set_loaded(skylark_proto::WorkspaceFileText {
                                 checkout_id: "checkout".into(),
                                 path: "README.md".into(),
                                 text: Some(source.into()),
                                 content_hash: Some("hash".into()),
                                 size: source.len() as u64,
                                 modified_at: None,
-                                encoding: zeron_proto::WorkspaceTextEncoding::Utf8,
-                                line_ending: Some(zeron_proto::WorkspaceLineEnding::Lf),
+                                encoding: skylark_proto::WorkspaceTextEncoding::Utf8,
+                                line_ending: Some(skylark_proto::WorkspaceLineEnding::Lf),
                                 read_only_reason: None,
                                 truncated: false,
                             });
@@ -851,7 +851,7 @@ mod markdown_buffer_tests {
         window
             .update(cx, |surface, window, cx| {
                 surface.request_context = Some(FilesRequestContext {
-                    target: zeron_proto::WorkspaceTarget {
+                    target: skylark_proto::WorkspaceTarget {
                         chat_id: Some("chat".into()),
                         space_id: None,
                         checkout_path: None,
@@ -865,15 +865,15 @@ mod markdown_buffer_tests {
                     checkout_id: Some("checkout".into()),
                     path: "drawing.txt".into(),
                 });
-                document.set_loaded(zeron_proto::WorkspaceFileText {
+                document.set_loaded(skylark_proto::WorkspaceFileText {
                     checkout_id: "checkout".into(),
                     path: "drawing.txt".into(),
                     text: Some("disk text".into()),
                     content_hash: Some("disk-hash".into()),
                     size: 9,
                     modified_at: None,
-                    encoding: zeron_proto::WorkspaceTextEncoding::Utf8,
-                    line_ending: Some(zeron_proto::WorkspaceLineEnding::Lf),
+                    encoding: skylark_proto::WorkspaceTextEncoding::Utf8,
+                    line_ending: Some(skylark_proto::WorkspaceLineEnding::Lf),
                     read_only_reason: None,
                     truncated: false,
                 });
@@ -938,15 +938,15 @@ mod markdown_buffer_tests {
                     checkout_id: Some("checkout".into()),
                     path: "README.md".into(),
                 });
-                document.set_loaded(zeron_proto::WorkspaceFileText {
+                document.set_loaded(skylark_proto::WorkspaceFileText {
                     checkout_id: "checkout".into(),
                     path: "README.md".into(),
                     text: Some("[Docs](https://example.com/docs)".into()),
                     content_hash: Some("hash".into()),
                     size: 32,
                     modified_at: None,
-                    encoding: zeron_proto::WorkspaceTextEncoding::Utf8,
-                    line_ending: Some(zeron_proto::WorkspaceLineEnding::Lf),
+                    encoding: skylark_proto::WorkspaceTextEncoding::Utf8,
+                    line_ending: Some(skylark_proto::WorkspaceLineEnding::Lf),
                     read_only_reason: None,
                     truncated: false,
                 });
@@ -1074,15 +1074,15 @@ mod markdown_buffer_tests {
                     checkout_id: Some("checkout".into()),
                     path: "README.md".into(),
                 });
-                document.set_loaded(zeron_proto::WorkspaceFileText {
+                document.set_loaded(skylark_proto::WorkspaceFileText {
                     checkout_id: "checkout".into(),
                     path: "README.md".into(),
                     text: Some("# Disk".into()),
                     content_hash: Some("disk-hash".into()),
                     size: 6,
                     modified_at: None,
-                    encoding: zeron_proto::WorkspaceTextEncoding::Utf8,
-                    line_ending: Some(zeron_proto::WorkspaceLineEnding::Lf),
+                    encoding: skylark_proto::WorkspaceTextEncoding::Utf8,
+                    line_ending: Some(skylark_proto::WorkspaceLineEnding::Lf),
                     read_only_reason: None,
                     truncated: false,
                 });

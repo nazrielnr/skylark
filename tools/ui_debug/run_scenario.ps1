@@ -6,11 +6,11 @@
 #   powershell ... -Scenario hover          # hover sweep only
 #   powershell ... -Scenario tabs           # rapid tab open/switch
 #
-# Requires a debug build: cargo build -p zeron
+# Requires a debug build: cargo build -p skylark
 # See docs/ui-tracing.md for the trace vocabulary.
 
 param(
-  [string]$Exe = "$PSScriptRoot\..\..\target\debug\zeron.exe",
+  [string]$Exe = "$PSScriptRoot\..\..\target\debug\skylark.exe",
   [string]$LogPath = "$PSScriptRoot\..\..\target\ui_trace.log",
   [string]$Scenario = "smoke",
   [int]$BootSeconds = 18
@@ -36,10 +36,10 @@ public class Win {
 "@
 [Win]::SetProcessDPIAware() | Out-Null
 
-if (-not (Test-Path $Exe)) { Write-Output "EXE MISSING: $Exe (cargo build -p zeron)"; exit 1 }
+if (-not (Test-Path $Exe)) { Write-Output "EXE MISSING: $Exe (cargo build -p skylark)"; exit 1 }
 if (Test-Path $LogPath) { Remove-Item $LogPath }
 
-$env:ZERON_UI_TRACE = "1"
+$env:SKYLARK_UI_TRACE = "1"
 $proc = Start-Process -FilePath $Exe -WorkingDirectory "$PSScriptRoot\..\.." `
   -RedirectStandardError $LogPath `
   -RedirectStandardOutput "$PSScriptRoot\..\..\target\ui_trace.stdout.log" -PassThru

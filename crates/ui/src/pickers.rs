@@ -18,8 +18,8 @@ use gpui::{
     App, Context, Entity, FocusHandle, Focusable as _, Subscription, Task, Window, prelude::*,
 };
 
-use zeron_engine::registry::HarnessDescriptor;
-use zeron_proto::RepoRef;
+use skylark_engine::registry::HarnessDescriptor;
+use skylark_proto::RepoRef;
 
 use crate::composer::{ComposerInput, ComposerInputEvent};
 use crate::popover::{self, Loadable};
@@ -49,7 +49,7 @@ pub(crate) use display::workspace_footer_row;
 pub struct Pickers {
     pub(crate) state: Entity<AppState>,
     pub(crate) config: DraftConfig,
-    /// Sticky last-used picks (zeron `zeron.composer.defaults:v1`): seeds the
+    /// Sticky last-used picks (skylark `skylark.composer.defaults:v1`): seeds the
     /// new-chat chips and is rewritten on every new-chat pick.
     pub(crate) defaults: ComposerDefaults,
     /// Where [`Self::defaults`] persists (`{data_dir}/composer-defaults.json`);
@@ -108,7 +108,7 @@ pub struct Pickers {
     /// [`Self::toggle`]'s programmatic clear (see the subscription).
     pub(crate) search_reset_muted: bool,
     pub(crate) focus: FocusHandle,
-    /// `ZERON_OPEN_PICKER` boot: keep claiming focus until it sticks, so
+    /// `SKYLARK_OPEN_PICKER` boot: keep claiming focus until it sticks, so
     /// keyboard nav drives the data-side-opened popover (headless rigs have
     /// no synthetic pointer, but synthetic keys do arrive).
     pub(crate) boot_focus_pending: bool,
@@ -218,10 +218,10 @@ impl Pickers {
             this.ensure_harnesses(true, cx);
             cx.notify();
         });
-        // Dev/testing knob: `ZERON_OPEN_PICKER=model|traits|repo|branch` boots
+        // Dev/testing knob: `SKYLARK_OPEN_PICKER=model|traits|repo|branch` boots
         // with that popover open — synthetic input can't reach the app on
         // headless compositors, so captures need a data-side path.
-        let boot_open = match std::env::var("ZERON_OPEN_PICKER").ok().as_deref() {
+        let boot_open = match std::env::var("SKYLARK_OPEN_PICKER").ok().as_deref() {
             Some("model") => Some(PickerKind::HarnessModel),
             Some("traits") => Some(PickerKind::HarnessModel),
             Some("branch") => Some(PickerKind::Branch),
@@ -352,7 +352,7 @@ impl Pickers {
         cx.notify();
     }
 
-    /// Capture knob (`ZERON_OPEN_DIALOG=model`): open the combined
+    /// Capture knob (`SKYLARK_OPEN_DIALOG=model`): open the combined
     /// harness/model menu programmatically.
     /// A jump-slot press while the model menu is open. The shell's session
     /// bindings (Mod+1…9) win the dispatch race — gpui runs a matched

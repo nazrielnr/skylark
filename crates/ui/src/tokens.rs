@@ -1,4 +1,4 @@
-//! Centralized design tokens for Zeron UI.
+//! Centralized design tokens for Skylark UI.
 //!
 //! Replaces scattered magic numbers (`px(8.0)`, `wash(0.06)`, hardcoded opacities)
 //! with strictly-typed, semantic design constants.

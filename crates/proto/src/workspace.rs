@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 /// builds may share a semver with upstream while exposing a different RPC and
 /// document surface.
 pub mod capabilities {
+    pub const LOCAL_ONLY_V1: &str = "skylark-local-only-v1";
     pub const MESSAGE_QUEUE_V1: &str = "message-queue-v1";
     pub const MESSAGE_QUEUE_ACTIONS_V1: &str = "message-queue-actions-v1";
     pub const MESSAGE_QUEUE_ATTACHMENTS_V1: &str = "message-queue-attachments-v1";
@@ -22,7 +23,11 @@ pub mod capabilities {
     ];
 
     pub fn current() -> Vec<String> {
-        CURRENT.iter().map(|value| (*value).to_string()).collect()
+        let mut capabilities: Vec<String> = CURRENT.iter().map(|value| (*value).to_string()).collect();
+        if crate::LOCAL_ONLY_BUILD {
+            capabilities.push(LOCAL_ONLY_V1.into());
+        }
+        capabilities
     }
 }
 
@@ -96,7 +101,8 @@ mod tests {
                     "message-queue-actions-v1",
                     "message-queue-attachments-v1",
                     "message-queue-clean-attachment-text-v1",
-                    "message-queue-edit-lease-v1"
+                    "message-queue-edit-lease-v1",
+                    "skylark-local-only-v1"
                 ],
             })
         );

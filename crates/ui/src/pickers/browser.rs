@@ -1,4 +1,4 @@
-use zeron_proto::FolderListing;
+use skylark_proto::FolderListing;
 
 /// Parent of an absolute path; `None` at the filesystem root.
 pub fn parent_path(path: &str) -> Option<String> {
@@ -104,6 +104,6 @@ pub fn breadcrumbs(path: &str) -> Vec<(String, String)> {
 }
 
 /// Directory rows of a listing (files never render in the browser).
-pub fn browser_rows(listing: &FolderListing) -> Vec<&zeron_proto::FolderEntry> {
+pub fn browser_rows(listing: &FolderListing) -> Vec<&skylark_proto::FolderEntry> {
     listing.entries.iter().filter(|e| e.is_dir).collect()
 }

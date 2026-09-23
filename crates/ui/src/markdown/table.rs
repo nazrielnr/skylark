@@ -36,7 +36,7 @@ fn table_cell_ix(ix: usize, r: usize, c: usize) -> usize {
     ix * 100_000 + r * 100 + c
 }
 
-/// A GFM table — a port of mugen-markdown's `TableBlock` under zeron's md
+/// A GFM table — a port of mugen-markdown's `TableBlock` under skylark's md
 /// theme (see the `TABLE_*` constants).
 ///
 /// Column widths resolve exactly the way the source's CSS does: each cell is

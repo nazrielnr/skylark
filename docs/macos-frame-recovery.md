@@ -1,5 +1,8 @@
 # macOS display freeze investigation
 
+> **Skylark build status: local-only.** Product login/logout, cloud sync, remote control, updates, public installation, and publishing are temporarily paused. Provider agent authentication remains available. Cloud/mobile/release instructions and results below are historical reference, not current setup guidance. See [current policy](LOCAL_ONLY.md).
+
+
 Reported symptom: after the app has been open for a while, its contents stop
 updating. The user can still send a message and does not see a beachball;
 restarting the app restores rendering. Sleep/wake is a suspected trigger.

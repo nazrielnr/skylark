@@ -1,5 +1,8 @@
 # Windows click/drag audit
 
+> **Skylark build status: local-only.** Product login/logout, cloud sync, remote control, updates, public installation, and publishing are temporarily paused. Provider agent authentication remains available. Cloud/mobile/release instructions and results below are historical reference, not current setup guidance. See [current policy](../LOCAL_ONLY.md).
+
+
 Date: 2026-09-11
 
 ## Question
@@ -71,4 +74,4 @@ For each P0/P1 control, add a Windows regression covering mouse-down, approximat
 
 Comet now centralizes this distinction in `click_activation_drag_enabled()`. On Windows, the four P0/P1 control families above no longer register drag initiation on their click-activation hitboxes. Their primary click actions therefore survive pointer jitter. Drag-first controls remain unchanged, and macOS/Linux retain tab reordering and workspace-path dragging.
 
-The production right-tab visual regression reproduces an eight-pixel moving click. It failed before the change because GPUI entered an active drag, then passed after the Windows policy was applied. The complete `zeron-ui` library suite passed with 789 tests.
+The production right-tab visual regression reproduces an eight-pixel moving click. It failed before the change because GPUI entered an active drag, then passed after the Windows policy was applied. The complete `skylark-ui` library suite passed with 789 tests.

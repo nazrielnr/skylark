@@ -1,7 +1,7 @@
 //! The app theme — two concrete appearances, one token set.
 //!
 //! Colors are precomputed from an oklch-derived neutral scale (perceptually even
-//! lightness steps; the same scale zeron's Tailwind theme used) into gpui [`Hsla`].
+//! lightness steps; the same scale skylark's Tailwind theme used) into gpui [`Hsla`].
 //! **Numbers drive layout, colors are paint**: layout constants live here as plain
 //! numbers and never depend on which color is painted.
 //!
@@ -36,8 +36,8 @@ use std::sync::atomic::{AtomicU8, AtomicU32, Ordering};
 
 use gpui::{App, Global, Hsla, SharedString, hsla};
 use serde::{Deserialize, Serialize};
-use zeron_syntax::HighlightKind;
-use zeron_theme::{
+use skylark_syntax::HighlightKind;
+use skylark_theme::{
     AccentPreset, AccentSelection, Color as ModelColor, SurfacePreference, SurfaceTreatment,
     ThemeRegistry, ThemeVariant,
 };
@@ -48,10 +48,10 @@ use zeron_theme::{
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum AccentColor {
-    /// The exact upstream Zeron indigo.
+    /// The exact upstream Skylark indigo.
     #[default]
     #[serde(alias = "violet", alias = "indigo", alias = "red", alias = "purple")]
-    Zeron,
+    Skylark,
     Orange,
     Amber,
     Green,
@@ -63,7 +63,7 @@ pub enum AccentColor {
 
 impl AccentColor {
     pub const ALL: [Self; 7] = [
-        Self::Zeron,
+        Self::Skylark,
         Self::Orange,
         Self::Amber,
         Self::Green,
@@ -74,7 +74,7 @@ impl AccentColor {
 
     pub fn label(self) -> &'static str {
         match self {
-            Self::Zeron => "Zeron",
+            Self::Skylark => "Skylark",
             Self::Orange => "Orange",
             Self::Amber => "Amber",
             Self::Green => "Green",
@@ -89,10 +89,10 @@ impl AccentColor {
         // used to gamut-clip OKLCH into sRGB and then mutate HSL lightness,
         // producing different chroma and apparent hues across light/dark.
         let (primary, strong) = match (self, appearance) {
-            (Self::Zeron, Appearance::Dark) => {
+            (Self::Skylark, Appearance::Dark) => {
                 (oklch(0.673, 0.182, 276.935), oklch(0.585, 0.233, 277.117))
             }
-            (Self::Zeron, Appearance::Light) => {
+            (Self::Skylark, Appearance::Light) => {
                 (oklch(0.511, 0.262, 276.966), oklch(0.511, 0.262, 276.966))
             }
             (Self::Orange, Appearance::Dark) => (oklch(0.75, 0.18, 55.0), oklch(0.54, 0.19, 55.0)),
@@ -133,7 +133,7 @@ impl AccentColor {
 impl From<AccentColor> for AccentPreset {
     fn from(value: AccentColor) -> Self {
         match value {
-            AccentColor::Zeron => Self::Zeron,
+            AccentColor::Skylark => Self::Skylark,
             AccentColor::Orange => Self::Orange,
             AccentColor::Amber => Self::Amber,
             AccentColor::Green => Self::Green,
@@ -147,7 +147,7 @@ impl From<AccentColor> for AccentPreset {
 impl From<AccentPreset> for AccentColor {
     fn from(value: AccentPreset) -> Self {
         match value {
-            AccentPreset::Zeron => Self::Zeron,
+            AccentPreset::Skylark => Self::Skylark,
             AccentPreset::Orange => Self::Orange,
             AccentPreset::Amber => Self::Amber,
             AccentPreset::Green => Self::Green,
@@ -273,10 +273,10 @@ pub(crate) fn bump_style_generation() {
     STYLE_GENERATION.fetch_add(1, Ordering::Relaxed);
 }
 
-fn model_appearance(appearance: zeron_theme::Appearance) -> Appearance {
+fn model_appearance(appearance: skylark_theme::Appearance) -> Appearance {
     match appearance {
-        zeron_theme::Appearance::Dark => Appearance::Dark,
-        zeron_theme::Appearance::Light => Appearance::Light,
+        skylark_theme::Appearance::Dark => Appearance::Dark,
+        skylark_theme::Appearance::Light => Appearance::Light,
     }
 }
 
@@ -770,13 +770,13 @@ impl TerminalColors {
         }
     }
 
-    fn zeron(appearance: Appearance) -> Self {
+    fn skylark(appearance: Appearance) -> Self {
         let id = match appearance {
-            Appearance::Dark => "zeron-dark",
-            Appearance::Light => "zeron-light",
+            Appearance::Dark => "skylark-dark",
+            Appearance::Light => "skylark-light",
         };
         let registry = ThemeRegistry::active();
-        Self::from_variant(registry.variant(id).expect("Zeron terminal palette exists"))
+        Self::from_variant(registry.variant(id).expect("Skylark terminal palette exists"))
     }
 }
 

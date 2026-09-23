@@ -30,7 +30,7 @@ impl AppState {
         }
         self.transcript_revision = self.transcript_revision.wrapping_add(1);
         let is_reset = matches!(&frame, TranscriptFrame::Reset { .. });
-        zeron_doc::apply_transcript_frame(&mut self.transcript, frame)?;
+        skylark_doc::apply_transcript_frame(&mut self.transcript, frame)?;
         if is_reset {
             self.transcript_replayed = true;
         }
@@ -71,13 +71,13 @@ impl AppState {
     pub(crate) fn transcript_baseline(
         &self,
         doc_id: &str,
-    ) -> Option<&Arc<zeron_doc::TranscriptBaseline>> {
+    ) -> Option<&Arc<skylark_doc::TranscriptBaseline>> {
         self.transcript_baselines.get(doc_id)
     }
 
     pub fn receive_transcript_update(
         &mut self,
-        update: zeron_doc::TranscriptUpdate,
+        update: skylark_doc::TranscriptUpdate,
         cx: &mut Context<Self>,
     ) -> Result<(), TranscriptDesync> {
         self.receive_transcript_frame(update.frame, cx)?;
@@ -96,7 +96,7 @@ impl AppState {
     /// with it, and don't treat it as a full reset for caching/scroll anchors.
     pub(crate) fn receive_opening_transcript_update(
         &mut self,
-        update: zeron_doc::TranscriptUpdate,
+        update: skylark_doc::TranscriptUpdate,
         history_pending: bool,
         cx: &mut Context<Self>,
     ) -> Result<(), TranscriptDesync> {
@@ -166,7 +166,7 @@ impl AppState {
         self.sub_watch_tasks.remove(&doc_id);
         self.transcript_baselines.insert(
             doc_id.clone(),
-            Arc::new(zeron_doc::TranscriptBaseline::capture(&entries)),
+            Arc::new(skylark_doc::TranscriptBaseline::capture(&entries)),
         );
         self.sub_transcripts.insert(doc_id, entries);
     }
@@ -266,7 +266,7 @@ impl AppState {
 
     /// A `WatchTransfers` snapshot: the engine-side relay leg's in-flight
     /// queued-attachment transfers, replacing the whole set each frame.
-    pub fn apply_transfers(&mut self, transfers: Vec<zeron_proto::TransferProgress>) {
+    pub fn apply_transfers(&mut self, transfers: Vec<skylark_proto::TransferProgress>) {
         self.transfers = transfers
             .into_iter()
             .map(|t| (t.upload_id, (t.done, t.total)))

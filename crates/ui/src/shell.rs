@@ -1,7 +1,7 @@
-//! The app shell (zeron `__root.tsx`): sidebar column + main panel + optional
+//! The app shell (skylark `__root.tsx`): sidebar column + main panel + optional
 //! right "Changes" pane, plus the boot splash and the connection gate.
 //!
-//! Layout is zeron's: collapsible drag-resizable sidebar (224–400px, default
+//! Layout is skylark's: collapsible drag-resizable sidebar (224–400px, default
 //! 256) with a 200ms ease-out width transition; main panel with an h-11 header,
 //! content outlet, and a reserved h-6 status strip so later content never
 //! shifts; right pane scaffold (360px floor, default 520), hidden by default.
@@ -20,8 +20,8 @@ use gpui::{
     MouseButton, MouseDownEvent, Pixels, Point, Render, SharedString, Subscription, Task, Window,
     div, prelude::*, px,
 };
-use zeron_proto::{AuthState, WorkspaceScope};
-use zeron_rpc::methods;
+use skylark_proto::{AuthState, WorkspaceScope};
+use skylark_rpc::methods;
 
 use crate::changes::Changes;
 use crate::composer::{Composer, ComposerEvent, ComposerInput, ComposerInputEvent};
@@ -275,7 +275,7 @@ pub struct Shell {
     pub(super) update_dismissed: Option<String>,
     /// How this binary was installed — decides the strip's click behavior.
     /// Cached: `detect_install` stats `current_exe` and this renders per frame.
-    pub(super) install: zeron_update::InstallKind,
+    pub(super) install: skylark_update::InstallKind,
     org: Option<OrgGateUi>,
     pub(super) sync_flow: SyncFlow,
     mutate_task: Option<Task<()>>,
@@ -309,8 +309,8 @@ pub struct Shell {
     /// Last observed `window.is_window_active()` — rising edge fires a
     /// ProbeSync so a broadcast-deaf room heals as the user looks at the app.
     was_window_active: bool,
-    /// Dev/testing knobs (`ZERON_OPEN_DIALOG`, `ZERON_FORCE_GATE`,
-    /// `ZERON_DEMO_UPLOAD`) — see [`Shell::new`].
+    /// Dev/testing knobs (`SKYLARK_OPEN_DIALOG`, `SKYLARK_FORCE_GATE`,
+    /// `SKYLARK_DEMO_UPLOAD`) — see [`Shell::new`].
     debug_dialog: Option<String>,
     debug_gate: Option<GatePhase>,
     debug_upload: Option<String>,
@@ -352,7 +352,7 @@ pub struct Shell {
     /// Armed by mouse-down on a titlebar strip; the next mouse-move hands the
     /// drag to the compositor (zed's platform-titlebar pattern).
     titlebar_should_move: bool,
-    /// The caption buttons zeron itself draws on Linux under client-side
+    /// The caption buttons skylark itself draws on Linux under client-side
     /// decorations, per side, already filtered to what the compositor
     /// supports — `None` off Linux or under server decorations (where the WM
     /// draws real buttons). Re-resolved every frame at the top of `render`.
@@ -470,8 +470,8 @@ impl Shell {
                             // same per-second refresh while degraded.
                             || matches!(
                                 s.connectivity.state,
-                                zeron_proto::ConnectivityState::Offline
-                                    | zeron_proto::ConnectivityState::Reconnecting
+                                skylark_proto::ConnectivityState::Offline
+                                    | skylark_proto::ConnectivityState::Reconnecting
                             )
                     };
                     // Relative sidebar times still advance when unchanged
@@ -494,10 +494,10 @@ impl Shell {
         crate::appshots::set_capture_sound_enabled(settings.appshot_sound_enabled);
         // Bind the customizable shortcuts from the persisted keymap.
         apply_keymap(cx, &settings.keymap, settings.composer_send_behavior);
-        // Dev/testing knob: `ZERON_OPEN_ROUTE=settings[/<section>]` boots
+        // Dev/testing knob: `SKYLARK_OPEN_ROUTE=settings[/<section>]` boots
         // straight into a settings section — these pages have no deep link and
         // synthetic input can't reach them on headless compositors.
-        let route = match std::env::var("ZERON_OPEN_ROUTE").ok().as_deref() {
+        let route = match std::env::var("SKYLARK_OPEN_ROUTE").ok().as_deref() {
             Some("settings") | Some("settings/devices") => {
                 Route::Settings(SettingsSection::Devices)
             }
@@ -515,21 +515,21 @@ impl Shell {
             }
             _ => Route::Chat,
         };
-        // More capture knobs of the same kind: `ZERON_OPEN_DIALOG=rename|delete`
+        // More capture knobs of the same kind: `SKYLARK_OPEN_DIALOG=rename|delete`
         // opens that dialog for the first chat once chats land; `=model` pops
         // the combined harness/model menu once the shell is Ready;
-        // `ZERON_FORCE_GATE=signin|org|failed` renders that gate regardless of
+        // `SKYLARK_FORCE_GATE=signin|org|failed` renders that gate regardless of
         // real auth state (display-only — for styling passes).
-        let debug_dialog = std::env::var("ZERON_OPEN_DIALOG").ok();
-        // `ZERON_DEMO_UPLOAD=<pct>:<image path>` fabricates an in-flight image
+        let debug_dialog = std::env::var("SKYLARK_OPEN_DIALOG").ok();
+        // `SKYLARK_DEMO_UPLOAD=<pct>:<image path>` fabricates an in-flight image
         // send on the selected chat (echo bubble + frozen thumbnail progress
         // ring) — display-only; a real upload can't be paused for a capture.
-        let debug_upload = std::env::var("ZERON_DEMO_UPLOAD").ok();
-        let debug_gate = match std::env::var("ZERON_FORCE_GATE").ok().as_deref() {
-            Some("signin") => Some(GatePhase::SignIn),
-            Some("org") => Some(GatePhase::OrgGate),
+        let debug_upload = std::env::var("SKYLARK_DEMO_UPLOAD").ok();
+        let debug_gate = match std::env::var("SKYLARK_FORCE_GATE").ok().as_deref() {
+            Some("signin") if !skylark_proto::LOCAL_ONLY_BUILD => Some(GatePhase::SignIn),
+            Some("org") if !skylark_proto::LOCAL_ONLY_BUILD => Some(GatePhase::OrgGate),
             Some("failed") => Some(GatePhase::Failed(
-                "Could not reach the zeron engine on port 27901".into(),
+                "Could not reach the skylark engine on port 27901".into(),
             )),
             _ => None,
         };
@@ -639,7 +639,7 @@ impl Shell {
             update_flow: UpdateFlow::Idle,
             update_task: None,
             update_dismissed: None,
-            install: zeron_update::detect_install(),
+            install: skylark_update::detect_install(),
             org: None,
             sync_flow: SyncFlow::Idle,
             mutate_task: None,
@@ -929,7 +929,7 @@ impl Render for Shell {
             .on_drag_move(cx.listener(Self::on_right_pane_drag))
             .on_drag_move(cx.listener(Self::on_terminal_drag))
             // The panel shortcuts are chat-scoped chrome: in Settings they are
-            // no-ops (zeron __root.tsx gates the hotkey on `!isSettings`, and
+            // no-ops (skylark __root.tsx gates the hotkey on `!isSettings`, and
             // the terminal panel is only mounted on session routes). The
             // sidebar toggle stays live everywhere, as in the original.
             .on_action(cx.listener(|this, _: &ToggleTerminal, window, cx| {
@@ -1048,7 +1048,7 @@ impl Render for Shell {
                             .update(cx, |s, cx| s.mark_chat_seen(&chat_id, cx));
                     }
                 }
-                // Capture knob: `ZERON_OPEN_DIALOG=model` pops the combined
+                // Capture knob: `SKYLARK_OPEN_DIALOG=model` pops the combined
                 // harness/model menu (needs `window`, so it fires here rather
                 // than in `on_state_changed`).
                 if self.debug_dialog.as_deref() == Some("model") {

@@ -10,8 +10,8 @@ use gpui::{
     ScrollHandle, SharedString, StyledText, TextAlign, TextRun, Window, canvas, div, point,
     prelude::*, px, size,
 };
-use zeron_doc::SubagentStatus;
-use zeron_proto::ToolCall;
+use skylark_doc::SubagentStatus;
+use skylark_proto::ToolCall;
 
 use crate::markdown::parser::InlineRun;
 use crate::motion;
@@ -23,7 +23,7 @@ use crate::transcript::row::{
 };
 use crate::transcript::{BlobFetch, FoldState, Transcript, TranscriptEvent};
 
-pub use zeron_proto::view::{single_line, tool_chip_content};
+pub use skylark_proto::view::{single_line, tool_chip_content};
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -159,7 +159,7 @@ pub fn detail_height(detail: &ToolDetail) -> f32 {
 /// blobs render (near-)uncapped — fetching past the summary was the point.
 pub fn blob_detail(text: &str, is_diff: bool) -> Option<ToolDetail> {
     if is_diff {
-        let diff: zeron_proto::ToolDiff = serde_json::from_str(text).ok()?;
+        let diff: skylark_proto::ToolDiff = serde_json::from_str(text).ok()?;
         return tool_detail(None, Some(&diff), None);
     }
     let mut lines: Vec<SharedString> = text
@@ -837,7 +837,7 @@ pub(crate) fn chip_header_row(
         if !tool.resolved {
             if let Some(elapsed) = live_elapsed_secs {
                 if elapsed > 0 {
-                    let dur = zeron_proto::view::format_duration_secs(elapsed);
+                    let dur = skylark_proto::view::format_duration_secs(elapsed);
                     thought_label_storage = format!("Thinking {dur}...");
                     (thought_label_storage.as_str(), String::new())
                 } else {
@@ -847,12 +847,12 @@ pub(crate) fn chip_header_row(
                 ("Thinking...", String::new())
             }
         } else if let Some(ms) = tool.thought_duration_ms {
-            let dur = zeron_proto::view::format_duration_ms(ms);
+            let dur = skylark_proto::view::format_duration_ms(ms);
             thought_label_storage = format!("Thought for {dur}");
             (thought_label_storage.as_str(), String::new())
         } else if let Some(elapsed) = live_elapsed_secs {
             if elapsed > 0 {
-                let dur = zeron_proto::view::format_duration_secs(elapsed);
+                let dur = skylark_proto::view::format_duration_secs(elapsed);
                 thought_label_storage = format!("Thought for {dur}");
                 (thought_label_storage.as_str(), String::new())
             } else {

@@ -1,10 +1,10 @@
 param([string]$ShotPath = "$PSScriptRoot\..\..\target\boot_state.png")
 Add-Type -AssemblyName System.Drawing
 Add-Type -AssemblyName System.Windows.Forms
-$exe = "$PSScriptRoot\..\..\target\debug\zeron.exe"
+$exe = "$PSScriptRoot\..\..\target\debug\skylark.exe"
 $log = "$PSScriptRoot\..\..\target\ui_trace.log"
 if (Test-Path $log) { Remove-Item $log }
-$env:ZERON_UI_TRACE = "1"
+$env:SKYLARK_UI_TRACE = "1"
 $proc = Start-Process -FilePath $exe -WorkingDirectory "$PSScriptRoot\..\.." -RedirectStandardError $log -RedirectStandardOutput "$PSScriptRoot\..\..\target\boot.stdout.log" -PassThru
 Start-Sleep -Seconds 25
 $bounds = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds

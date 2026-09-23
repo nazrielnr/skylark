@@ -29,7 +29,7 @@ impl SettingsSection {
         SettingsSection::Archived,
     ];
 
-    /// Sidebar + header label (zeron settings-sidebar.tsx SECTIONS / __root.tsx
+    /// Sidebar + header label (skylark settings-sidebar.tsx SECTIONS / __root.tsx
     /// `settingsTitle` — the same strings in both places).
     pub fn label(self) -> &'static str {
         match self {

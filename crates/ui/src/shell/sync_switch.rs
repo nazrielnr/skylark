@@ -5,9 +5,9 @@ use std::time::Duration;
 use super::*;
 use gpui::{AnyElement, Context, IntoElement, Pixels, SharedString, div, px};
 use gpui_tokio::Tokio;
-use zeron_engine::InstanceLock;
-use zeron_proto::{AuthState, WorkspaceScope};
-use zeron_rpc::methods;
+use skylark_engine::InstanceLock;
+use skylark_proto::{AuthState, WorkspaceScope};
+use skylark_rpc::methods;
 
 use crate::icons::{self, icon};
 use crate::motion;
@@ -711,7 +711,7 @@ impl Shell {
                     },
                     Err(err) => {
                         shell.runtime_change_error = Some(format!(
-                            "Could not stop the remote engine: {err}. Run `zeron daemon stop`, then quit and reopen Zeron."
+                            "Could not stop the remote engine: {err}. Run `skylark daemon stop`, then quit and reopen Skylark."
                         ).into());
                         cx.notify();
                     }
@@ -723,6 +723,11 @@ impl Shell {
     }
 
     pub(crate) fn start_sign_in(&mut self, cx: &mut Context<Self>) {
+        if skylark_proto::LOCAL_ONLY_BUILD {
+            self.sidebar_notice = Some(skylark_proto::LOCAL_ONLY_MESSAGE.into());
+            cx.notify();
+            return;
+        }
         let scope = self.state.read(cx).workspace_scope;
         if scope == Some(WorkspaceScope::Development) {
             return;
@@ -781,7 +786,7 @@ impl Shell {
             .items_center()
             .text_center()
             .child(
-                icon(icons::ZERON_LOGO)
+                icon(icons::SKYLARK_LOGO)
                     .w(px(31.4))
                     .h(px(36.0))
                     .text_color(theme.text),
@@ -802,7 +807,7 @@ impl Shell {
                     .line_height(px(19.0))
                     .text_color(theme.text_muted)
                     .child(SharedString::from(
-                        "Zeron removed your credentials but could not finish closing the previous synced workspace. Retry before continuing in local mode.",
+                        "Skylark removed your credentials but could not finish closing the previous synced workspace. Retry before continuing in local mode.",
                     )),
             )
             .when_some(self.runtime_change_error.clone(), |card, error| {

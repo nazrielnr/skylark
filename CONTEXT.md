@@ -1,5 +1,8 @@
 # Domain context
 
+> **Skylark build status: local-only.** Product login/logout, cloud sync, remote control, updates, public installation, and publishing are temporarily paused. Provider agent authentication remains available. Cloud/mobile/release instructions and results below are historical reference, not current setup guidance. See [current policy](docs/LOCAL_ONLY.md).
+
+
 ## Theme vocabulary
 
 - **Theme family** — A named collection of related theme variants that share an origin, such as Night Owl and Night Owl Light.
@@ -13,9 +16,9 @@
 - **Last known good** — The most recent successfully compiled family retained by a linked theme when its current source is missing or invalid.
 - **Import report** — A per-variant summary of mapped roles, fallbacks, unsupported values, and inferred decisions produced during compilation.
 - **Mapping review** — The optional advanced view of an import report. Normal theme selection and import do not expose token names.
-- **Theme hardening** — Deterministic post-mapping repairs that prefer stronger semantically related source colors, minimally adjust only shared Zeron roles when needed, and record every decision in the mapping review.
+- **Theme hardening** — Deterministic post-mapping repairs that prefer stronger semantically related source colors, minimally adjust only shared Skylark roles when needed, and record every decision in the mapping review.
 - **Theme default accent** — The interaction accent chosen or inferred for a theme variant by its authoring source.
-- **Accent override** — A Zeron preset that replaces interaction roles only; syntax, terminal ANSI, diff, warning, error, and success colors remain owned by the theme.
+- **Accent override** — A Skylark preset that replaces interaction roles only; syntax, terminal ANSI, diff, warning, error, and success colors remain owned by the theme.
 - **Recommended surface treatment** — A theme variant's authored recommendation for whether its surfaces are frosted or opaque. It is used only when the user keeps the surface preference at theme default.
 - **Surface preference** — A device-local choice of theme default, frosted, or opaque that is independent of appearance, theme, and accent selections.
 - **Resolved surface treatment** — The effective frosted or opaque treatment produced by applying the surface preference to the active variant's recommendation.

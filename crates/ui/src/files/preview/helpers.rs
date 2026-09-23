@@ -8,12 +8,12 @@ pub(super) fn estimated_highlighted_file_bytes(highlight: &HighlightedFile) -> u
             document
                 .lines
                 .capacity()
-                .saturating_mul(std::mem::size_of::<Vec<zeron_syntax::HighlightSpan>>()),
+                .saturating_mul(std::mem::size_of::<Vec<skylark_syntax::HighlightSpan>>()),
         )
         .saturating_add(document.lines.iter().fold(0usize, |total, line| {
             total.saturating_add(
                 line.capacity()
-                    .saturating_mul(std::mem::size_of::<zeron_syntax::HighlightSpan>()),
+                    .saturating_mul(std::mem::size_of::<skylark_syntax::HighlightSpan>()),
             )
         }))
 }

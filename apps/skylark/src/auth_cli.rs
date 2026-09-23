@@ -1,8 +1,8 @@
-//! `zeron login` / `zeron logout` / `zeron status` — the standalone auth surface.
+//! `skylark login` / `skylark logout` / `skylark status` — the standalone auth surface.
 //!
-//! Sign-in used to live only inside `zeron headless`, coupling authentication to
+//! Sign-in used to live only inside `skylark headless`, coupling authentication to
 //! the long-running daemon. These commands work on the persisted session
-//! (`{data_dir}/session.json`) and exit, so a service-managed `zeron headless`
+//! (`{data_dir}/session.json`) and exit, so a service-managed `skylark headless`
 //! only ever *loads* credentials. While an engine is running it owns the session
 //! (WorkOS refresh tokens are single-use and rotate on every refresh), so login
 //! and logout take the same data-dir lock the engine holds and refuse politely
@@ -10,7 +10,7 @@
 
 use std::io::IsTerminal;
 
-use zeron_engine::{AuthState, Engine, EngineConfig, InstanceLock, WorkspaceScope};
+use skylark_engine::{AuthState, Engine, EngineConfig, InstanceLock, WorkspaceScope};
 
 #[derive(Debug, PartialEq, Eq)]
 struct AccountStatus {
@@ -62,23 +62,24 @@ fn account_status(scope: WorkspaceScope, auth: &AuthState) -> AccountStatus {
             AuthState::NeedsOrganization { user } => AccountStatus {
                 mode: "synced",
                 auth: format!(
-                    "signed in as {} but no workspace selected — run `zeron login`",
+                    "signed in as {} but no workspace selected — run `skylark login`",
                     user.email
                 ),
                 healthy: false,
             },
             AuthState::SignedOut => AccountStatus {
                 mode: "synced",
-                auth: "saved session is no longer valid — run `zeron login`".into(),
+                auth: "saved session is no longer valid — run `skylark login`".into(),
                 healthy: false,
             },
         },
     }
 }
 
-/// `zeron login`: authenticate via the paste-code flow (and workspace
+/// `skylark login`: authenticate via the paste-code flow (and workspace
 /// onboarding), persist `session.json`, and exit.
 pub async fn login(config: EngineConfig) -> anyhow::Result<()> {
+    anyhow::ensure!(!skylark_engine::LOCAL_ONLY_BUILD, skylark_engine::LOCAL_ONLY_MESSAGE);
     std::fs::create_dir_all(&config.data_dir)?;
     let _lock = engine_lock(&config, "sign in")?;
     let auth = Engine::build_auth(&config).await;
@@ -94,14 +95,14 @@ pub async fn login(config: EngineConfig) -> anyhow::Result<()> {
                 .map(|org| format!(" (workspace {org})"))
                 .unwrap_or_default()
         );
-        println!("Run `zeron logout` first to switch accounts.");
+        println!("Run `skylark logout` first to switch accounts.");
         println!("The next engine start will use the synced workspace.");
         return Ok(());
     }
     if !std::io::stdin().is_terminal() {
-        anyhow::bail!("zeron login needs an interactive terminal");
+        anyhow::bail!("skylark login needs an interactive terminal");
     }
-    zeron_engine::terminal_sign_in(&auth).await?;
+    skylark_engine::terminal_sign_in(&auth).await?;
     match auth.state() {
         AuthState::SignedIn { user, org_id } => {
             println!(
@@ -112,7 +113,7 @@ pub async fn login(config: EngineConfig) -> anyhow::Result<()> {
                     .unwrap_or_default()
             );
             println!(
-                "Sync is ready. Start or restart Zeron to open the synced workspace; existing local sessions will stay local."
+                "Sync is ready. Start or restart Skylark to open the synced workspace; existing local sessions will stay local."
             );
         }
         // terminal_sign_in only returns Ok once signed in; keep an honest fallback.
@@ -121,8 +122,9 @@ pub async fn login(config: EngineConfig) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// `zeron logout`: remove the persisted session.
+/// `skylark logout`: remove the persisted session.
 pub async fn logout(config: EngineConfig) -> anyhow::Result<()> {
+    anyhow::ensure!(!skylark_engine::LOCAL_ONLY_BUILD, skylark_engine::LOCAL_ONLY_MESSAGE);
     std::fs::create_dir_all(&config.data_dir)?;
     let _lock = engine_lock(&config, "sign out")?;
     let auth = Engine::build_auth(&config).await;
@@ -156,7 +158,7 @@ pub async fn logout(config: EngineConfig) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// `zeron status`: report the fixed scope a new engine would select, optional
+/// `skylark status`: report the fixed scope a new engine would select, optional
 /// auth, and engine liveness. Local-only is a healthy signed-out state.
 pub async fn status(config: EngineConfig) -> anyhow::Result<()> {
     let auth = Engine::build_auth(&config).await;
@@ -164,9 +166,22 @@ pub async fn status(config: EngineConfig) -> anyhow::Result<()> {
     let scope = live_engine_scope(config.ipc_port)
         .await
         .unwrap_or(next_scope);
-    let account = account_status(scope, &auth.state());
+    let account = if skylark_engine::LOCAL_ONLY_BUILD {
+        AccountStatus {
+            mode: "local only",
+            auth: "disabled (saved cloud sessions are preserved)".into(),
+            healthy: scope == WorkspaceScope::Local,
+        }
+    } else {
+        account_status(scope, &auth.state())
+    };
     println!("Data dir: {}", config.data_dir.display());
-    println!("Edge:     {}", config.edge_url);
+    if skylark_engine::LOCAL_ONLY_BUILD {
+        println!("Cloud:    disabled");
+        println!("Updates:  disabled");
+    } else {
+        println!("Edge:     {}", config.edge_url);
+    }
     println!("Mode:     {}", account.mode);
     println!("Auth:     {}", account.auth);
     match InstanceLock::holder(&config.data_dir) {
@@ -194,14 +209,14 @@ pub async fn status(config: EngineConfig) -> anyhow::Result<()> {
 /// derivation is correct when no engine is listening and tolerant of old
 /// daemons that predate EngineInfo.
 async fn live_engine_scope(ipc_port: u16) -> Option<WorkspaceScope> {
-    let client = zeron_rpc::connect_ws(&format!("ws://127.0.0.1:{ipc_port}"))
+    let client = skylark_rpc::connect_ws(&format!("ws://127.0.0.1:{ipc_port}"))
         .await
         .ok()?;
     let value = client
-        .call(zeron_rpc::methods::ENGINE_INFO, serde_json::json!({}))
+        .call(skylark_rpc::methods::ENGINE_INFO, serde_json::json!({}))
         .await
         .ok()?;
-    serde_json::from_value::<zeron_engine::EngineInfo>(value)
+    serde_json::from_value::<skylark_engine::EngineInfo>(value)
         .ok()
         .map(|info| info.workspace_scope)
 }
@@ -214,7 +229,7 @@ fn engine_lock(config: &EngineConfig, verb: &str) -> anyhow::Result<InstanceLock
     InstanceLock::acquire(&config.data_dir).map_err(|err| {
         anyhow::anyhow!(
             "{err}\nCannot {verb} while an engine is running — stop it first \
-             (`zeron daemon stop`, or quit the Zeron app), or use the running UI instead."
+             (`skylark daemon stop`, or quit the Skylark app), or use the running UI instead."
         )
     })
 }
@@ -222,7 +237,7 @@ fn engine_lock(config: &EngineConfig, verb: &str) -> anyhow::Result<InstanceLock
 #[cfg(test)]
 mod tests {
     use super::*;
-    use zeron_engine::{AuthUser, HarnessId};
+    use skylark_engine::{AuthUser, HarnessId};
 
     fn config(data_dir: &std::path::Path) -> EngineConfig {
         EngineConfig {
@@ -285,7 +300,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn logout_makes_the_next_engine_start_local() {
+    async fn disabled_auth_preserves_saved_session_and_starts_local() {
         let dir = tempfile::tempdir().unwrap();
         let config = config(dir.path());
         let session = dir.path().join("session.json");
@@ -294,15 +309,11 @@ mod tests {
             r#"{"refreshToken":"refresh-1","user":{"id":"user-1","email":"user@example.com"},"orgId":"org-1"}"#,
         )
         .unwrap();
-        let before = Engine::build_auth(&config).await;
-        assert_eq!(
-            Engine::initial_workspace_scope(&before),
-            WorkspaceScope::Synced
-        );
-
-        logout(config.clone()).await.unwrap();
-
-        assert!(!session.exists());
+        let saved = std::fs::read(&session).unwrap();
+        for result in [login(config.clone()).await, logout(config.clone()).await] {
+            assert!(result.unwrap_err().to_string().contains(skylark_engine::LOCAL_ONLY_MESSAGE));
+        }
+        assert_eq!(std::fs::read(&session).unwrap(), saved);
         let after = Engine::build_auth(&config).await;
         assert_eq!(
             Engine::initial_workspace_scope(&after),

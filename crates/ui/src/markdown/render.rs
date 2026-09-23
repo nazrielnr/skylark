@@ -19,16 +19,16 @@ use gpui::{
     StyledText, TextRun, UnderlineStyle, Window, canvas, div, font, point, prelude::*, px, quad,
     size,
 };
-use zeron_syntax::{HighlightKind, HighlightSpan, HighlightedDocument};
+use skylark_syntax::{HighlightKind, HighlightSpan, HighlightedDocument};
 
 use crate::theme::Theme;
 
 use super::parser::{Block, BlockTree, InlineRun, TableAlign};
 use super::veil::{RowVeil, apply_veil, slice_spans};
 
-/// Gap between markdown blocks inside one message (zeron mdBlockGap).
+/// Gap between markdown blocks inside one message (skylark mdBlockGap).
 pub const MD_BLOCK_GAP: f32 = 12.0;
-/// Body text size / line height (zeron: 14px / 22px).
+/// Body text size / line height (skylark: 14px / 22px).
 pub const MD_TEXT_SIZE: f32 = 14.0;
 pub const MD_LINE_HEIGHT: f32 = 22.0;
 /// Default code block metrics; the rendered size comes from the theme.
@@ -43,26 +43,26 @@ const CODE_HEADER_HEIGHT: f32 = 28.0;
 const CODE_ACTION_SIZE: f32 = 22.0;
 const CODE_SCROLLBAR_HIT_HEIGHT: f32 = 10.0;
 
-// Table metrics — a port of mugen-markdown 0.6.2's `TableBlock` under zeron's
+// Table metrics — a port of mugen-markdown 0.6.2's `TableBlock` under skylark's
 // resolved md theme. The design is frameless ("flat hairline"): 1px horizontal
 // rules under the header and between rows are the only chrome — no outer box,
 // no header fill, no corner radius (theme: headerBackground transparent,
 // radius 0). Cells use the body scale (14/22) with a uniform 12px padding;
 // the header row is weight-700 per `table.headerWeight`.
-/// Uniform cell padding in px (zeron `table.cellPadding`).
+/// Uniform cell padding in px (skylark `table.cellPadding`).
 pub const TABLE_CELL_PADDING: f32 = 12.0;
-/// Hairline between rows in px (zeron `table.gap`).
+/// Hairline between rows in px (skylark `table.gap`).
 pub const TABLE_DIVIDER: f32 = 1.0;
-/// Header row font weight (zeron `table.headerWeight` = 700).
+/// Header row font weight (skylark `table.headerWeight` = 700).
 pub const TABLE_HEADER_WEIGHT: FontWeight = FontWeight::BOLD;
 /// Floor for a column's max-content share, so a short column ("1k") beside a
 /// prose column keeps a readable width (mugen `MIN_COLUMN_CONTENT`).
 pub const TABLE_MIN_COLUMN_CONTENT: f32 = 48.0;
-/// Minimum rendered column width in px, padding included (zeron
+/// Minimum rendered column width in px, padding included (skylark
 /// `table.minColumnWidth`). Naturally narrower columns keep their content
 /// width; wider ones wrap down to this floor, then the table scrolls.
 pub const TABLE_MIN_COLUMN_WIDTH: f32 = 96.0;
-/// Hairline tone (zeron md theme `table.borderColor`: rgba(255,255,255,0.1)).
+/// Hairline tone (skylark md theme `table.borderColor`: rgba(255,255,255,0.1)).
 pub fn table_hairline() -> Hsla {
     crate::theme::hairline(0.10)
 }
@@ -252,7 +252,7 @@ impl RenderCache {
 mod blocks;
 pub use blocks::{code_block_indices, render_block, render_tree};
 
-/// Tight monochrome heading scale (zeron: h2 ≈ 16px semibold; headings step
+/// Tight monochrome heading scale (skylark: h2 ≈ 16px semibold; headings step
 /// down quickly toward body size).
 fn heading_metrics(level: u8) -> (f32, f32) {
     match level {

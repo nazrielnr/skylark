@@ -1,5 +1,8 @@
 # Registry sync — the workspace index without a CRDT
 
+> **Skylark build status: local-only.** Product login/logout, cloud sync, remote control, updates, public installation, and publishing are temporarily paused. Provider agent authentication remains available. Cloud/mobile/release instructions and results below are historical reference, not current setup guidance. See [current policy](LOCAL_ONLY.md).
+
+
 **Status: shipped behind the `reg1/` room namespace; replaces the `ws4/` Loro workspace doc.**
 
 ## Why
@@ -47,7 +50,7 @@ engine B ── RegistryDoc ── RegistryClient ──────────
 - **RegistryClient** (`crates/sync/src/registry.rs`): WS transport — hello/cursor handshake,
   push/ack, rows broadcasts, presence, probe/redial liveness (same deaf-socket discipline
   as `RoomClient`), reconnect with backoff. Fills the same `RoomStatsSnapshot` the
-  SyncStatus RPC and `zeron sync` already render.
+  SyncStatus RPC and `skylark sync` already render.
 
 ## Wire protocol (JSON text frames)
 

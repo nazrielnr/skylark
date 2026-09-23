@@ -1,9 +1,12 @@
+
+> **Skylark build status: local-only.** Product login/logout, cloud sync, remote control, updates, public installation, and publishing are temporarily paused. Provider agent authentication remains available. Cloud/mobile/release instructions and results below are historical reference, not current setup guidance. See [current policy](../../LOCAL_ONLY.md).
+
 These screenshots show the real GPUI shell with isolated sample chats from
 `crates/ui/examples/command-palette-fixture.rs`. The fixture uses temporary
 storage and does not start an engine or connect to an account.
 
-Run `cargo run -p zeron-ui --example command-palette-fixture` on a desktop, then
-press Cmd+K (Ctrl+K on Linux/Windows). Set `ZERON_PALETTE_LIGHT=1` for light mode.
+Run `cargo run -p skylark-ui --example command-palette-fixture` on a desktop, then
+press Cmd+K (Ctrl+K on Linux/Windows). Set `SKYLARK_PALETTE_LIGHT=1` for light mode.
 
 Verified interactively on Linux/X11:
 

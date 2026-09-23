@@ -100,7 +100,7 @@ impl HarnessesPage {
                             .filter(|h| {
                                 descriptor_enabled(h)
                                     && h.installed
-                                    && zeron_harness::supports_titles(h.id)
+                                    && skylark_harness::supports_titles(h.id)
                                     && h.id != HarnessId::Mock
                             })
                             .map(|h| {

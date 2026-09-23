@@ -1,5 +1,8 @@
 # macOS streaming stability follow-up
 
+> **Skylark build status: local-only.** Product login/logout, cloud sync, remote control, updates, public installation, and publishing are temporarily paused. Provider agent authentication remains available. Cloud/mobile/release instructions and results below are historical reference, not current setup guidance. See [current policy](LOCAL_ONLY.md).
+
+
 For the v0.2.43 follow-up, production-history idle measurements, and standalone
 reproduction of the transient Metal driver charge, see
 [idle presence and memory attribution](performance-idle-presence.md).
@@ -144,23 +147,23 @@ foreground focus and was discarded, rather than counted as a resource result.
 
 ## Reproduction
 
-Build with `cargo build --release --locked -p zeron`, and copy each binary to an
+Build with `cargo build --release --locked -p skylark`, and copy each binary to an
 immutable path before profiling. Use an unlocked, awake display with no concurrent
 build or test workload. The native helper sizes the foreground window to 1320×880
 points and rejects focus loss. Default dark appearance and animations are enabled.
 
 ```sh
 CLAUDE_CODE_EXECUTABLE="$PWD/scripts/replay-claude.py" \
-ZERON_REPLAY_JOURNAL="$PWD/scripts/fixtures/resource-stream.jsonl" \
-ZERON_PROFILE_BACKGROUND_CHATS=50 ZERON_PROFILE_SUBMIT_UI=1 \
-ZERON_PROFILE_PROMPT='Replay fixture.' \
-node scripts/resource-profile.mjs /path/to/zeron /tmp/fresh-profile claude-code
+SKYLARK_REPLAY_JOURNAL="$PWD/scripts/fixtures/resource-stream.jsonl" \
+SKYLARK_PROFILE_BACKGROUND_CHATS=50 SKYLARK_PROFILE_SUBMIT_UI=1 \
+SKYLARK_PROFILE_PROMPT='Replay fixture.' \
+node scripts/resource-profile.mjs /path/to/skylark /tmp/fresh-profile claude-code
 ```
 
 The fixture emits 52,624 combined text/reasoning bytes with a 40 ms delta delay.
-For faster streaming, set `ZERON_REPLAY_REPEAT=4 ZERON_REPLAY_DELAY_MS=10`.
+For faster streaming, set `SKYLARK_REPLAY_REPEAT=4 SKYLARK_REPLAY_DELAY_MS=10`.
 For the crash regression, select `runway-short-stream.jsonl`, set the delay to
-400 ms and `ZERON_PROFILE_TURNS=8`. Submission uses actual native composer key
+400 ms and `SKYLARK_PROFILE_TURNS=8`. Submission uses actual native composer key
 events and verifies the exact prompt and successful completion of every turn.
 
 The profiler measures UI and engine separately, sampling native CPU time and

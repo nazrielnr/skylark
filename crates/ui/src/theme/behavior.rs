@@ -31,14 +31,14 @@ impl Theme {
     } else {
         1.0
     };
-    /// Main-panel header height (zeron `h-11`) — in-card headers (changes pane).
+    /// Main-panel header height (skylark `h-11`) — in-card headers (changes pane).
     pub const HEADER_HEIGHT: f32 = 44.0;
     /// The unified window titlebar (traffic lights + cluster + tabs). Content
     /// is vertically centered so the space above and below the 28px controls is equal (6px).
     pub const TITLEBAR_HEIGHT: f32 = 40.0;
     /// Top padding offset for titlebar content flex rows.
     pub const TITLEBAR_TOP_PAD: f32 = 0.0;
-    /// Reserved status strip under the content outlet (zeron `h-6`) — the
+    /// Reserved status strip under the content outlet (skylark `h-6`) — the
     /// WorkingIndicator row; reserving it keeps the composer from shifting.
     pub const STATUS_STRIP_HEIGHT: f32 = 24.0;
     /// Height of the gradient that fades the transcript into the panel
@@ -66,7 +66,7 @@ impl Theme {
     /// The selected theme's shell tint painted over the blurred window
     /// background (macOS glass). Keeping the hue theme-owned matters when a
     /// user forces frost onto a palette authored for an opaque workbench: a
-    /// fixed Zeron grey would erase that palette's identity.
+    /// fixed Skylark grey would erase that palette's identity.
     pub fn glass(&self) -> Hsla {
         if self.surface_treatment == SurfaceTreatment::Opaque {
             return self.surface;
@@ -102,7 +102,7 @@ impl Theme {
         self.contrast_checked_tint_alpha(self.surface, base, self.adverse_backdrop())
     }
 
-    /// Increase tint coverage only as far as needed for Zeron's shared text
+    /// Increase tint coverage only as far as needed for Skylark's shared text
     /// roles. This is used for both window glass and in-app frosted surfaces,
     /// whose blurred content can otherwise invalidate an imported palette's
     /// original solid-background assumptions.
@@ -153,7 +153,7 @@ impl Theme {
 
     /// Theme-owned hover wash for chrome that sits on glass (sidebar rows,
     /// tabs, titlebar buttons). The importer maps this role from the source
-    /// theme, so forcing frost does not reintroduce Zeron's neutral hover.
+    /// theme, so forcing frost does not reintroduce Skylark's neutral hover.
     pub fn glass_hover(&self) -> Hsla {
         self.element_hover
     }
@@ -298,8 +298,8 @@ impl Theme {
         let accent = accent_color.tokens(Appearance::Dark);
         Self {
             appearance: Appearance::Dark,
-            variant_id: "zeron-dark".into(),
-            family_id: "zeron".into(),
+            variant_id: "skylark-dark".into(),
+            family_id: "skylark".into(),
             accent_selection: AccentSelection::Preset(accent_color.into()),
             surface_preference: SurfacePreference::ThemeDefault,
             surface_treatment: SurfaceTreatment::Frosted,
@@ -350,7 +350,7 @@ impl Theme {
             diff_add: oklch(0.765, 0.177, 163.223), // emerald-400
             diff_del: oklch(0.704, 0.191, 22.216),  // red-400
             diff_hunk_bg: hsla(0.6, 0.35, 0.6, 0.05),
-            terminal: TerminalColors::zeron(Appearance::Dark),
+            terminal: TerminalColors::skylark(Appearance::Dark),
             font_sans: "Geist".into(),
             font_sans_fixed: "Geist".into(),
             font_mono: "Geist Mono".into(),
@@ -378,8 +378,8 @@ impl Theme {
         let accent = accent_color.tokens(Appearance::Light);
         Self {
             appearance: Appearance::Light,
-            variant_id: "zeron-light".into(),
-            family_id: "zeron".into(),
+            variant_id: "skylark-light".into(),
+            family_id: "skylark".into(),
             accent_selection: AccentSelection::Preset(accent_color.into()),
             surface_preference: SurfacePreference::ThemeDefault,
             surface_treatment: SurfaceTreatment::Frosted,
@@ -449,7 +449,7 @@ impl Theme {
             diff_add: oklch(0.596, 0.145, 163.225), // emerald-600
             diff_del: oklch(0.577, 0.245, 27.325),  // red-600
             diff_hunk_bg: hsla(0.6, 0.35, 0.35, 0.07),
-            terminal: TerminalColors::zeron(Appearance::Light),
+            terminal: TerminalColors::skylark(Appearance::Light),
             font_sans: "Geist".into(),
             font_sans_fixed: "Geist".into(),
             font_mono: "Geist Mono".into(),
@@ -509,14 +509,14 @@ impl Theme {
     ) -> Self {
         let registry = ThemeRegistry::active();
         let fallback_id = match appearance {
-            Appearance::Dark => "zeron-dark",
-            Appearance::Light => "zeron-light",
+            Appearance::Dark => "skylark-dark",
+            Appearance::Light => "skylark-light",
         };
         let variant = registry
             .variant(variant_id)
             .filter(|variant| model_appearance(variant.appearance) == appearance)
             .or_else(|| registry.variant(fallback_id))
-            .expect("the built-in registry contains both Zeron appearances");
+            .expect("the built-in registry contains both Skylark appearances");
         Self::from_variant(variant, accent_selection, surface_preference)
     }
 
@@ -527,7 +527,7 @@ impl Theme {
     ) -> Self {
         let appearance = model_appearance(variant.appearance);
         let accent_color = match accent_selection {
-            AccentSelection::ThemeDefault => AccentColor::Zeron,
+            AccentSelection::ThemeDefault => AccentColor::Skylark,
             AccentSelection::Preset(preset) => preset.into(),
         };
         let mut theme = Self::for_preferences(appearance, accent_color);

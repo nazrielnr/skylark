@@ -1,5 +1,8 @@
 # Mobile transcript and interaction polish
 
+> **Skylark build status: local-only.** Product login/logout, cloud sync, remote control, updates, public installation, and publishing are temporarily paused. Provider agent authentication remains available. Cloud/mobile/release instructions and results below are historical reference, not current setup guidance. See [current policy](LOCAL_ONLY.md).
+
+
 The transcript uses a native `UITableView` for row reuse, height resolution,
 scroll gestures, and animated offsets, with `UIHostingConfiguration` for the
 existing SwiftUI message content. The earlier mixed lazy/eager layout passed
@@ -43,7 +46,7 @@ when inspecting a large history. VoiceOver page scrolling and Earlier/Later
 messages actions expose adjacent pages without building the entire transcript.
 
 The visual pass adopts Anara iOS's 17pt chat-body scale and larger secondary
-labels, while retaining Zeron's Geist fonts and desktop palette. Code line
+labels, while retaining Skylark's Geist fonts and desktop palette. Code line
 heights and list markers scale with Dynamic Type. Tool calls use the desktop
 activity rail with quiet group summaries, per-tool failure labels, expandable
 commands, and copy actions. Core composer and jump controls have 44pt targets
@@ -57,12 +60,12 @@ selection or dismissal. The menu itself now owns its glass surface and morph.
 
 ```sh
 DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer \
-xcodebuild -project apps/ios/Zeron.xcodeproj -scheme Zeron \
+xcodebuild -project apps/ios/Skylark.xcodeproj -scheme Skylark \
   -destination 'platform=iOS Simulator,name=iPhone 17 Pro' test
 ```
 
-`ZeronTests/TranscriptFollowTests` checks follow state independently of layout.
-`ZeronTests/TranscriptLayoutTests` mounts the real SwiftUI transcript in a
+`SkylarkTests/TranscriptFollowTests` checks follow state independently of layout.
+`SkylarkTests/TranscriptLayoutTests` mounts the real SwiftUI transcript in a
 simulator window and measures physical tail-row and viewport frames. Debug probes
 are enabled only by these tests and compile to no-ops in release builds.
 
@@ -80,7 +83,7 @@ disconnect it in the menu: XCTest typing can force the software keyboard open
 even when ordinary editor taps would leave it hidden. The keyboard visibility
 assertion catches that setup problem instead of silently testing only the composer.
 
-`ZeronUITests/MobilePolishTests` exercises actual project selection/dismissal,
+`SkylarkUITests/MobilePolishTests` exercises actual project selection/dismissal,
 session navigation, scroll gestures, jump-to-latest, keyboard/composer changes,
 tool disclosures, model picking, sending, question entry, new-session creation,
 cancelled back swipes while streaming, user-message folding, and device rotation. Named screenshot

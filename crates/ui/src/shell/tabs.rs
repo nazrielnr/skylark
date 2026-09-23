@@ -157,7 +157,7 @@ impl Shell {
         let (title, target, harness, on_canvas): (
             SharedString,
             Option<SharedString>,
-            Option<zeron_proto::HarnessId>,
+            Option<skylark_proto::HarnessId>,
             bool,
         ) = {
             let state = self.state.read(cx);

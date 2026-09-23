@@ -10,21 +10,21 @@ use crate::transcript;
 use chrono::Utc;
 use gpui::{AnyElement, Context, SharedString, div, px};
 use std::collections::HashSet;
-use zeron_proto::ChatIndicator;
+use skylark_proto::ChatIndicator;
 
 struct ActiveChatRow {
     status: ChatIndicator,
-    chat: zeron_proto::Chat,
+    chat: skylark_proto::Chat,
     folder: String,
     branch: Option<String>,
-    change_request: Option<zeron_proto::ChangeRequestSummary>,
+    change_request: Option<skylark_proto::ChangeRequestSummary>,
     group: Option<(String, String)>,
 }
 
 pub(in crate::shell) fn compare_sidebar_chats(
     sort: SidebarSort,
-    left: &zeron_proto::Chat,
-    right: &zeron_proto::Chat,
+    left: &skylark_proto::Chat,
+    right: &skylark_proto::Chat,
 ) -> std::cmp::Ordering {
     let primary = match sort {
         SidebarSort::Created => right.created_at.cmp(&left.created_at),
@@ -255,7 +255,7 @@ impl Shell {
             .as_ref()
             .map_or(saved_pins.as_slice(), |ids| ids.as_slice());
         let state = self.state.read(cx);
-        let mut chats: Vec<zeron_proto::Chat> = state
+        let mut chats: Vec<skylark_proto::Chat> = state
             .sidebar_chats(Utc::now(), filter.as_deref())
             .into_iter()
             .map(|(_, chat)| chat.clone())
@@ -265,7 +265,7 @@ impl Shell {
             .into_iter()
             .partition(|chat| pinned_order.contains(&chat.id));
         let ordered = if self.settings.sidebar_organization != SidebarOrganization::InOneList {
-            let mut groups: Vec<(Option<(String, String)>, Vec<zeron_proto::Chat>)> = Vec::new();
+            let mut groups: Vec<(Option<(String, String)>, Vec<skylark_proto::Chat>)> = Vec::new();
             for chat in chats {
                 let key = Some((
                     if self.settings.sidebar_organization == SidebarOrganization::ByProject {
@@ -316,7 +316,7 @@ impl Shell {
     fn sidebar_chat_data(
         &self,
         status: ChatIndicator,
-        chat: zeron_proto::Chat,
+        chat: skylark_proto::Chat,
         state: &AppState,
     ) -> ActiveChatRow {
         // Line 1 is "project @ device" (t3code's project row);
@@ -1027,7 +1027,7 @@ impl Shell {
         const PAGE: usize = 25;
         let now = Utc::now();
         let filter = self.settings.space_filter.clone();
-        let mut rows: Vec<zeron_proto::Chat> = {
+        let mut rows: Vec<skylark_proto::Chat> = {
             let state = self.state.read(cx);
             state
                 .chats

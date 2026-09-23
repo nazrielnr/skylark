@@ -6,7 +6,7 @@
 //! panel, and those surfaces reconcile their OPEN DOCUMENTS here.
 
 use gpui::Context;
-use zeron_proto::{WorkspaceFileChangeKind, WorkspaceFileChanges};
+use skylark_proto::{WorkspaceFileChangeKind, WorkspaceFileChanges};
 
 use super::{FilesEvent, FilesSurface};
 

@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use gpui::Context;
-use zeron_rpc::methods;
+use skylark_rpc::methods;
 
 use super::diff_model::{
     excerpt_highlights, full_highlights, hash64, DiffHighlightState, DiffHighlights, DiffScope,
@@ -17,7 +17,7 @@ impl Changes {
         parsed_key: &str,
         cx: &mut Context<Self>,
     ) -> Option<Arc<DiffHighlights>> {
-        let lang = zeron_syntax::language_for_path(&file.path)?;
+        let lang = skylark_syntax::language_for_path(&file.path)?;
         let fingerprint = hash64(&[parsed_key, &file.path]);
         if let Some(slot) = self.highlights.get(&file.path)
             && slot.fingerprint == fingerprint
@@ -29,7 +29,7 @@ impl Changes {
                 DiffHighlightState::Pending | DiffHighlightState::Plain => None,
             };
         }
-        if !zeron_syntax::supports_language(lang) {
+        if !skylark_syntax::supports_language(lang) {
             self.highlights.insert(
                 file.path.clone(),
                 HighlightSlot {
@@ -81,7 +81,7 @@ impl Changes {
         let fetch_path = path.clone();
         let fetch_task = match (active, engine) {
             (Some(diff), Some(engine)) => Some(cx.spawn(async move |this, cx| {
-                let request = zeron_proto::GetCheckoutFileDiffTextRequest {
+                let request = skylark_proto::GetCheckoutFileDiffTextRequest {
                     checkout_id: diff.checkout_id,
                     cwd: diff.cwd,
                     path: fetch_path.clone(),
@@ -107,7 +107,7 @@ impl Changes {
                     .await
                     .ok()
                     .and_then(|value| {
-                        serde_json::from_value::<zeron_proto::CheckoutFileDiffText>(value).ok()
+                        serde_json::from_value::<skylark_proto::CheckoutFileDiffText>(value).ok()
                     });
                 let highlights = match response {
                     Some(response) => {

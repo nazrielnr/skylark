@@ -81,7 +81,7 @@ pub(super) fn spawn_chats_watch(cx: &mut Context<AppState>, handle: EngineHandle
     })
 }
 
-pub use zeron_proto::version_triple;
+pub use skylark_proto::version_triple;
 
 pub(super) fn spawn_change_request_watch(
     cx: &mut Context<AppState>,
@@ -308,7 +308,7 @@ pub(super) fn spawn_transcript_watch(
                 let decoded = cx
                     .background_executor()
                     .spawn(async move {
-                        let update: zeron_doc::TranscriptUpdate =
+                        let update: skylark_doc::TranscriptUpdate =
                             serde_json::from_value(value).map_err(|e| e.to_string())?;
                         let prepared = preparation.prepare(&update).map_err(|e| e.to_string())?;
                         Ok::<_, String>((update, prepared, preparation))
@@ -374,7 +374,7 @@ pub(super) fn spawn_queue_watch(
     #[derive(serde::Deserialize)]
     struct QueueFrame {
         #[serde(default)]
-        items: Vec<zeron_doc::QueuedMessage>,
+        items: Vec<skylark_doc::QueuedMessage>,
     }
     cx.spawn(async move |this, cx| {
         const RETRY_DELAY: std::time::Duration = std::time::Duration::from_secs(2);
@@ -454,7 +454,7 @@ pub(super) fn spawn_subagent_watch(
                 let decoded = cx
                     .background_executor()
                     .spawn(async move {
-                        let update: zeron_doc::TranscriptUpdate =
+                        let update: skylark_doc::TranscriptUpdate =
                             serde_json::from_value(value).map_err(|e| e.to_string())?;
                         let prepared = preparation.prepare(&update).map_err(|e| e.to_string())?;
                         Ok::<_, String>((update, prepared, preparation))
@@ -476,7 +476,7 @@ pub(super) fn spawn_subagent_watch(
                         let frame = update.frame;
                         let text_only = is_text_append(&frame);
                         state.transcript_revision = state.transcript_revision.wrapping_add(1);
-                        if let Err(err) = zeron_doc::apply_transcript_frame(rows, frame) {
+                        if let Err(err) = skylark_doc::apply_transcript_frame(rows, frame) {
                             tracing::warn!(%doc_id, error = %err, "resubscribing subagent watch");
                             desync = true;
                         }

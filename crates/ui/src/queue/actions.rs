@@ -89,7 +89,7 @@ impl Composer {
             };
             let supported = state.chat_host_supports(
                 &chat_id,
-                zeron_proto::capabilities::MESSAGE_QUEUE_ACTIONS_V1,
+                skylark_proto::capabilities::MESSAGE_QUEUE_ACTIONS_V1,
             );
             (chat_id, host_device_id, supported)
         };
@@ -208,7 +208,7 @@ impl Composer {
                 item.delivery_gate.is_some(),
                 state.chat_host_supports(
                     chat_id,
-                    zeron_proto::capabilities::MESSAGE_QUEUE_ACTIONS_V1,
+                    skylark_proto::capabilities::MESSAGE_QUEUE_ACTIONS_V1,
                 ),
             )
         };
@@ -240,7 +240,7 @@ impl Composer {
             else {
                 return;
             };
-            let capability = zeron_proto::capabilities::MESSAGE_QUEUE_EDIT_LEASE_V1;
+            let capability = skylark_proto::capabilities::MESSAGE_QUEUE_EDIT_LEASE_V1;
             let supported = engine.engine_info().supports(capability)
                 && state.chat_host_supports(&chat_id, capability);
             (chat_id, host_device_id, supported)
@@ -660,7 +660,7 @@ impl Composer {
             let supported = !queue_action_needs_host(method)
                 || state.chat_host_supports(
                     &chat_id,
-                    zeron_proto::capabilities::MESSAGE_QUEUE_ACTIONS_V1,
+                    skylark_proto::capabilities::MESSAGE_QUEUE_ACTIONS_V1,
                 );
             (chat_id, host, supported)
         };

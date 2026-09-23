@@ -4,7 +4,7 @@ use super::*;
 use gpui::{
     div, px, AnyElement, Context, Empty, Entity, IntoElement, SharedString, Subscription, Task,
 };
-use zeron_rpc::methods;
+use skylark_rpc::methods;
 
 /// The "Create your workspace" gate (feature-inventory §1.2 OrgGate).
 pub(crate) struct OrgGateUi {
@@ -16,7 +16,7 @@ pub(crate) struct OrgGateUi {
     pub(crate) _events: Subscription,
 }
 
-/// The sign-in gate's faint grid backdrop (zeron styles.css `.bg-grid`):
+/// The sign-in gate's faint grid backdrop (skylark styles.css `.bg-grid`):
 /// 44px hairlines at white 3.5%, with the radial mask approximated by edge
 /// gradients back into the page background (gpui has no mask-image).
 pub(crate) fn grid_backdrop(theme: &Theme) -> AnyElement {
@@ -259,7 +259,7 @@ impl Shell {
                 .items_center()
                 .text_center()
                 .child(
-                    icon(icons::ZERON_LOGO)
+                    icon(icons::SKYLARK_LOGO)
                         .w(px(31.4))
                         .h(px(36.0))
                         .text_color(theme.text),
@@ -270,7 +270,7 @@ impl Shell {
                         .text_size(crate::typography::ui_rems(18.0))
                         .font_weight(gpui::FontWeight::SEMIBOLD)
                         .text_color(theme.text)
-                        .child(SharedString::from("Log in to Zeron")),
+                        .child(SharedString::from("Log in to Skylark")),
                 )
                 .child(
                     div()
@@ -419,11 +419,11 @@ impl Shell {
 
         let blurb: SharedString = match email {
             Some(email) => format!(
-                "Zeron is organized around workspaces — create one for yourself or your team. Signed in as {email}."
+                "Skylark is organized around workspaces — create one for yourself or your team. Signed in as {email}."
             )
             .into(),
             None => {
-                "Zeron is organized around workspaces — create one for yourself or your team."
+                "Skylark is organized around workspaces — create one for yourself or your team."
                     .into()
             }
         };
@@ -439,7 +439,7 @@ impl Shell {
             .flex()
             .flex_col()
             .child(
-                icon(icons::ZERON_LOGO)
+                icon(icons::SKYLARK_LOGO)
                     .w(px(24.4))
                     .h(px(28.0))
                     .text_color(theme.text),

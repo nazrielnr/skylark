@@ -366,17 +366,14 @@ impl AppState {
                 state.apply_auth_value(value);
                 true
             }),
-            spawn_watch(
-                cx,
-                handle.clone(),
-                methods::UPDATE_STATUS,
-                |state, value| {
-                    state.apply_update(value);
-                    true
-                },
-            ),
             spawn_local_device_probe(cx, handle.clone()),
         ]);
+        if !skylark_proto::LOCAL_ONLY_BUILD {
+            watch_tasks.push(spawn_watch(cx, handle.clone(), methods::UPDATE_STATUS, |state, value| {
+                state.apply_update(value);
+                true
+            }));
+        }
         self.watch_tasks = watch_tasks;
         self.reconcile_change_request_watches(cx);
         // EngineInfo is part of the attachment boundary: views must know which
@@ -388,7 +385,7 @@ impl AppState {
                 Some(spawn_transcript_watch(cx, handle.clone(), chat_id.clone()));
             if handle
                 .engine_info()
-                .supports(zeron_proto::capabilities::MESSAGE_QUEUE_V1)
+                .supports(skylark_proto::capabilities::MESSAGE_QUEUE_V1)
             {
                 self.queue_task = Some(spawn_queue_watch(cx, handle, chat_id));
             }
@@ -436,7 +433,7 @@ impl AppState {
     }
 
     pub fn open_deep_link(&mut self, url: &str, cx: &mut Context<Self>) {
-        match crate::links::parse_zeron_conversation_link(url) {
+        match crate::links::parse_skylark_conversation_link(url) {
             Ok(link) => {
                 self.pending_deep_link = Some(link);
                 self.apply_pending_deep_link(cx);
@@ -516,7 +513,7 @@ impl AppState {
                                         .parts
                                         .iter()
                                         .map(|part| {
-                                            std::mem::size_of::<zeron_doc::MessagePart>()
+                                            std::mem::size_of::<skylark_doc::MessagePart>()
                                                 + part.byte_len()
                                         })
                                         .sum::<usize>()
@@ -563,7 +560,7 @@ impl AppState {
                     .as_ref()
                     .map(|p| p.navigation_baseline.clone())
                     .unwrap_or_else(|| {
-                        Arc::new(zeron_doc::TranscriptBaseline::capture(&cached.entries))
+                        Arc::new(skylark_doc::TranscriptBaseline::capture(&cached.entries))
                     }),
             );
             if let Some(prepared) = cached.prepared {
@@ -599,7 +596,7 @@ impl AppState {
                 Some(spawn_transcript_watch(cx, handle.clone(), chat_id.clone()));
             if handle
                 .engine_info()
-                .supports(zeron_proto::capabilities::MESSAGE_QUEUE_V1)
+                .supports(skylark_proto::capabilities::MESSAGE_QUEUE_V1)
             {
                 self.queue_task = Some(spawn_queue_watch(cx, handle, chat_id));
             }
@@ -619,7 +616,7 @@ impl AppState {
         };
         if handle
             .engine_info()
-            .supports(zeron_proto::capabilities::MESSAGE_QUEUE_V1)
+            .supports(skylark_proto::capabilities::MESSAGE_QUEUE_V1)
         {
             self.queue_task = Some(spawn_queue_watch(cx, handle, chat_id));
         }

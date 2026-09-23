@@ -1,6 +1,6 @@
 //! Synced entity rows (workspace doc) and local projections.
 //!
-//! In zeron these were synced Postgres rows; in zeron they live in the per-org
+//! In skylark these were synced Postgres rows; in skylark they live in the per-org
 //! workspace Loro doc (see ARCHITECTURE.md §2.2) with the same field surface.
 
 use chrono::{DateTime, Utc};
@@ -63,7 +63,7 @@ pub struct Device {
     pub name: String,
     pub platform: String,
     pub last_seen_at: Option<DateTime<Utc>>,
-    /// First registration time (zeron devices.created_at — the Devices page
+    /// First registration time (skylark devices.created_at — the Devices page
     /// "Added …" fragment). Optional so pre-existing docs stay readable.
     #[serde(default)]
     pub created_at: Option<DateTime<Utc>>,
@@ -183,7 +183,7 @@ pub struct Chat {
     pub last_message_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
     /// Harness-native session id of the chat's latest run — engine-owned resume
-    /// continuity across engine restarts (zeron's `chats.harness_session_id`).
+    /// continuity across engine restarts (skylark's `chats.harness_session_id`).
     /// Empty string = explicit
     /// "do not resume" tombstone after a rejected resume.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -376,7 +376,7 @@ pub struct Worktree {
     pub repo_path: String,
     pub path: String,
     pub branch: String,
-    /// Generated worktree folder name (`zeron/<name>` is its branch).
+    /// Generated worktree folder name (`skylark/<name>` is its branch).
     #[serde(default)]
     pub name: String,
     /// Canonical checkout identity (device-scoped hash of the git dir).
@@ -1134,7 +1134,7 @@ mod tests {
         let legacy = serde_json::json!({
             "repoPath": "/repo",
             "path": "/worktree",
-            "branch": "zeron/branch",
+            "branch": "skylark/branch",
             "name": "branch",
             "checkoutId": "checkout",
         });

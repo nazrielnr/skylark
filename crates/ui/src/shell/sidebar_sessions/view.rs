@@ -13,9 +13,9 @@ impl Shell {
         time_ago: SharedString,
         space_name: SharedString,
         branch: Option<SharedString>,
-        change_request: Option<zeron_proto::ChangeRequestSummary>,
-        harness: Option<zeron_proto::HarnessId>,
-        status: zeron_proto::ChatIndicator,
+        change_request: Option<skylark_proto::ChangeRequestSummary>,
+        harness: Option<skylark_proto::HarnessId>,
+        status: skylark_proto::ChatIndicator,
         selected: bool,
         archived: bool,
         preview: bool,
@@ -91,16 +91,16 @@ impl Shell {
             Some("Queued")
         } else {
             match status {
-                zeron_proto::ChatIndicator::Working => Some("Working"),
-                zeron_proto::ChatIndicator::AwaitingInput => Some("Input"),
-                zeron_proto::ChatIndicator::Errored => Some("Failed"),
-                zeron_proto::ChatIndicator::Completed => Some("Done"),
-                zeron_proto::ChatIndicator::Idle => None,
+                skylark_proto::ChatIndicator::Working => Some("Working"),
+                skylark_proto::ChatIndicator::AwaitingInput => Some("Input"),
+                skylark_proto::ChatIndicator::Errored => Some("Failed"),
+                skylark_proto::ChatIndicator::Completed => Some("Done"),
+                skylark_proto::ChatIndicator::Idle => None,
             }
         };
 
         let queued = queued && !undelivered;
-        let working = status == zeron_proto::ChatIndicator::Working && !queued && !undelivered;
+        let working = status == skylark_proto::ChatIndicator::Working && !queued && !undelivered;
 
         let corner_body: AnyElement = if let Some(label) = jump_label.filter(|_| !compact) {
             // The jump hint replaces the status/time corner while the modifier
@@ -180,7 +180,7 @@ impl Shell {
         } else {
             // Line one is glyph-only. Line two carries status text or time.
             match status_label {
-                Some(_) if status == zeron_proto::ChatIndicator::Completed => icon(icons::CHECK)
+                Some(_) if status == skylark_proto::ChatIndicator::Completed => icon(icons::CHECK)
                     .size(crate::typography::ui_rems(11.0))
                     .flex_none()
                     .text_color(status_color)
@@ -611,7 +611,7 @@ impl Shell {
         theme: &Theme,
         cx: &mut Context<Self>,
     ) -> Option<AnyElement> {
-        use zeron_proto::ConnectivityState as S;
+        use skylark_proto::ConnectivityState as S;
         let conn = self.state.read(cx).connectivity.clone();
         let (label, glyph): (SharedString, AnyElement) = match conn.state {
             S::Disabled | S::Connected => return None,

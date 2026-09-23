@@ -1,5 +1,8 @@
 # Zeron for iOS
 
+> **Skylark build status: local-only.** Product login/logout, cloud sync, remote control, updates, public installation, and publishing are temporarily paused. Provider agent authentication remains available. Cloud/mobile/release instructions and results below are historical reference, not current setup guidance. See [current policy](../../docs/LOCAL_ONLY.md).
+
+
 A native SwiftUI viewport onto the zeron mesh. The phone is a **peer
 device**: it joins the same Loro CRDT rooms as every other device (workspace
 doc + per-chat session docs over the edge's Durable Objects), renders the

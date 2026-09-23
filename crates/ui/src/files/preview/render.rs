@@ -133,7 +133,7 @@ impl FilesSurface {
                                 if confirming_reload {
                                     "Discard unsaved changes?"
                                 } else {
-                                    "This file changed outside Zeron."
+                                    "This file changed outside Skylark."
                                 },
                             ))
                             .child(
@@ -485,7 +485,7 @@ impl FilesSurface {
                                 WorkspaceFileSearchMatch {
                                     path: reveal_path.clone(),
                                     name,
-                                    kind: zeron_proto::WorkspaceEntryKind::File,
+                                    kind: skylark_proto::WorkspaceEntryKind::File,
                                     score: 0,
                                 },
                                 cx,

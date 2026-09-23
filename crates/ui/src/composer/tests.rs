@@ -333,7 +333,7 @@ use crate::settings::ComposerSendBehavior;
         let state = cx.new(|_| AppState::new());
         state.update(cx, |state, _| {
             state.set_test_engine(crate::state::EngineHandle::from_test_client(
-                zeron_rpc::RpcClient::new(out, inbound),
+                skylark_rpc::RpcClient::new(out, inbound),
             ));
             state.selected_chat = Some("c".into());
             // A send in flight reads as Working — the double-Enter window.
@@ -607,7 +607,7 @@ use crate::settings::ComposerSendBehavior;
         let raw = local_file_link("src/a file#[x].rs", false);
         assert_eq!(
             raw,
-            "[a file#\\[x\\].rs](zeron-file:src/a%20file%23%5Bx%5D.rs)"
+            "[a file#\\[x\\].rs](skylark-file:src/a%20file%23%5Bx%5D.rs)"
         );
         let links = file_mention_links(&raw);
         assert_eq!(links.len(), 1);
@@ -616,7 +616,7 @@ use crate::settings::ComposerSendBehavior;
         assert!(!links[0].is_dir);
 
         let folder = local_file_link("src/components", true);
-        assert_eq!(folder, "[components](zeron-file:src/components/)");
+        assert_eq!(folder, "[components](skylark-file:src/components/)");
         let links = file_mention_links(&folder);
         assert_eq!(links[0].path, "src/components");
         assert!(links[0].is_dir);
@@ -626,12 +626,12 @@ use crate::settings::ComposerSendBehavior;
     fn dropped_mentions_are_separated_from_surrounding_text() {
         let (inserted, cursor_advance) =
             dropped_file_mention("fixnow", 3..3, "src/lib.rs", false).expect("valid drop");
-        assert_eq!(inserted, " [lib.rs](zeron-file:src/lib.rs) ");
+        assert_eq!(inserted, " [lib.rs](skylark-file:src/lib.rs) ");
         assert_eq!(cursor_advance, inserted.len());
 
         let (inserted, cursor_advance) =
             dropped_file_mention("fix now", 3..3, "src/components", true).expect("valid drop");
-        assert_eq!(inserted, " [components](zeron-file:src/components/)");
+        assert_eq!(inserted, " [components](skylark-file:src/components/)");
         assert_eq!(cursor_advance, inserted.len() + 1);
     }
 
@@ -739,12 +739,12 @@ use crate::settings::ComposerSendBehavior;
     fn sent_mention_display_leaves_plain_prompts_untouched() {
         assert_eq!(sent_mention_display("fix the composer"), None);
         assert_eq!(
-            sent_mention_display("what is a zeron-file: link?"),
+            sent_mention_display("what is a skylark-file: link?"),
             None,
             "scheme substring without a valid mention link"
         );
         assert_eq!(
-            sent_mention_display("[a.rs](zeron-file:../a.rs)"),
+            sent_mention_display("[a.rs](skylark-file:../a.rs)"),
             None,
             "a hostile path never becomes a chip in the transcript either"
         );
@@ -825,7 +825,7 @@ use crate::settings::ComposerSendBehavior;
 
     #[test]
     fn auto_grow_math() {
-        // The source heights (zeron composer.tsx line 235 clamp, composer-
+        // The source heights (skylark composer.tsx line 235 clamp, composer-
         // actions.tsx row, 1px hairlines): 76+46+2 empty … 260+46+2 capped.
         assert_eq!(COMPOSER_MIN_HEIGHT, 124.0);
         assert_eq!(COMPOSER_MAX_HEIGHT, 308.0);
@@ -842,7 +842,7 @@ use crate::settings::ComposerSendBehavior;
             h4,
             4.0 * INPUT_LINE_HEIGHT + TEXTAREA_PAD_V + ACTIONS_ROW_HEIGHT + PILL_BORDER_V
         );
-        // Caps at a 260px textarea box (zeron max-h-[260px] / the JS clamp).
+        // Caps at a 260px textarea box (skylark max-h-[260px] / the JS clamp).
         assert_eq!(
             composer_total_height(input_content_height(100)),
             COMPOSER_MAX_HEIGHT
@@ -1566,7 +1566,7 @@ use crate::settings::ComposerSendBehavior;
 
     #[test]
     fn pending_input_detection() {
-        use zeron_doc::MessageStatus;
+        use skylark_doc::MessageStatus;
         let input_part = MessagePart::Input {
             id: "in-r1".into(),
             request_id: "r1".into(),

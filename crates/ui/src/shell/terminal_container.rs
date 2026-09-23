@@ -33,7 +33,7 @@ impl Shell {
 
     /// Cmd/Ctrl+J and the header button (feature-inventory §1.10). Height
     /// animates 200 ms; closing detaches (PTYs stay alive), opening restores.
-    /// The flag is per chat (zeron `sessionPanels`).
+    /// The flag is per chat (skylark `sessionPanels`).
     pub(super) fn toggle_terminal(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let from = self.terminal_target(cx);
         let key = self.panel_key(cx);
@@ -46,7 +46,7 @@ impl Shell {
                 .update(cx, |composer, _| composer.focus_pending = false);
             panel.update(cx, |panel, cx| panel.request_focus(cx));
             // Opening lands keyboard focus IN the shell — typing goes straight
-            // to the prompt, no click needed (zeron terminal-panel.tsx: the
+            // to the prompt, no click needed (skylark terminal-panel.tsx: the
             // visible+active effect calls `terminal.focus()` on every open).
             // The handle is focusable before the panel's first paint; once the
             // terminal body mounts with `track_focus` it receives the keys.
@@ -55,7 +55,7 @@ impl Shell {
             // Hiding the panel removes the (likely focused) terminal view;
             // with nothing focused, window key bindings stop dispatching, so
             // hand focus to the composer. (Cmd+J is a pure toggle — a second
-            // press closes even while the terminal is focused, as in zeron's
+            // press closes even while the terminal is focused, as in skylark's
             // `useHotkey(toggleShortcut, ... setOpenScoped(!open))`.)
             window.focus(&self.composer.focus_handle(cx), cx);
         }

@@ -1,5 +1,8 @@
 # Whale startup persistence and networking
 
+> **Skylark build status: local-only.** Product login/logout, cloud sync, remote control, updates, public installation, and publishing are temporarily paused. Provider agent authentication remains available. Cloud/mobile/release instructions and results below are historical reference, not current setup guidance. See [current policy](LOCAL_ONLY.md).
+
+
 This change includes PR #385 (`efa1a0752`) on top of main (`d6c7b5ea9`).
 #385 addresses transport progress, backpressure, reconnect/outbox replay and
 HTTP fallback. It does not address the SQLite/runtime starvation described here.
@@ -74,13 +77,13 @@ emits its Vitest shutdown-state diagnostic; the focused checkpoint run is clean.
 ## Reproduction
 
 ```sh
-cargo test -p zeron-sync -p zeron-rpc --features zeron-sync/mock-server
-cargo test -p zeron-engine --lib --test session_publication --test restart_resume --test local_profiles --test codex_subagents
-cargo test -p zeron-update
-cargo test -p zeron-ui --lib -- --test-threads=1
+cargo test -p skylark-sync -p skylark-rpc --features skylark-sync/mock-server
+cargo test -p skylark-engine --lib --test session_publication --test restart_resume --test local_profiles --test codex_subagents
+cargo test -p skylark-update
+cargo test -p skylark-ui --lib -- --test-threads=1
 npm --prefix edge run typecheck
 npm --prefix edge test
-ZERON_WHALE_SNAPSHOT=/path/to/private-copy.bin cargo test -p zeron-engine --lib real_whale_replay_keeps_146_heartbeats_running_on_two_workers -- --ignored --nocapture
+SKYLARK_WHALE_SNAPSHOT=/path/to/private-copy.bin cargo test -p skylark-engine --lib real_whale_replay_keeps_146_heartbeats_running_on_two_workers -- --ignored --nocapture
 ```
 
 ## Rollout

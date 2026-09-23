@@ -1,7 +1,7 @@
 use super::*;
 
-    fn pin_change(id: &str) -> zeron_proto::SidebarPinChange {
-        zeron_proto::SidebarPinChange::Pin {
+    fn pin_change(id: &str) -> skylark_proto::SidebarPinChange {
+        skylark_proto::SidebarPinChange::Pin {
             session_id: id.into(),
             after: None,
             before: None,
@@ -46,7 +46,7 @@ use super::*;
                     edge_token: None,
                     org_id: None,
                     workos_client_id: None,
-                    default_harness: zeron_proto::HarnessId::Mock,
+                    default_harness: skylark_proto::HarnessId::Mock,
                 },
                 cx,
             )
@@ -54,9 +54,9 @@ use super::*;
     }
 
     fn remote_pin_state(state: &mut super::AppState, synced: bool, initialized: bool) {
-        state.workspace_scope = Some(zeron_proto::WorkspaceScope::Synced);
-        state.auth = Some(zeron_proto::AuthState::SignedIn {
-            user: zeron_proto::UserProfile {
+        state.workspace_scope = Some(skylark_proto::WorkspaceScope::Synced);
+        state.auth = Some(skylark_proto::AuthState::SignedIn {
+            user: skylark_proto::UserProfile {
                 id: "user".into(),
                 email: "test@example.com".into(),
                 name: None,
@@ -67,7 +67,7 @@ use super::*;
         state.sidebar_preferences.initialized = initialized;
     }
 
-    fn pin_test_chat(id: &str) -> zeron_proto::Chat {
+    fn pin_test_chat(id: &str) -> skylark_proto::Chat {
         serde_json::from_value(serde_json::json!({
             "id": id, "title": id, "deviceId": "local", "archived": false,
             "createdAt": chrono::Utc::now(),
@@ -83,14 +83,14 @@ use super::*;
         let (out, requests) = tokio::sync::mpsc::channel(16);
         let (replies, inbound) = tokio::sync::mpsc::channel(16);
         (
-            crate::state::EngineHandle::from_test_client(zeron_rpc::RpcClient::new(out, inbound)),
+            crate::state::EngineHandle::from_test_client(skylark_rpc::RpcClient::new(out, inbound)),
             requests,
             replies,
         )
     }
 
-    fn pin_snapshot(revision: u64, pins: &[&str]) -> zeron_proto::SidebarPreferencesState {
-        zeron_proto::SidebarPreferencesState {
+    fn pin_snapshot(revision: u64, pins: &[&str]) -> skylark_proto::SidebarPreferencesState {
+        skylark_proto::SidebarPreferencesState {
             revision,
             synced: true,
             initialized: true,
@@ -447,7 +447,7 @@ use super::*;
                     let id = shell.sidebar_pin_write.as_ref().unwrap().id;
                     shell.state.update(cx, |state, _| {
                         if change_profile {
-                            state.workspace_scope = Some(zeron_proto::WorkspaceScope::Local);
+                            state.workspace_scope = Some(skylark_proto::WorkspaceScope::Local);
                         } else {
                             state.set_test_engine(replacement);
                         }
@@ -552,7 +552,7 @@ use super::*;
         let window = pin_test_shell(cx, dir.path());
         window
             .update(cx, |shell, window, cx| {
-                let saved: Vec<String> = (0..zeron_proto::MAX_SIDEBAR_PINS)
+                let saved: Vec<String> = (0..skylark_proto::MAX_SIDEBAR_PINS)
                     .map(|n| format!("hidden-{n}"))
                     .collect();
                 for remote in [false, true] {
@@ -625,7 +625,7 @@ use super::*;
                     cx
                 ));
                 assert!(!shell.validate_sidebar_pin_change(&key, &ids(&[""]), cx));
-                let saved: Vec<_> = (0..zeron_proto::MAX_SIDEBAR_PINS)
+                let saved: Vec<_> = (0..skylark_proto::MAX_SIDEBAR_PINS)
                     .map(|n| format!("pin-{n}"))
                     .collect();
                 let reordered = super::sidebar_session_drop_pins(
@@ -828,7 +828,7 @@ use super::*;
                         edge_token: None,
                         org_id: None,
                         workos_client_id: None,
-                        default_harness: zeron_proto::HarnessId::Mock,
+                        default_harness: skylark_proto::HarnessId::Mock,
                     },
                     cx,
                 );
@@ -948,7 +948,7 @@ use super::*;
                         edge_token: None,
                         org_id: None,
                         workos_client_id: None,
-                        default_harness: zeron_proto::HarnessId::Mock,
+                        default_harness: skylark_proto::HarnessId::Mock,
                     },
                     cx,
                 );
@@ -1352,7 +1352,7 @@ use super::*;
             for id in shell.active_sidebar_pins(cx) {
                 shell.apply_sidebar_pin_change(
                     key.clone(),
-                    zeron_proto::SidebarPinChange::Unpin { session_id: id },
+                    skylark_proto::SidebarPinChange::Unpin { session_id: id },
                     cx,
                 );
             }
@@ -1597,8 +1597,8 @@ use super::*;
         (Some((device.into(), device.into())), vec![value])
     }
 
-    fn chat(id: &str) -> zeron_proto::Chat {
-        zeron_proto::Chat {
+    fn chat(id: &str) -> skylark_proto::Chat {
+        skylark_proto::Chat {
             id: id.into(),
             device_id: "device".into(),
             title: None,
@@ -1681,7 +1681,7 @@ use super::*;
                     edge_token: None,
                     org_id: None,
                     workos_client_id: None,
-                    default_harness: zeron_proto::HarnessId::Mock,
+                    default_harness: skylark_proto::HarnessId::Mock,
                 },
                 cx,
             )

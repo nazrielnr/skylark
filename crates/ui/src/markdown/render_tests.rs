@@ -315,7 +315,7 @@ fn code_line_runs_cover_exactly() {
     let theme = Theme::dark();
     let mono = font(theme.font_mono.clone());
     let line = r#"let x = "hi"; // done"#;
-    let document = zeron_syntax::highlight(zeron_syntax::HighlightRequest {
+    let document = skylark_syntax::highlight(skylark_syntax::HighlightRequest {
         source: line,
         path: None,
         fence_tag: Some("rust"),
@@ -337,7 +337,7 @@ fn tree_sitter_runs_are_rich_and_paint_only() {
     let theme = Theme::dark();
     let mono = font(theme.font_mono.clone());
     let line = "let widget = build!(42);";
-    let document = zeron_syntax::highlight(zeron_syntax::HighlightRequest {
+    let document = skylark_syntax::highlight(skylark_syntax::HighlightRequest {
         source: line,
         path: None,
         fence_tag: Some("rust"),
@@ -395,7 +395,7 @@ fn affected_language_roles_flow_through_markdown_paint_only() {
         ),
     ];
     for &(fence_tag, line, required) in cases {
-        let document = zeron_syntax::highlight(zeron_syntax::HighlightRequest {
+        let document = skylark_syntax::highlight(skylark_syntax::HighlightRequest {
             source: line,
             path: None,
             fence_tag: Some(fence_tag),

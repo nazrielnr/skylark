@@ -1,5 +1,8 @@
 # gpui Standalone Chat-App Build Guide (from zed-industries/zed)
 
+> **Skylark build status: local-only.** Product login/logout, cloud sync, remote control, updates, public installation, and publishing are temporarily paused. Provider agent authentication remains available. Cloud/mobile/release instructions and results below are historical reference, not current setup guidance. See [current policy](../LOCAL_ONLY.md).
+
+
 Repo state: freshly cloned zed. `rust-toolchain.toml` pins `channel = "1.95.0"`; workspace `edition = "2024"`. gpui crate version is `0.2.2`.
 
 Important architectural note: **recent zed split gpui into a core crate plus separate platform backend crates.** The `gpui` crate holds the framework (elements, App/Entity/Window, executor, styling); the actual OS windowing backends live in sibling crates and are wired together by **`gpui_platform`**. All the `examples/*.rs` now start the app via `gpui_platform::application()`, not a bare `gpui::Application::new()`. A standalone app should depend on **both `gpui` and `gpui_platform`** via git.

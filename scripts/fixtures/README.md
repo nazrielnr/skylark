@@ -1,3 +1,6 @@
+
+> **Skylark build status: local-only.** Product login/logout, cloud sync, remote control, updates, public installation, and publishing are temporarily paused. Provider agent authentication remains available. Cloud/mobile/release instructions and results below are historical reference, not current setup guidance. See [current policy](../../docs/LOCAL_ONLY.md).
+
 `resource-stream.jsonl` contains sanitized deltas from a successful Haiku
 profiling response: an 80-section Rust ownership tutorial with code fences.
 Only text/reasoning deltas and the successful completion marker are retained;
@@ -8,7 +11,7 @@ The assistant text is 51,769 bytes, SHA-256
 Reasoning contributes another 853 bytes. The production transcript's part
 separators bring the combined short reply to 52,624 bytes.
 
-Use `ZERON_REPLAY_REPEAT=10 ZERON_REPLAY_DELAY_MS=8` for the synthetic long
+Use `SKYLARK_REPLAY_REPEAT=10 SKYLARK_REPLAY_DELAY_MS=8` for the synthetic long
 workload. See [the profiling report](../../docs/performance-resource-usage.md)
 for build settings, commands and measured results.
 

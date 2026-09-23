@@ -1,5 +1,8 @@
 # Rounded sound family — ten additional auditions
 
+> **Skylark build status: local-only.** Product login/logout, cloud sync, remote control, updates, public installation, and publishing are temporarily paused. Provider agent authentication remains available. Cloud/mobile/release instructions and results below are historical reference, not current setup guidance. See [current policy](../../LOCAL_ONLY.md).
+
+
 Original synthesis using the approved rounded clicks, with wider rhythmic and tonal variety. Quiet levels, no noisy tails or metallic impacts.
 
 The numbered files remain audition references. `06-attention.wav` is also the source for the selected application attention cue.

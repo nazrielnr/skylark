@@ -4,10 +4,10 @@ use super::*;
 use crate::state::engine::DeferredEngineState;
 use chrono::TimeDelta;
 use gpui::AppContext;
-use zeron_engine::{EngineCore, default_registry};
+use skylark_engine::{EngineCore, default_registry};
 // `SessionStatus` is only needed to build the fixtures below — the module
-// itself derives everything through `zeron_proto::view`.
-use zeron_proto::{SessionStatus, UserProfile};
+// itself derives everything through `skylark_proto::view`.
+use skylark_proto::{SessionStatus, UserProfile};
 
 /// A localhost port that was just free (bind :0, read, drop).
 async fn free_port() -> u16 {
@@ -73,7 +73,7 @@ async fn legacy_daemon_identity_falls_back_to_synced_scope() {
 async fn remote_viewport_treats_legacy_daemon_as_ready() {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let port = listener.local_addr().unwrap().port();
-    let server = tokio::spawn(zeron_rpc::serve_ws_listener(
+    let server = tokio::spawn(skylark_rpc::serve_ws_listener(
         listener,
         Arc::new(LegacyIdentityRpc),
     ));
@@ -87,8 +87,14 @@ async fn remote_viewport_treats_legacy_daemon_as_ready() {
         workos_client_id: None,
         default_harness: HarnessId::Mock,
     })
-    .await
-    .expect("legacy daemon remains attachable");
+    .await;
+    if skylark_proto::LOCAL_ONLY_BUILD {
+        let Err(error) = handle else { panic!("legacy daemon must be refused") };
+        assert!(error.to_string().contains("older or cloud-enabled engine"));
+        server.abort();
+        return;
+    }
+    let handle = handle.expect("legacy daemon remains attachable");
 
     let mut deferred = handle
         .deferred_state()
@@ -141,7 +147,7 @@ async fn bootstrap_embeds_engine_when_port_is_free() {
 #[tokio::test]
 async fn bootstrap_reports_local_assembly_failure_before_returning_a_handle() {
     let dir = tempfile::tempdir().unwrap();
-    zeron_engine::EngineProfile::local(dir.path()).unwrap();
+    skylark_engine::EngineProfile::local(dir.path()).unwrap();
     std::fs::create_dir(dir.path().join("profiles")).unwrap();
     std::fs::write(dir.path().join("profiles/local"), b"not a directory").unwrap();
     let port = free_port().await;
@@ -189,14 +195,14 @@ async fn remote_viewport_observes_deferred_engine_failure() {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let port = listener.local_addr().unwrap().port();
     let (state_tx, state_rx) = tokio::sync::watch::channel(DeferredEngineState::Waiting);
-    let server = tokio::spawn(zeron_rpc::serve_ws_listener(
+    let server = tokio::spawn(skylark_rpc::serve_ws_listener(
         listener,
         Arc::new(DeferredIdentityRpc {
             engine_info: EngineInfo {
                 device_id: "owner-device".into(),
                 workspace_scope: WorkspaceScope::Local,
                 cursor_sdk_version: None,
-                capabilities: zeron_proto::capabilities::current(),
+                capabilities: skylark_proto::capabilities::current(),
             },
             state: state_rx,
         }),
@@ -433,6 +439,14 @@ async fn engine_info_is_available_while_cloud_onboarding_is_deferred() {
     .await
     .unwrap();
 
+    if skylark_proto::LOCAL_ONLY_BUILD {
+        assert_eq!(handle.engine_info().workspace_scope, WorkspaceScope::Local);
+        assert!(handle.client().call(methods::LIST_HARNESSES, serde_json::json!({})).await.is_ok());
+        assert!(dir.path().join("session.json").exists());
+        assert!(!dir.path().join("orgs").exists());
+        handle.shutdown().await;
+        return;
+    }
     assert!(matches!(
         handle
             .deferred_state()
@@ -465,10 +479,10 @@ async fn engine_info_is_available_while_cloud_onboarding_is_deferred() {
 
 #[tokio::test]
 async fn bootstrap_connects_when_daemon_is_listening() {
-    // Stand in for `zeron headless`: an engine served over the WS IPC port.
+    // Stand in for `skylark headless`: an engine served over the WS IPC port.
     let daemon_dir = tempfile::tempdir().unwrap();
-    let core = EngineCore::assemble(
-        daemon_dir.path(),
+    let core = EngineCore::assemble_with_profile(
+        skylark_engine::EngineProfile::local(daemon_dir.path()).unwrap(),
         Arc::new(default_registry()),
         HarnessId::Mock,
         None,
@@ -476,7 +490,7 @@ async fn bootstrap_connects_when_daemon_is_listening() {
     .unwrap();
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let port = listener.local_addr().unwrap().port();
-    tokio::spawn(zeron_rpc::serve_ws_listener(listener, core.rpc_service()));
+    tokio::spawn(skylark_rpc::serve_ws_listener(listener, core.rpc_service()));
 
     let ui_dir = tempfile::tempdir().unwrap();
     let handle = EngineHandle::bootstrap(EngineBootConfig {
@@ -498,7 +512,7 @@ async fn bootstrap_connects_when_daemon_is_listening() {
     );
     assert_eq!(
         handle.engine_info().workspace_scope,
-        WorkspaceScope::Development
+        WorkspaceScope::Local
     );
     let harnesses = handle
         .client()
@@ -575,7 +589,7 @@ fn session(
 fn user_entry(id: &str) -> SessionMessageEntry {
     SessionMessageEntry {
         id: id.into(),
-        role: zeron_doc::MessageRole::User,
+        role: skylark_doc::MessageRole::User,
         parts: Vec::new(),
         created_at: 0,
         device_id: "dev".into(),
@@ -590,7 +604,7 @@ fn opening_tail_is_visible_but_never_replaces_or_caches_complete_history(
 ) {
     let state = cx.new(|_| AppState::new());
     state.update(cx, |state, cx| {
-        let update = |id: &str| zeron_doc::TranscriptUpdate {
+        let update = |id: &str| skylark_doc::TranscriptUpdate {
             frame: TranscriptFrame::reset(&[user_entry(id)]),
             context_usage: None,
             replay_baseline: None,
@@ -640,7 +654,7 @@ fn whale_transcript_revisit_is_synchronous_and_fresh_reset_wins(cx: &mut gpui::T
         let entries: Vec<_> = (0..2000)
             .map(|i| {
                 let mut entry = user_entry(&format!("message-{i}"));
-                entry.parts.push(zeron_doc::MessagePart::Text {
+                entry.parts.push(skylark_doc::MessagePart::Text {
                     id: "text".into(),
                     text: "x".repeat(2048),
                 });
@@ -728,7 +742,7 @@ fn transcript_cache_rejects_oversize_and_unloaded_entries(cx: &mut gpui::TestApp
         state.select_chat(Some("oversize".into()), cx);
         assert!(state.transcript_cache.is_empty());
         let mut entry = user_entry("large");
-        entry.parts.push(zeron_doc::MessagePart::Text {
+        entry.parts.push(skylark_doc::MessagePart::Text {
             id: "text".into(),
             text: "x".repeat(TRANSCRIPT_CACHE_BYTES + 1),
         });
@@ -929,7 +943,7 @@ fn transfer_percent_tracks_snapshots_by_upload_id() {
     let mut s = AppState::new();
     assert_eq!(s.transfer_percent("u1"), None);
 
-    let frame = |id: &str, done, total| zeron_proto::TransferProgress {
+    let frame = |id: &str, done, total| skylark_proto::TransferProgress {
         upload_id: id.into(),
         file_name: "a.png".into(),
         done,
@@ -1299,12 +1313,12 @@ fn apply_chats_drops_vanished_selection() {
 fn apply_chat_config_stamps_the_row() {
     let mut state = AppState::new();
     state.apply_chats(vec![chat("a", 0, None), chat("b", 1, None)]);
-    let config = zeron_proto::ChatConfig {
+    let config = skylark_proto::ChatConfig {
         harness: HarnessId::ClaudeCode,
         model: Some("claude-fable-5".into()),
-        reasoning: Some(zeron_proto::ReasoningLevel::XHigh),
+        reasoning: Some(skylark_proto::ReasoningLevel::XHigh),
         model_options: serde_json::Map::new(),
-        sandbox: zeron_proto::SandboxLevel::WorkspaceWrite,
+        sandbox: skylark_proto::SandboxLevel::WorkspaceWrite,
     };
     state.apply_chat_config("a", config.clone());
     assert_eq!(
@@ -1323,12 +1337,12 @@ fn apply_chat_config_stamps_the_row() {
     // Unknown chat: no-op, no panic.
     state.apply_chat_config(
         "missing",
-        zeron_proto::ChatConfig {
+        skylark_proto::ChatConfig {
             harness: HarnessId::ClaudeCode,
             model: None,
             reasoning: None,
             model_options: serde_json::Map::new(),
-            sandbox: zeron_proto::SandboxLevel::WorkspaceWrite,
+            sandbox: skylark_proto::SandboxLevel::WorkspaceWrite,
         },
     );
 }
@@ -1400,7 +1414,7 @@ fn echoes_show_until_doc_frame_confirms() {
     state.selected_chat = Some("c1".into());
     let echo = SessionMessageEntry {
         id: "m1".into(),
-        role: zeron_doc::MessageRole::User,
+        role: skylark_doc::MessageRole::User,
         parts: vec![],
         created_at: 0,
         device_id: "local".into(),
@@ -1583,8 +1597,8 @@ fn chat_with_cwd(id: &str, created_min: i64, cwd: Option<&str>) -> Chat {
 
 #[test]
 fn project_labels_from_cwd() {
-    assert_eq!(project_label(Some("/home/w/dev/zeron")), "zeron");
-    assert_eq!(project_label(Some("/home/w/dev/zeron/")), "zeron");
+    assert_eq!(project_label(Some("/home/w/dev/skylark")), "skylark");
+    assert_eq!(project_label(Some("/home/w/dev/skylark/")), "skylark");
     assert_eq!(project_label(None), "No project");
     assert_eq!(project_label(Some("~")), "No project");
     assert_eq!(project_label(Some("~/")), "No project");
@@ -1596,22 +1610,22 @@ fn project_labels_from_cwd() {
 fn grouped_sidebar_preserves_recency_order() {
     // Input is sidebar-sorted (most recent first).
     let chats = [
-        chat_with_cwd("a", 9, Some("/dev/zeron")),
+        chat_with_cwd("a", 9, Some("/dev/skylark")),
         chat_with_cwd("b", 8, Some("/dev/zed")),
-        chat_with_cwd("c", 7, Some("/dev/zeron")),
+        chat_with_cwd("c", 7, Some("/dev/skylark")),
         chat_with_cwd("d", 6, None),
     ];
     let groups = group_chats(chats.iter());
     let labels: Vec<&str> = groups.iter().map(|g| g.label.as_str()).collect();
     // Groups ordered by their most recent chat; rows keep order.
-    assert_eq!(labels, ["zeron", "zed", "No project"]);
-    let zeron_ids: Vec<&str> = groups[0].chats.iter().map(|c| c.id.as_str()).collect();
-    assert_eq!(zeron_ids, ["a", "c"]);
+    assert_eq!(labels, ["skylark", "zed", "No project"]);
+    let skylark_ids: Vec<&str> = groups[0].chats.iter().map(|c| c.id.as_str()).collect();
+    assert_eq!(skylark_ids, ["a", "c"]);
     assert!(group_chats(std::iter::empty()).is_empty());
 }
 
 #[test]
-fn relative_times_match_zeron_format() {
+fn relative_times_match_skylark_format() {
     let now = Utc::now();
     let ago = |secs: i64| now - chrono::Duration::seconds(secs);
     assert_eq!(format_time_ago(ago(0), now), "now");
@@ -1636,10 +1650,10 @@ fn relative_times_match_zeron_format() {
 #[test]
 fn chat_location_joins_project_and_branch() {
     let mut c = chat_with_cwd("x", 1, Some("/home/w/dev/soccertcg"));
-    c.branch = Some("zeron/rebalance".into());
+    c.branch = Some("skylark/rebalance".into());
     assert_eq!(
         chat_location(&c).as_deref(),
-        Some("soccertcg · zeron/rebalance")
+        Some("soccertcg · skylark/rebalance")
     );
     c.branch = None;
     assert_eq!(chat_location(&c).as_deref(), Some("soccertcg"));
@@ -1764,7 +1778,7 @@ fn explicit_capabilities_distinguish_same_version_builds() {
             created_at: None,
             version: Some("0.2.31".into()),
             cursor_sdk_version: None,
-            capabilities: vec![zeron_proto::capabilities::MESSAGE_QUEUE_V1.into()],
+            capabilities: vec![skylark_proto::capabilities::MESSAGE_QUEUE_V1.into()],
         },
         Device {
             id: "upstream".into(),
@@ -1778,13 +1792,13 @@ fn explicit_capabilities_distinguish_same_version_builds() {
         },
     ];
 
-    assert!(state.device_supports("personal", zeron_proto::capabilities::MESSAGE_QUEUE_V1));
-    assert!(!state.device_supports("upstream", zeron_proto::capabilities::MESSAGE_QUEUE_V1));
+    assert!(state.device_supports("personal", skylark_proto::capabilities::MESSAGE_QUEUE_V1));
+    assert!(!state.device_supports("upstream", skylark_proto::capabilities::MESSAGE_QUEUE_V1));
 }
 
 #[test]
 fn delivery_degradation_and_queued_sends_tell_the_truth() {
-    use zeron_proto::{ChatConnectivity, ConnectivityState};
+    use skylark_proto::{ChatConnectivity, ConnectivityState};
     let now = Utc::now();
     let mut s = AppState::default();
     s.local_device_id = Some("local".into());

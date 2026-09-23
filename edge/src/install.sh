@@ -1,4 +1,9 @@
 #!/bin/sh
+# ponytail: installer paused until Skylark-owned releases are available.
+printf '%s\n' 'Skylark installation is temporarily disabled. Build from your source checkout; see docs/RUNNING.md.' >&2
+exit 1
+
+# Historical upstream installer below; intentionally unreachable.
 # Zeron (native) headless installer.
 #
 #   curl -fsSL https://zeron.sh/install.sh | sh

@@ -1,5 +1,8 @@
 # Sidebar view options and conversation links
 
+> **Skylark build status: local-only.** Product login/logout, cloud sync, remote control, updates, public installation, and publishing are temporarily paused. Provider agent authentication remains available. Cloud/mobile/release instructions and results below are historical reference, not current setup guidance. See [current policy](../LOCAL_ONLY.md).
+
+
 Status: implemented and verified locally
 Branch: `wip/sidebar-view-options`
 Base: `origin/main` at `92b5732` (`ci: add permanent internal TestFlight workflow (#213)`)
@@ -9,7 +12,7 @@ Research date: 2026-08-22
 
 Make source-control metadata in the sidebar describe the conversation it belongs
 to, add a small set of persistent sidebar view options, and add right-click copy
-actions for both Zeron and the conversation's actual harness.
+actions for both Skylark and the conversation's actual harness.
 
 This plan deliberately keeps the project selector as a scope control. View
 options change presentation inside that scope; they do not silently retarget the
@@ -196,7 +199,7 @@ the chat header can adopt the same model later. The menu contains:
 
 ```text
 Copy >
-  Zeron deeplink
+  Skylark deeplink
   <Harness> conversation link   (only when verified/supported)
   Session ID
 ```
@@ -209,7 +212,7 @@ The resolver is bound to the row, never the globally selected harness:
 
 ```text
 ConversationLinks
-  zeron: required internal deeplink
+  skylark: required internal deeplink
   external: optional { label, url }
 ```
 
@@ -221,15 +224,15 @@ Initial provider support:
 - Claude Code, Cursor, Grok, Pi, and OpenCode: omit the external item until each
   adapter can produce a verified link. Never synthesize a URL from an opaque id.
 
-The Zeron URI must include an opaque workspace/profile locator in addition to
+The Skylark URI must include an opaque workspace/profile locator in addition to
 the durable chat id so local, synced, and development profiles cannot collide.
 Proposed shape:
 
 ```text
-zeron://open/chat/<percent-encoded-chat-id>?workspace=<opaque-locator>
+skylark://open/chat/<percent-encoded-chat-id>?workspace=<opaque-locator>
 ```
 
-“Copy Zeron deeplink” is complete only when the URI round-trips into the correct
+“Copy Skylark deeplink” is complete only when the URI round-trips into the correct
 chat. That requires URL-scheme registration, cold-start argument/event parsing,
 profile-aware chat resolution after bootstrap, and an actionable error when the
 link names an unavailable local profile. Do not ship a clipboard action that
@@ -239,8 +242,8 @@ copies an unhandled URI.
 
 ### Slice A — conversation source truth
 
-1. Add the optional source-context wire/doc model in `zeron-proto` and
-   `zeron-doc`; keep old rows readable.
+1. Add the optional source-context wire/doc model in `skylark-proto` and
+   `skylark-doc`; keep old rows readable.
 2. Capture the actual git context in the host command drain after worktree
    creation and before dispatch.
 3. Remove branch fan-out from `diff_sync::sync_entry`; retain checkout diff and
@@ -262,8 +265,8 @@ copies an unhandled URI.
 ### Slice C — links and shared actions
 
 1. Define a pure session-action/link model with exact clipboard payload tests.
-2. Add a workspace-scoped Zeron URI builder/parser and inbound route intent.
-3. Register and handle `zeron://` in macOS packaging first; add Linux desktop
+2. Add a workspace-scoped Skylark URI builder/parser and inbound route intent.
+3. Register and handle `skylark://` in macOS packaging first; add Linux desktop
    entry and Windows registration with their packaging work rather than
    claiming unsupported platforms.
 4. Add harness conversation-link capability, beginning with verified Codex.
@@ -304,14 +307,14 @@ Run the narrow checks first:
 
 ```bash
 cargo fmt --all -- --check
-cargo test -p zeron-proto
-cargo test -p zeron-doc
-cargo test -p zeron-engine change_request
-cargo test -p zeron-ui change_request
-cargo test -p zeron-ui shell
+cargo test -p skylark-proto
+cargo test -p skylark-doc
+cargo test -p skylark-engine change_request
+cargo test -p skylark-ui change_request
+cargo test -p skylark-ui shell
 ```
 
-Broaden to `cargo test -p zeron-engine`, `cargo test -p zeron-ui`, and finally
+Broaden to `cargo test -p skylark-engine`, `cargo test -p skylark-ui`, and finally
 `cargo test --workspace` in proportion to the implemented slice.
 
 ## Coordination

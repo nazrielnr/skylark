@@ -3,12 +3,12 @@ use super::*;
 impl AccountsPage {
     // ---- render pieces ----
 
-    /// One usage window (zeron settings.agents.tsx `UsageMeter`): label ·
+    /// One usage window (skylark settings.agents.tsx `UsageMeter`): label ·
     /// 5px rounded-full bar (indigo → amber ≥80% → red ≥95%) · "NN% used" ·
     /// quiet reset time.
     fn render_usage_meter(
         &self,
-        window: &zeron_proto::AgentUsageWindow,
+        window: &skylark_proto::AgentUsageWindow,
         theme: &Theme,
         now: DateTime<Utc>,
     ) -> AnyElement {
@@ -47,7 +47,7 @@ impl AccountsPage {
                             div()
                                 .h_full()
                                 // A 1.5% floor keeps tiny non-zero usage
-                                // visible (zeron `max(used, 1.5)%`).
+                                // visible (skylark `max(used, 1.5)%`).
                                 .w(gpui::relative(fraction.max(0.015)))
                                 .rounded_full()
                                 .bg(fill),
@@ -76,7 +76,7 @@ impl AccountsPage {
             .into_any_element()
     }
 
-    /// One account row (zeron settings.agents.tsx `AccountRow`): initial
+    /// One account row (skylark settings.agents.tsx `AccountRow`): initial
     /// avatar, email + usage meters left; badges over the Switch/Forget
     /// actions right-anchored.
     fn render_account_row(
@@ -116,7 +116,7 @@ impl AccountsPage {
                 el.child(widgets::badge(theme, plan))
             });
 
-        // Actions only on INACTIVE accounts (zeron `{!account.active && …}`):
+        // Actions only on INACTIVE accounts (skylark `{!account.active && …}`):
         // an icon-only Forget (trash, hover → foreground) then Switch, which
         // reads "Switching…" while the activate round-trips.
         let actions: Option<gpui::Div> = (!account.active).then(|| {
@@ -202,7 +202,7 @@ impl AccountsPage {
                     .child(widgets::row_title(theme, email))
                     .map(|el| {
                         // Meters XOR the quiet fallback line — never both
-                        // (zeron: `usage ? meters : "Usage unavailable"…`).
+                        // (skylark: `usage ? meters : "Usage unavailable"…`).
                         if account.usage_windows.is_empty() {
                             el.child(
                                 div()
@@ -254,7 +254,7 @@ impl AccountsPage {
         let url_link =
             |id: &'static str, label: &'static str, url: &str, cx: &mut Context<Self>| {
                 let open_url = url.to_string();
-                // "Reopen the …" text link (zeron: `text-[12px]
+                // "Reopen the …" text link (skylark: `text-[12px]
                 // text-muted-foreground/60 hover:underline`).
                 div()
                     .id(id)
@@ -356,7 +356,7 @@ impl AccountsPage {
                 let body = match harness {
                     HarnessId::Cursor => {
                         "Finish signing in to Cursor in your browser. This mints a \
-                         zeron-named API key you can revoke any time from Cursor's \
+                         skylark-named API key you can revoke any time from Cursor's \
                          dashboard — it is separate from `cursor-agent login`."
                     }
                     _ => {
@@ -430,7 +430,7 @@ impl AccountsPage {
         Some(popover::modal("add-account-dialog", viewport, card))
     }
 
-    /// A ghost account row (zeron settings.agents.tsx `SkeletonRow`): avatar,
+    /// A ghost account row (skylark settings.agents.tsx `SkeletonRow`): avatar,
     /// email line, two usage-meter ghosts, a badge — same geometry as the real
     /// row so loaded data lands without a layout jump. `dim` fades row two.
     fn render_skeleton_row(
@@ -442,7 +442,7 @@ impl AccountsPage {
         cx: &mut Context<Self>,
     ) -> AnyElement {
         use crate::motion;
-        let delta = motion::pulse_delta(&motion::ZERON_PULSE, cx.entity_id(), cx);
+        let delta = motion::pulse_delta(&motion::SKYLARK_PULSE, cx.entity_id(), cx);
         let ghost = |w: gpui::Length, h: f32, round_full: bool| {
             div()
                 .w(w)
@@ -551,7 +551,7 @@ impl Render for AccountsPage {
                 Some(crate::icons::claude_brand()),
             ),
         };
-        // Brand mark inside a 24px centered box (zeron: `grid size-6
+        // Brand mark inside a 24px centered box (skylark: `grid size-6
         // place-items-center [&_svg]:size-4`).
         let provider_mark = |harness: HarnessId, theme: &Theme| {
             let (mark, tint) = provider_icon(harness);
@@ -568,7 +568,7 @@ impl Render for AccountsPage {
                 )
         };
 
-        // One section per provider (zeron settings.agents.tsx `ProviderSection`):
+        // One section per provider (skylark settings.agents.tsx `ProviderSection`):
         // brand header + Add account, then the account rows card.
         let sections: Vec<AnyElement> = match &self.snapshot {
             Loadable::Idle | Loadable::Loading => PROVIDERS
@@ -647,7 +647,7 @@ impl Render for AccountsPage {
                     .into_iter()
                     .map(|(harness, name, cli)| {
                         let accounts = provider_accounts(&snapshot, harness);
-                        // EVERY warning renders its own strip (zeron maps them).
+                        // EVERY warning renders its own strip (skylark maps them).
                         let warnings: Vec<String> = snapshot
                             .warnings
                             .iter()
@@ -759,7 +759,7 @@ impl Render for AccountsPage {
                                     .child(div().flex_1())
                                     .child(
                                         // `text-[12.5px]` + leading 16px Refresh icon,
-                                        // dimmed while a refresh is in flight (zeron
+                                        // dimmed while a refresh is in flight (skylark
                                         // `disabled:opacity-50`).
                                         widgets::ghost_action(&theme)
                                             .id("accounts-refresh")
@@ -784,7 +784,7 @@ impl Render for AccountsPage {
                             )
                             .child(widgets::page_subtitle(
                                 &theme,
-                                "The Claude Code, Codex, and Cursor logins on this device. Zeron \
+                                "The Claude Code, Codex, and Cursor logins on this device. Skylark \
                                  detects the live session, keeps each account backed up, and can \
                                  swap between them.",
                             ))
@@ -800,7 +800,7 @@ impl Render for AccountsPage {
                                 )
                             })
                             .children(sections)
-                            // Footer note (zeron: `mt-6 text-[12px] leading-relaxed
+                            // Footer note (skylark: `mt-6 text-[12px] leading-relaxed
                             // text-muted-foreground/60`).
                             .child(
                                 div()

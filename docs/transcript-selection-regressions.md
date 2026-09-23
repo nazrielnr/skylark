@@ -1,5 +1,8 @@
 # Streaming selection and prompt expansion
 
+> **Skylark build status: local-only.** Product login/logout, cloud sync, remote control, updates, public installation, and publishing are temporarily paused. Provider agent authentication remains available. Cloud/mobile/release instructions and results below are historical reference, not current setup guidance. See [current policy](LOCAL_ONLY.md).
+
+
 Text selection now releases automatic viewport following at mouse-down and
 materializes the current list position. A stream burst can no longer remove
 the drag anchor before the first mouse move. Selection retains the runway;
@@ -35,7 +38,7 @@ The recorded release binary has SHA-256
 All 620 release UI tests passed:
 
 ```sh
-cargo test --release --locked -p zeron-ui --lib -- --test-threads=1
+cargo test --release --locked -p skylark-ui --lib -- --test-threads=1
 ```
 
 The new headless tests use the cached transcript view and real mouse events.
@@ -46,11 +49,11 @@ regressions both failed before their respective fixes.
 
 The existing suite also covers runway geometry, wheel escape and re-sticking,
 resizes, completion shrinkage, viewport restoration, and selection edge scrolling.
-The native app also built with `cargo build --release --locked -p zeron`.
+The native app also built with `cargo build --release --locked -p skylark`.
 
 Replay with `scripts/resource-profile.mjs` and `scripts/replay-claude.py`:
 use `scripts/fixtures/transcript-selection-stream.jsonl` at 1200 ms per delta
 for the short turn, or `scripts/fixtures/resource-stream.jsonl` at 300 ms per
-delta for overflow. Set `ZERON_PROFILE_SUBMIT_UI=1`; the short-turn prompt
+delta for overflow. Set `SKYLARK_PROFILE_SUBMIT_UI=1`; the short-turn prompt
 must be long enough to expose Show more. The recordings used a 1939-character
 prompt for that case.

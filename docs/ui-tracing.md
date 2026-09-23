@@ -1,6 +1,9 @@
 # Workspace Files UI tracing
 
-`ZERON_UI_TRACE=1` (env) turns on `[trace]` lines on **stderr**. They are
+> **Skylark build status: local-only.** Product login/logout, cloud sync, remote control, updates, public installation, and publishing are temporarily paused. Provider agent authentication remains available. Cloud/mobile/release instructions and results below are historical reference, not current setup guidance. See [current policy](LOCAL_ONLY.md).
+
+
+`SKYLARK_UI_TRACE=1` (env) turns on `[trace]` lines on **stderr**. They are
 no-ops otherwise: one atomic load per check, nothing else in shipping
 builds. `crate::ui_trace::init()` runs in `run_app`; the `ui_trace!` macro
 and `ui_trace::bounds_probe` are the only hooks.

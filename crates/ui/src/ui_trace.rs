@@ -1,6 +1,6 @@
 //! Opt-in UI tracing for automation and debugging.
 //!
-//! Enable with `ZERON_UI_TRACE=1`. Every hook below is a no-op (a single
+//! Enable with `SKYLARK_UI_TRACE=1`. Every hook below is a no-op (a single
 //! atomic load) when disabled, so shipping builds pay nothing but this
 //! check. The `tools/ui_debug/` scripts drive the app and assert against
 //! these `[trace]` lines — see `docs/ui-tracing.md`.
@@ -16,7 +16,7 @@ pub fn enabled() -> bool {
 }
 
 pub fn init() {
-    let on = std::env::var_os("ZERON_UI_TRACE").is_some_and(|v| v != "0");
+    let on = std::env::var_os("SKYLARK_UI_TRACE").is_some_and(|v| v != "0");
     ENABLED.store(on, Ordering::Relaxed);
 }
 

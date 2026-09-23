@@ -329,7 +329,7 @@ impl Element for LinkRanges {
                         window.refresh();
                     });
                 for (action_ix, (action, label, icon)) in [
-                    (LinkAction::Internal, "Open in Zeron", icons::GLOBE),
+                    (LinkAction::Internal, "Open in Skylark", icons::GLOBE),
                     (
                         LinkAction::External,
                         "Open in external browser",
@@ -367,7 +367,7 @@ impl Element for LinkRanges {
                         }),
                     );
                 }
-                let open_in_zeron = crate::settings::current(cx).open_web_links_in_zeron;
+                let open_in_skylark = crate::settings::current(cx).open_web_links_in_skylark;
                 let menu = state.menu.clone();
                 card = card.child(popover::menu_separator()).child(
                     popover::menu_row(
@@ -375,21 +375,21 @@ impl Element for LinkRanges {
                         false,
                         format!("{}-link-{index}-default-destination", self.id),
                     )
-                    .id("Open links in Zeron")
-                    .child(div().w(px(16.)).flex_none().when(open_in_zeron, |el| {
+                    .id("Open links in Skylark")
+                    .child(div().w(px(16.)).flex_none().when(open_in_skylark, |el| {
                         el.child(
                             icons::icon(icons::CHECK)
                                 .size(px(16.))
                                 .text_color(theme.text_muted),
                         )
                     }))
-                    .child("Open links in Zeron")
+                    .child("Open links in Skylark")
                     .track_focus(&state.menu_focus[3])
                     .role(Role::Button)
-                    .aria_label(if open_in_zeron {
-                        "Open links in Zeron, checked"
+                    .aria_label(if open_in_skylark {
+                        "Open links in Skylark, checked"
                     } else {
-                        "Open links in Zeron, unchecked"
+                        "Open links in Skylark, unchecked"
                     })
                     .focus_visible(|s| s.bg(crate::theme::card_selected_bg()))
                     .on_click(move |_, window, cx| {
@@ -397,7 +397,7 @@ impl Element for LinkRanges {
                             crate::settings::SavePolicy::Immediate,
                             cx,
                             |settings| {
-                                settings.open_web_links_in_zeron = !open_in_zeron;
+                                settings.open_web_links_in_skylark = !open_in_skylark;
                             },
                         );
                         menu.borrow_mut().take();
@@ -852,13 +852,13 @@ mod rendered_tests {
                                 !draw_has_tooltip(window, cx),
                                 "pending hover must not appear over the menu"
                             );
-                            let before = crate::settings::current(cx).open_web_links_in_zeron;
+                            let before = crate::settings::current(cx).open_web_links_in_skylark;
                             key(window, "down", cx);
                             key(window, "down", cx);
                             key(window, "down", cx);
                             key(window, "enter", cx);
                             assert_ne!(
-                                crate::settings::current(cx).open_web_links_in_zeron,
+                                crate::settings::current(cx).open_web_links_in_skylark,
                                 before,
                                 "the fourth menu row toggles the default destination"
                             );
@@ -921,7 +921,7 @@ mod rendered_tests {
                 assert_eq!(log.borrow().len(), 2);
                 assert_eq!(log.borrow()[0].target.original, "https://example.com/one");
                 assert_eq!(log.borrow()[1].target.original, "https://example.org/two");
-                // Menu starts on Open in Zeron; choose the external action.
+                // Menu starts on Open in Skylark; choose the external action.
                 for key in ["down", "enter"] {
                     window.dispatch_event(
                         gpui::PlatformInput::KeyDown(gpui::KeyDownEvent {

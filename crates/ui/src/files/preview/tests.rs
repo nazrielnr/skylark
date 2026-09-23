@@ -181,7 +181,7 @@ fn document_eviction_cleans_path_scoped_companion_state() {
         .comment_anchors
         .insert("old.rs".into(), HashMap::new());
     let highlighted = Arc::new(
-        zeron_syntax::highlight(zeron_syntax::HighlightRequest {
+        skylark_syntax::highlight(skylark_syntax::HighlightRequest {
             source: "fn main() {}",
             path: Some("old.rs"),
             fence_tag: None,
@@ -226,15 +226,15 @@ fn file_highlight_completion_rejects_a_result_after_a_user_edit() {
         checkout_id: Some("checkout-1".into()),
         path: path.into(),
     });
-    document.set_loaded(zeron_proto::WorkspaceFileText {
+    document.set_loaded(skylark_proto::WorkspaceFileText {
         checkout_id: "checkout-1".into(),
         path: path.into(),
         text: Some(stale_source.into()),
         content_hash: Some(disk_hash.into()),
         size: stale_source.len() as u64,
         modified_at: None,
-        encoding: zeron_proto::WorkspaceTextEncoding::Utf8,
-        line_ending: Some(zeron_proto::WorkspaceLineEnding::Lf),
+        encoding: skylark_proto::WorkspaceTextEncoding::Utf8,
+        line_ending: Some(skylark_proto::WorkspaceLineEnding::Lf),
         read_only_reason: None,
         truncated: false,
     });
@@ -242,7 +242,7 @@ fn file_highlight_completion_rejects_a_result_after_a_user_edit() {
     let task_generation = document.generation;
     let task_revision = document.revision;
     let stale_highlight_key =
-        DocumentHighlightKey::new(zeron_syntax::LanguageId::Rust, stale_source);
+        DocumentHighlightKey::new(skylark_syntax::LanguageId::Rust, stale_source);
 
     assert!(file_highlight_result_is_current(
         &document,
@@ -254,7 +254,7 @@ fn file_highlight_completion_rejects_a_result_after_a_user_edit() {
 
     document.mark_user_edit();
     let current_highlight_key =
-        DocumentHighlightKey::new(zeron_syntax::LanguageId::Rust, updated_source);
+        DocumentHighlightKey::new(skylark_syntax::LanguageId::Rust, updated_source);
 
     assert_ne!(document.revision, task_revision);
     assert_ne!(current_highlight_key, stale_highlight_key);
@@ -280,15 +280,15 @@ fn autosave_is_opt_in_and_enabling_schedules_dirty_documents() {
         checkout_id: Some("checkout-1".into()),
         path: path.into(),
     });
-    document.set_loaded(zeron_proto::WorkspaceFileText {
+    document.set_loaded(skylark_proto::WorkspaceFileText {
         checkout_id: "checkout-1".into(),
         path: path.into(),
         text: Some("fn main() {}".into()),
         content_hash: Some("hash-1".into()),
         size: 12,
         modified_at: None,
-        encoding: zeron_proto::WorkspaceTextEncoding::Utf8,
-        line_ending: Some(zeron_proto::WorkspaceLineEnding::Lf),
+        encoding: skylark_proto::WorkspaceTextEncoding::Utf8,
+        line_ending: Some(skylark_proto::WorkspaceLineEnding::Lf),
         read_only_reason: None,
         truncated: false,
     });

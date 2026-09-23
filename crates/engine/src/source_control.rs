@@ -14,7 +14,7 @@ use chrono::{DateTime, Utc};
 use serde::Deserialize;
 use tokio::io::{AsyncRead, AsyncReadExt};
 
-use zeron_proto::{ChangeRequestState, ChangeRequestSummary};
+use skylark_proto::{ChangeRequestState, ChangeRequestSummary};
 
 const GIT_TIMEOUT: Duration = Duration::from_secs(10);
 const GITHUB_TIMEOUT: Duration = Duration::from_secs(20);
@@ -787,7 +787,7 @@ impl ProcessRunner for SystemProcessRunner {
     async fn run(&self, request: ProcessRequest) -> Result<ProcessOutput, ProcessRunError> {
         let mut command = tokio::process::Command::new(&request.program);
         if request.program == "gh" {
-            zeron_harness::compose_login_shell_path(&mut command);
+            skylark_harness::compose_login_shell_path(&mut command);
         }
         #[cfg(windows)]
         {
@@ -967,7 +967,7 @@ mod tests {
                 branch,
                 Some(&format!("origin/{branch}")),
                 Some("origin"),
-                Some(&format!("https://github.com/{owner}/zeron.git")),
+                Some(&format!("https://github.com/{owner}/skylark.git")),
             ),
             default_branch: default_branch.map(str::to_owned),
         }
@@ -1131,7 +1131,7 @@ printf '%s\n' '[{"number":90,"title":"Host-resolved pull request","url":"https:/
                 "remote",
                 "add",
                 "origin",
-                "git@github.com:contributor/zeron.git",
+                "git@github.com:contributor/skylark.git",
             ],
         );
         run_git(
@@ -1153,7 +1153,7 @@ printf '%s\n' '[{"number":90,"title":"Host-resolved pull request","url":"https:/
         assert_eq!(source.branch.remote_name.as_deref(), Some("origin"));
         assert_eq!(
             source.branch.remote_url.as_deref(),
-            Some("git@github.com:contributor/zeron.git")
+            Some("git@github.com:contributor/skylark.git")
         );
         assert_eq!(source.branch.owner.as_deref(), Some("contributor"));
         assert_eq!(
@@ -1517,7 +1517,7 @@ printf '%s\n' '[{"number":90,"title":"Host-resolved pull request","url":"https:/
             command_success("feature/status\n"),
             command_success("fork/published-status\n"),
             command_success("fork\n"),
-            command_success("git@github.com:contributor/zeron.git\n"),
+            command_success("git@github.com:contributor/skylark.git\n"),
             command_success("fork/main\n"),
         ]);
         let inspector = GitCheckoutInspector::new(runner.clone());
@@ -1595,12 +1595,12 @@ printf '%s\n' '[{"number":90,"title":"Host-resolved pull request","url":"https:/
             "local-name",
             Some("fork/published-name"),
             Some("fork"),
-            Some("git@github.com:contributor/zeron.git"),
+            Some("git@github.com:contributor/skylark.git"),
         );
 
         assert_eq!(context.host.as_deref(), Some("github.com"));
         assert_eq!(context.owner.as_deref(), Some("contributor"));
-        assert_eq!(context.repository.as_deref(), Some("zeron"));
+        assert_eq!(context.repository.as_deref(), Some("skylark"));
         assert_eq!(context.head_branch, "published-name");
         assert_eq!(
             context.head_selectors,

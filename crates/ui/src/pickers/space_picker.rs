@@ -1,5 +1,5 @@
 use gpui::{AnyElement, App, Context, SharedString, div, prelude::*, px};
-use zeron_proto::Space;
+use skylark_proto::Space;
 
 use crate::popover;
 use crate::theme::Theme;
@@ -109,10 +109,10 @@ impl Pickers {
     }
 
     /// Devices in picker order: this device first, then by name.
-    pub(crate) fn device_rows(&self, cx: &App) -> Vec<zeron_proto::Device> {
+    pub(crate) fn device_rows(&self, cx: &App) -> Vec<skylark_proto::Device> {
         let state = self.state.read(cx);
         let local = state.local_device_id.clone();
-        let mut devices: Vec<zeron_proto::Device> = state.devices.clone();
+        let mut devices: Vec<skylark_proto::Device> = state.devices.clone();
         devices.sort_by_key(|d| {
             (
                 local.as_deref() != Some(d.id.as_str()),
@@ -125,7 +125,7 @@ impl Pickers {
 
     /// [`Self::device_rows`] filtered by the search box (same ranked
     /// substring match as the project rows).
-    pub(crate) fn filtered_device_rows(&self, cx: &App) -> Vec<zeron_proto::Device> {
+    pub(crate) fn filtered_device_rows(&self, cx: &App) -> Vec<skylark_proto::Device> {
         let query = self.search.read(cx).text().to_string();
         let rows = self.device_rows(cx);
         let names: Vec<String> = rows.iter().map(|d| d.name.clone()).collect();

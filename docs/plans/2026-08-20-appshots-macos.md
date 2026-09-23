@@ -1,12 +1,15 @@
 # macOS Appshots implementation plan
 
+> **Skylark build status: local-only.** Product login/logout, cloud sync, remote control, updates, public installation, and publishing are temporarily paused. Provider agent authentication remains available. Cloud/mobile/release instructions and results below are historical reference, not current setup guidance. See [current policy](../LOCAL_ONLY.md).
+
+
 > Historical design notes. The implemented behavior and current validation are
 > documented in [Appshots](../appshots.md); proposals below may be superseded.
 
 ## Behavior
 
 Implement a macOS-only global shortcut that captures the frontmost application
-window before Zeron activates, collects bounded Accessibility context, routes
+window before Skylark activates, collects bounded Accessibility context, routes
 the result to the current or new-session composer, and stages it for review and
 send. The paperclip and ordinary image intake remain unchanged.
 
@@ -18,7 +21,7 @@ send. The paperclip and ordinary image intake remain unchanged.
   CoreGraphics fallback for older macOS versions, Accessibility traversal,
   permission probes, and Carbon global-hotkey registration.
 - `crates/ui/src/lib.rs`: initialize and retain the capture service; deliver
-  captures to the main window without capturing Zeron itself.
+  captures to the main window without capturing Skylark itself.
 - `crates/ui/src/settings.rs`: persist Appshots enabled/destination/first-use
   state as device-local settings.
 - `crates/ui/src/settings/shortcuts.rs`: expose Appshots enablement,
@@ -47,9 +50,9 @@ boundary so existing local and remote attachment delivery remains intact.
 - Existing settings round-trip tests extended for backward-compatible defaults.
 - Composer send/failure tests extended where practical for Appshot state.
 - `cargo fmt --all -- --check`.
-- `cargo check -p zeron-ui`.
-- `cargo test -p zeron-ui`.
-- A headed macOS smoke run with an isolated `ZERON_DATA_DIR` to validate global
+- `cargo check -p skylark-ui`.
+- `cargo test -p skylark-ui`.
+- A headed macOS smoke run with an isolated `SKYLARK_DATA_DIR` to validate global
   shortcut delivery, permission recovery, frontmost-window ordering,
   screenshot preview, accessibility degradation, and local send. Remote-path
   behavior is covered by the existing queued attachment transport plus focused

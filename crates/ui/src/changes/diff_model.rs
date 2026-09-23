@@ -5,9 +5,9 @@ use std::time::Duration;
 use gpui::{Entity, FocusHandle, SharedString, Subscription, Task, font};
 use unicode_width::UnicodeWidthChar as _;
 
-pub use zeron_proto::Chat;
-use zeron_proto::CheckoutDiff;
-pub use zeron_syntax::LanguageId as Lang;
+pub use skylark_proto::Chat;
+use skylark_proto::CheckoutDiff;
+pub use skylark_syntax::LanguageId as Lang;
 
 pub use crate::comments::{self, CommentSide, ReviewComment};
 use crate::composer::ComposerInput;
@@ -131,8 +131,8 @@ pub struct SourceLineRef {
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct DiffHighlights {
-    pub old: Option<Arc<zeron_syntax::HighlightedDocument>>,
-    pub new: Option<Arc<zeron_syntax::HighlightedDocument>>,
+    pub old: Option<Arc<skylark_syntax::HighlightedDocument>>,
+    pub new: Option<Arc<skylark_syntax::HighlightedDocument>>,
 }
 
 impl DiffHighlights {
@@ -163,7 +163,7 @@ impl DiffHighlights {
         }
     }
 
-    pub fn spans(&self, line: &DiffLine) -> &[zeron_syntax::HighlightSpan] {
+    pub fn spans(&self, line: &DiffLine) -> &[skylark_syntax::HighlightSpan] {
         let Some(source_ref) = self.source_ref(line) else {
             return &[];
         };
@@ -463,7 +463,7 @@ pub fn excerpt_side(
     side: SourceSide,
     language: Lang,
     path: &str,
-) -> Option<Arc<zeron_syntax::HighlightedDocument>> {
+) -> Option<Arc<skylark_syntax::HighlightedDocument>> {
     let max_line = file
         .hunks
         .iter()
@@ -498,7 +498,7 @@ pub fn excerpt_side(
             .map(|(_, text)| *text)
             .collect::<Vec<_>>()
             .join("\n");
-        let document = zeron_syntax::highlight(zeron_syntax::HighlightRequest {
+        let document = skylark_syntax::highlight(skylark_syntax::HighlightRequest {
             source: &source,
             path: Some(path),
             fence_tag: None,
@@ -508,14 +508,14 @@ pub fn excerpt_side(
             lines[number as usize - 1] = spans;
         }
     }
-    Some(Arc::new(zeron_syntax::HighlightedDocument {
+    Some(Arc::new(skylark_syntax::HighlightedDocument {
         language,
         lines,
     }))
 }
 
 pub fn excerpt_highlights(file: &FileDiff, language: Lang) -> Option<DiffHighlights> {
-    if !zeron_syntax::supports_language(language) {
+    if !skylark_syntax::supports_language(language) {
         return None;
     }
     let old = if file.status == FileStatus::Added {
@@ -536,7 +536,7 @@ pub fn excerpt_highlights(file: &FileDiff, language: Lang) -> Option<DiffHighlig
     Some(DiffHighlights { old, new })
 }
 
-pub fn sources_match_patch(file: &FileDiff, response: &zeron_proto::CheckoutFileDiffText) -> bool {
+pub fn sources_match_patch(file: &FileDiff, response: &skylark_proto::CheckoutFileDiffText) -> bool {
     let old = response
         .old_text
         .as_deref()
@@ -569,7 +569,7 @@ pub fn sources_match_patch(file: &FileDiff, response: &zeron_proto::CheckoutFile
 pub fn full_highlights(
     file: &FileDiff,
     language: Lang,
-    response: &zeron_proto::CheckoutFileDiffText,
+    response: &skylark_proto::CheckoutFileDiffText,
 ) -> Option<DiffHighlights> {
     if response.stale
         || response.binary
@@ -579,7 +579,7 @@ pub fn full_highlights(
         return None;
     }
     let parse = |source: &str, path: &str| {
-        zeron_syntax::highlight(zeron_syntax::HighlightRequest {
+        skylark_syntax::highlight(skylark_syntax::HighlightRequest {
             source,
             path: Some(path),
             fence_tag: None,
@@ -598,7 +598,7 @@ pub fn full_highlights(
         Some(source) => Some(parse(source, &file.path)?),
         None => None,
     };
-    if old.is_none() && new.is_none() && zeron_syntax::supports_language(language) {
+    if old.is_none() && new.is_none() && skylark_syntax::supports_language(language) {
         return None;
     }
     Some(DiffHighlights { old, new })

@@ -5,7 +5,7 @@ use chrono::Utc;
 use std::time::Duration;
 
 impl Shell {
-    /// Fire a debug demo upload when requested by `ZERON_DEMO_UPLOAD=<pct>:<image path>`.
+    /// Fire a debug demo upload when requested by `SKYLARK_DEMO_UPLOAD=<pct>:<image path>`.
     pub(super) fn handle_debug_upload(&mut self, state: &Entity<AppState>, cx: &mut Context<Self>) {
         if let Some(spec) = self.debug_upload.clone()
             && let Some(chat_id) = state.read(cx).selected_chat.clone()
@@ -37,10 +37,10 @@ impl Shell {
                     "Here is the screenshot of the bug.",
                     std::slice::from_ref(&pending_path),
                 );
-                let echo = zeron_doc::SessionMessageEntry {
+                let echo = skylark_doc::SessionMessageEntry {
                     id: "demo-upload-echo".into(),
-                    role: zeron_doc::MessageRole::User,
-                    parts: vec![zeron_doc::MessagePart::Text {
+                    role: skylark_doc::MessageRole::User,
+                    parts: vec![skylark_doc::MessagePart::Text {
                         id: "t0".into(),
                         text,
                     }],
@@ -123,9 +123,9 @@ impl Shell {
             )
         };
         // Background-only banners: `active_window()` is app-level (any
-        // Zeron window being key), so a ping for a *background chat* in a
+        // Skylark window being key), so a ping for a *background chat* in a
         // focused app still stays a chime — you're already looking at
-        // Zeron; the sidebar dot carries the rest.
+        // Skylark; the sidebar dot carries the rest.
         let app_focused = cx.active_window().is_some();
         for (chat_id, status, send_pending, title) in sessions {
             let prev = self.sound_prev.insert(chat_id.clone(), status.clone());
@@ -170,8 +170,8 @@ impl Shell {
                 && !(self.settings.notifications_background_only && app_focused)
             {
                 let body = match connectivity {
-                    zeron_proto::ConnectivityState::Offline => "Your device is offline",
-                    _ => "Zeron is trying to reconnect",
+                    skylark_proto::ConnectivityState::Offline => "Your device is offline",
+                    _ => "Skylark is trying to reconnect",
                 };
                 crate::notify::post("Connection unavailable", body, None);
             }
@@ -182,7 +182,9 @@ impl Shell {
         if let Some(notice) = state.update(cx, |state, _| state.take_deep_link_notice()) {
             self.sidebar_notice = Some(notice.into());
         }
-        let next_sync_flow = {
+        let next_sync_flow = if skylark_proto::LOCAL_ONLY_BUILD {
+            SyncFlow::Idle
+        } else {
             let state = state.read(cx);
             sync_flow_after_auth(self.sync_flow, state.workspace_scope, state.auth.as_ref())
         };
@@ -282,7 +284,7 @@ impl Shell {
             self.active_chat = selected;
             // Route history: a chat switch is a navigation. The very first
             // selection off the untouched boot canvas REPLACES that entry —
-            // zeron's `/` route redirected into the last-used chat, leaving no
+            // skylark's `/` route redirected into the last-used chat, leaving no
             // dead Back target. Walking history lands here too, but the
             // destination already equals `current()`, so the push dedups.
             if matches!(self.route, Route::Chat) {

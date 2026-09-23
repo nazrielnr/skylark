@@ -103,7 +103,7 @@ fn code_text_viewport(
 /// paint-only syntax runs.
 pub(crate) fn diff_line_row(
     line: &DiffLine,
-    spans: &[zeron_syntax::HighlightSpan],
+    spans: &[skylark_syntax::HighlightSpan],
     theme: &Theme,
     gutter_px: f32,
     code_width: DiffCodeWidth,

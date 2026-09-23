@@ -1,6 +1,6 @@
 use gpui::{AnyElement, App, Context, SharedString, div, prelude::*, px};
-use zeron_proto::RepoRef;
-use zeron_rpc::methods;
+use skylark_proto::RepoRef;
+use skylark_rpc::methods;
 
 use crate::popover::{self, Loadable};
 use crate::theme::Theme;

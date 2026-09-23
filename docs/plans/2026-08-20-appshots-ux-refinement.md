@@ -1,5 +1,8 @@
 # Appshots UX refinement implementation plan
 
+> **Skylark build status: local-only.** Product login/logout, cloud sync, remote control, updates, public installation, and publishing are temporarily paused. Provider agent authentication remains available. Cloud/mobile/release instructions and results below are historical reference, not current setup guidance. See [current policy](../LOCAL_ONLY.md).
+
+
 > Historical design notes. The implemented behavior and current validation are
 > documented in [Appshots](../appshots.md); proposals below may be superseded.
 
@@ -13,8 +16,8 @@
    checklist. Do not request permissions merely because the feature toggle was
    enabled, and label Accessibility as optional.
 4. Update pure layout tests and permission-facing copy. Validate with
-   `cargo test -p zeron-ui --lib`, `cargo check -p zeron-ui`,
-   `cargo build -p zeron`, and `git diff --check`.
+   `cargo test -p skylark-ui --lib`, `cargo check -p skylark-ui`,
+   `cargo build -p skylark`, and `git diff --check`.
 
 ## Composer visual normalization follow-up
 
@@ -28,5 +31,5 @@
    horizontally scrolling tray. Capture, removal, preview, persistence,
    transport, and permission controls remain unchanged.
 4. Add dimension-parser and landscape/portrait/square sizing tests, run the
-   `zeron-ui` test suite and macOS build checks, then inspect the result in the
-   signed `Zeron Dev.app`.
+   `skylark-ui` test suite and macOS build checks, then inspect the result in the
+   signed `Skylark Dev.app`.

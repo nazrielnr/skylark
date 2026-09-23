@@ -321,14 +321,14 @@ impl Transcript {
                         .map(|t| t.elapsed().as_secs())
                         .unwrap_or(0);
                     if elapsed > 0 {
-                        let dur = zeron_proto::view::format_duration_secs(elapsed);
+                        let dur = skylark_proto::view::format_duration_secs(elapsed);
                         format!("Working {dur}...")
                     } else {
                         "Working...".to_string()
                     }
                 } else if let Some(secs) = duration_secs {
                     if secs > 0 {
-                        let dur = zeron_proto::view::format_duration_secs(secs);
+                        let dur = skylark_proto::view::format_duration_secs(secs);
                         format!("Worked for {dur}")
                     } else {
                         "Worked".to_string()

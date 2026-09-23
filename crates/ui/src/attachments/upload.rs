@@ -200,7 +200,7 @@ pub struct LoadedAttachmentImage {
 }
 
 /// `ReadAttachmentChunk` loop: 45KB base64 chunks until `done` (bounded, with
-/// the same stuck-offset guard as zeron's `readAttachmentImage`).
+/// the same stuck-offset guard as skylark's `readAttachmentImage`).
 pub async fn read_attachment_image(
     engine: &EngineHandle,
     executor: &BackgroundExecutor,

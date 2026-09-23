@@ -273,7 +273,7 @@ impl MarkdownPreview {
                     for (ix, top) in tree.blocks.iter().enumerate() {
                         if let Block::CodeBlock { language, code } = &top.block {
                             if let Ok(doc) =
-                                zeron_syntax::highlight(zeron_syntax::HighlightRequest {
+                                skylark_syntax::highlight(skylark_syntax::HighlightRequest {
                                     source: code,
                                     path: None,
                                     fence_tag: language.as_deref(),

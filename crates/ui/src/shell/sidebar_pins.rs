@@ -4,7 +4,7 @@
 use super::*;
 use crate::state::EngineHandle;
 use std::collections::VecDeque;
-use zeron_proto::{SidebarPinChange, SidebarPreferencesState};
+use skylark_proto::{SidebarPinChange, SidebarPreferencesState};
 
 pub(super) struct PendingSidebarPins {
     pub id: u64,
