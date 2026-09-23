@@ -260,9 +260,6 @@ impl Shell {
         };
         let select_id = id.clone();
         let menu_id = id.clone();
-        // Hover fades over transition-colors (zeron session-row.tsx) — both
-        // the wash and the title brighten ride the same 150ms blend.
-        let fade_key = format!("{row_id}-hover");
         let rest_bg = if selected {
             selected_wash
         } else {
@@ -305,35 +302,41 @@ impl Shell {
             })
             .px(crate::typography::ui_rems(Theme::SPACE_SM))
             .py(crate::typography::ui_rems(6.0))
-            .text_color(motion::hover_blend(&fade_key, rest_text, text))
-            .bg(motion::hover_blend(&fade_key, rest_bg, hover_bg))
+            .text_color(rest_text)
+            .bg(rest_bg)
             // No selection ring (user request) — the wash alone marks the
             // active row.
-            // Row hover drives BOTH the wash blend and the corner's
-            // status→Archive swap (one listener — gpui allows a single
-            // hover listener per element).
+            // The fork's hover-style swap doesn't schedule a window draw, so
+            // the highlight would only appear at the next unrelated draw
+            // (the workspace tree-row case): notify from a listener, which
+            // does schedule one, and keep the hover style for the visuals.
+            // The 150ms hover fade is gone with it — its blend drove a
+            // full-window refresh plus display-rate animation frames on
+            // every row crossing.
             .when(!preview, |el| {
-                el.on_hover({
-                    let fade_hover = motion::hover_listener(fade_key.clone());
-                    cx.listener(move |_, hovered: &bool, window, cx| {
-                        fade_hover(hovered, window, cx);
+                el.hover(|style| style.bg(hover_bg).text_color(text))
+                    .on_hover({
+                        let hover_row_id = row_id.clone();
+                        cx.listener(move |_, hovered: &bool, _, cx| {
+                            crate::ui_trace!("sidebar-hover {} hovered={}", hover_row_id, hovered);
+                            cx.notify();
+                        })
                     })
-                })
-                .cursor_pointer()
-                .on_click(cx.listener(move |this, _, _, cx| {
-                    this.open_chat(select_id.clone(), cx);
-                }))
-                .on_mouse_down(
-                    MouseButton::Right,
-                    cx.listener(move |this, event: &MouseDownEvent, _, cx| {
-                        this.chat_menu.open(ChatMenuState {
-                            chat_id: menu_id.clone(),
-                            position: event.position,
-                            page: ChatMenuPage::Root,
-                        });
-                        cx.notify();
-                    }),
-                )
+                    .cursor_pointer()
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        this.open_chat(select_id.clone(), cx);
+                    }))
+                    .on_mouse_down(
+                        MouseButton::Right,
+                        cx.listener(move |this, event: &MouseDownEvent, _, cx| {
+                            this.chat_menu.open(ChatMenuState {
+                                chat_id: menu_id.clone(),
+                                position: event.position,
+                                page: ChatMenuPage::Root,
+                            });
+                            cx.notify();
+                        }),
+                    )
             })
             .when_some(drag, |el, payload| {
                 let shell = cx.entity();
@@ -357,6 +360,7 @@ impl Shell {
                         .when_some(harness_brand, |el, (path, tint)| {
                             el.child(
                                 icon(path)
+                                    .mt(crate::typography::ui_rems(-1.0))
                                     .size(crate::typography::ui_rems(13.5))
                                     .flex_none()
                                     .text_color(
@@ -687,6 +691,21 @@ impl Shell {
         let pinned_count = session_rows.pinned_count;
         let keyed = session_rows.rows;
         let regular_count = session_rows.regular_count;
+        if crate::ui_trace::enabled() {
+            let ids = keyed
+                .iter()
+                .take(24)
+                .map(|(key, _, _)| key.as_str())
+                .collect::<Vec<_>>()
+                .join("|");
+            let h = sidebar_row_height(false, false, false, false);
+            eprintln!(
+                "[trace] sidebar-rows count={} row_h={:.1} ids={}",
+                keyed.len(),
+                h,
+                ids
+            );
+        }
         let ungrouped = self.settings.sidebar_organization == SidebarOrganization::InOneList;
         let regular_body_height = spaces::SIDEBAR_DISCLOSURE_BODY_INSET
             + keyed
@@ -1020,50 +1039,55 @@ impl Shell {
             SIDEBAR_GLASS_FADE_BAND,
             true,
             true,
-            div().relative().flex_1().min_h_0().child(
-                div()
-                    .id("sidebar-lists")
-                    .relative()
-                    .size_full()
-                    .overflow_y_scroll()
-                    .track_scroll(&self.sidebar_scroll)
-                    .on_drag_move::<SidebarSessionDrag>(cx.listener(
-                        move |this, event: &gpui::DragMoveEvent<SidebarSessionDrag>, _, cx| {
-                            if let Some(transfer) = this.sidebar_session_transfer.as_mut() {
-                                transfer.viewport = Some(event.bounds);
-                            }
-                            if !event.bounds.contains(&event.event.position) {
+            div()
+                .relative()
+                .flex_1()
+                .min_h_0()
+                .child(crate::ui_trace::bounds_probe("sidebar-lists"))
+                .child(
+                    div()
+                        .id("sidebar-lists")
+                        .relative()
+                        .size_full()
+                        .overflow_y_scroll()
+                        .track_scroll(&self.sidebar_scroll)
+                        .on_drag_move::<SidebarSessionDrag>(cx.listener(
+                            move |this, event: &gpui::DragMoveEvent<SidebarSessionDrag>, _, cx| {
                                 if let Some(transfer) = this.sidebar_session_transfer.as_mut() {
-                                    transfer.preview = None;
+                                    transfer.viewport = Some(event.bounds);
                                 }
-                                return;
-                            }
-                            let payload = event.drag(cx).clone();
-                            this.track_pinned_session_drag_pointer(
-                                payload,
-                                f32::from(event.event.position.y),
-                                f32::from(event.bounds.top()),
-                                f32::from(event.bounds.bottom()),
-                                cx,
-                            );
-                        },
-                    ))
-                    // Empty space and Archived are not transfer targets.
-                    .on_drop::<SidebarSessionDrag>(cx.listener(
-                        |this, _: &SidebarSessionDrag, _, cx| {
-                            this.cancel_sidebar_session_transfer(cx);
-                        },
-                    ))
-                    .px(crate::typography::ui_rems(Theme::SPACE_SM))
-                    .flex()
-                    .flex_col()
-                    // No "Sessions" header (user request) — the list
-                    // is the whole column; a little air stands in.
-                    .pt(crate::typography::ui_rems(SIDEBAR_LIST_PAD_TOP))
-                    .child(active_list)
-                    .children(archived_section)
-                    .children(moving_row),
-            ),
+                                if !event.bounds.contains(&event.event.position) {
+                                    if let Some(transfer) = this.sidebar_session_transfer.as_mut() {
+                                        transfer.preview = None;
+                                    }
+                                    return;
+                                }
+                                let payload = event.drag(cx).clone();
+                                this.track_pinned_session_drag_pointer(
+                                    payload,
+                                    f32::from(event.event.position.y),
+                                    f32::from(event.bounds.top()),
+                                    f32::from(event.bounds.bottom()),
+                                    cx,
+                                );
+                            },
+                        ))
+                        // Empty space and Archived are not transfer targets.
+                        .on_drop::<SidebarSessionDrag>(cx.listener(
+                            |this, _: &SidebarSessionDrag, _, cx| {
+                                this.cancel_sidebar_session_transfer(cx);
+                            },
+                        ))
+                        .px(crate::typography::ui_rems(Theme::SPACE_SM))
+                        .flex()
+                        .flex_col()
+                        // No "Sessions" header (user request) — the list
+                        // is the whole column; a little air stands in.
+                        .pt(crate::typography::ui_rems(SIDEBAR_LIST_PAD_TOP))
+                        .child(active_list)
+                        .children(archived_section)
+                        .children(moving_row),
+                ),
         )
         .fade_overflow_y(&self.sidebar_scroll);
 

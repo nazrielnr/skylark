@@ -62,6 +62,34 @@ pub fn menu_row_nav(
     }
 }
 
+/// [`menu_row_nav`] without the hover fade: rows on list surfaces that drive
+/// their own repaint through a notify listener (the workspace tree-row
+/// treatment — the fork's hover style alone doesn't schedule a draw, and the
+/// fade's `window.refresh` repainted the whole window on every row
+/// crossing). The caller must add `.id(...)`, the `.on_hover` listener, and
+/// the click handler.
+pub fn menu_row_nav_snap(theme: &Theme, selected: bool, highlighted: bool) -> gpui::Div {
+    let row = div()
+        .flex()
+        .flex_row()
+        .items_center()
+        .gap(px(10.0))
+        .px(px(8.0))
+        .py(px(6.0))
+        .rounded(px(MENU_ITEM_RADIUS))
+        .text_size(crate::typography::ui_rems(13.0))
+        .cursor_pointer();
+    if selected || highlighted {
+        row.bg(crate::theme::card_selected_bg())
+            .text_color(theme.text)
+    } else {
+        row.text_color(theme.text.opacity(0.9)).hover(|s| {
+            s.bg(crate::theme::card_selected_bg())
+                .text_color(theme.text)
+        })
+    }
+}
+
 /// Section heading inside a floating menu (Linear / modern macOS title-case style).
 pub fn menu_heading(theme: &Theme, label: &str) -> gpui::Div {
     let theme = &theme.for_popup();

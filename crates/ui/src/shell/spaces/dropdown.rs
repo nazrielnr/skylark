@@ -573,6 +573,8 @@ impl Shell {
 
         let trigger = div()
             .id("spaces-filter")
+            .relative()
+            .child(crate::ui_trace::bounds_probe("spaces-filter"))
             .flex_1()
             .min_w_0()
             .h(crate::typography::ui_rems(30.0))
@@ -885,6 +887,7 @@ impl Shell {
         let add_index = details.len();
 
         let list = popover::menu_scroll_host("spaces-menu-list-host")
+            .child(crate::ui_trace::bounds_probe("spaces-menu-rows"))
             .on_hover(cx.listener(Self::on_spaces_menu_list_hover))
             .child(
                 popover::menu_scroll_list("spaces-menu-list", &list_scroll)
@@ -900,47 +903,58 @@ impl Shell {
                                 _ => None,
                             };
                             let activate = row;
-                            popover::menu_row_nav(
-                                theme,
-                                selected,
-                                ix == active,
-                                format!("spaces-menu-row-{ix}"),
-                            )
-                            .id(("spaces-menu-row", ix))
-                            .on_click(cx.listener(move |this, _, _, cx| {
-                                this.activate_spaces_menu_row(activate.clone(), cx);
-                            }))
-                            .when_some(menu_space, |el, space_id| {
-                                el.on_mouse_down(
-                                    MouseButton::Right,
-                                    cx.listener(move |this, event: &MouseDownEvent, _, cx| {
-                                        this.space_menu.open((space_id.clone(), event.position));
+                            popover::menu_row_nav_snap(theme, selected, ix == active)
+                                .id(("spaces-menu-row", ix))
+                                // Notify from a listener so the hover wash follows
+                                // the cursor (workspace tree-row treatment) —
+                                // menu_row's fade listener refreshed the whole
+                                // window on every row crossing instead.
+                                .on_hover({
+                                    let hover_ix = ix;
+                                    cx.listener(move |_, hovered: &bool, _, cx| {
+                                        crate::ui_trace!(
+                                            "spaces-hover {} hovered={}",
+                                            hover_ix,
+                                            hovered
+                                        );
                                         cx.notify();
-                                    }),
-                                )
-                            })
-                            .child(div().flex_1().min_w_0().truncate().child(label))
-                            .when_some(tag, |el, tag| {
-                                el.child(
-                                    div()
-                                        .max_w(gpui::relative(0.5))
-                                        .min_w_0()
-                                        .truncate()
-                                        .text_size(crate::typography::ui_rems(10.0))
-                                        .font_weight(gpui::FontWeight::NORMAL)
-                                        .text_color(theme.text_muted)
-                                        .child(tag),
-                                )
-                            })
-                            // Disconnected glyph, not the word (user request).
-                            .when(offline, |el| {
-                                el.child(
-                                    icon(icons::WIFI_OFF)
-                                        .size(crate::typography::ui_rems(12.0))
-                                        .flex_none()
-                                        .text_color(theme.warning.opacity(0.8)),
-                                )
-                            })
+                                    })
+                                })
+                                .on_click(cx.listener(move |this, _, _, cx| {
+                                    this.activate_spaces_menu_row(activate.clone(), cx);
+                                }))
+                                .when_some(menu_space, |el, space_id| {
+                                    el.on_mouse_down(
+                                        MouseButton::Right,
+                                        cx.listener(move |this, event: &MouseDownEvent, _, cx| {
+                                            this.space_menu
+                                                .open((space_id.clone(), event.position));
+                                            cx.notify();
+                                        }),
+                                    )
+                                })
+                                .child(div().flex_1().min_w_0().truncate().child(label))
+                                .when_some(tag, |el, tag| {
+                                    el.child(
+                                        div()
+                                            .max_w(gpui::relative(0.5))
+                                            .min_w_0()
+                                            .truncate()
+                                            .text_size(crate::typography::ui_rems(10.0))
+                                            .font_weight(gpui::FontWeight::NORMAL)
+                                            .text_color(theme.text_muted)
+                                            .child(tag),
+                                    )
+                                })
+                                // Disconnected glyph, not the word (user request).
+                                .when(offline, |el| {
+                                    el.child(
+                                        icon(icons::WIFI_OFF)
+                                            .size(crate::typography::ui_rems(12.0))
+                                            .flex_none()
+                                            .text_color(theme.warning.opacity(0.8)),
+                                    )
+                                })
                             // No check glyph — the selected row's wash (menu_row's
                             // active styling) is the selection signal.
                         },
@@ -986,29 +1000,28 @@ impl Shell {
                     .bg(theme.border.opacity(0.6)),
             )
             .child(
-                popover::menu_row_nav(
-                    theme,
-                    false,
-                    active == add_index,
-                    "spaces-menu-add".to_string(),
-                )
-                .id("spaces-menu-add")
-                .on_click(cx.listener(|this, _, _, cx| {
-                    this.activate_spaces_menu_row(SpacesMenuRow::AddSpace, cx);
-                }))
-                .child(
-                    icon(icons::PLUS)
-                        .size(crate::typography::ui_rems(12.0))
-                        .flex_none()
-                        .text_color(theme.text_muted),
-                )
-                .child(
-                    div()
-                        .flex_1()
-                        .min_w_0()
-                        .truncate()
-                        .child(SharedString::from("New project…")),
-                ),
+                popover::menu_row_nav_snap(theme, false, active == add_index)
+                    .id("spaces-menu-add")
+                    .on_hover(cx.listener(|_, hovered: &bool, _, cx| {
+                        crate::ui_trace!("spaces-hover add hovered={}", hovered);
+                        cx.notify();
+                    }))
+                    .on_click(cx.listener(|this, _, _, cx| {
+                        this.activate_spaces_menu_row(SpacesMenuRow::AddSpace, cx);
+                    }))
+                    .child(
+                        icon(icons::PLUS)
+                            .size(crate::typography::ui_rems(12.0))
+                            .flex_none()
+                            .text_color(theme.text_muted),
+                    )
+                    .child(
+                        div()
+                            .flex_1()
+                            .min_w_0()
+                            .truncate()
+                            .child(SharedString::from("New project…")),
+                    ),
             )
             .into_any_element()
     }

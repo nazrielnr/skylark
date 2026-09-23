@@ -123,6 +123,9 @@ try {
     if ($sel) { break }
     Start-Sleep -Milliseconds 2000
   }
+  # The right-pane/Files flow serves the tree scenarios; the sidebar scenario
+  # works on the left column straight from boot.
+  if ($Scenario -ne "sidebar") {
   for ($try = 0; $try -lt 10; $try++) {
     if ((Get-LastTrace "tree-rows") -or (Get-LastTrace "bounds files-card")) { break }
     # Physical ctrl-down updates the global key state (a lock screen may
@@ -159,8 +162,124 @@ try {
   } else { 46.5 }
 
   function Row-Y([int]$i) { [int]($treeTop + ($i + 0.5) * $rowHeight) }
+  }
 
   $failures = @()
+
+  if ($Scenario -eq "sidebar") {
+    # --- Left sidebar: session rows, the space-search menu, settings nav --
+    # Slow row-by-row sweeps while counting hover flips and sidebar repaints:
+    # the highlight must follow the cursor (repaints happen on flips) without
+    # a repaint storm (the pre-fix hover fade repainted at display rate on
+    # every row crossing). Geometry comes from the bounds probes.
+    function Get-TraceCount([string]$Pattern) {
+      (Select-String -Path $LogPath -Pattern $Pattern).Count
+    }
+    function Wait-Trace([string]$Pattern, [int]$Tries) {
+      for ($i = 0; $i -lt $Tries; $i++) {
+        $l = Get-LastTrace $Pattern
+        if ($l) { return $l }
+        Start-Sleep -Milliseconds 300
+      }
+      $null
+    }
+    function Invoke-RowSweep([int]$sweepX, [int]$top, [int]$bottom, [double]$rowStep, [int]$dwellMs) {
+      $y = $top + 10
+      while ($y -lt $bottom - 10) {
+        [Win]::SetCursorPos($sweepX, [int]$y) | Out-Null
+        Start-Sleep -Milliseconds $dwellMs
+        $y += $rowStep
+      }
+      # Leave the list so the last row un-hovers too.
+      [Win]::SetCursorPos($sweepX, [int]($top - 80)) | Out-Null
+      Start-Sleep -Milliseconds 250
+    }
+
+    # 1) Session rows.
+    $sbLine = Wait-Trace "bounds sidebar-lists" 20
+    if (-not $sbLine) {
+      $failures += "no sidebar-lists probe"
+    } else {
+      $sb = Parse-Numbers $sbLine
+      $sbX = [int]($origin.X + (($sb.L + $sb.R) / 2.0) * $scale)
+      $sbTop = $origin.Y + $sb.T * $scale
+      $sbBottom = $origin.Y + $sb.B * $scale
+      $rowH = 50.0
+      $rowsLine = Get-LastTrace "sidebar-rows"
+      if ($rowsLine -match "row_h=([0-9.]+)") { $rowH = [double]$Matches[1] + 2.0 }
+      $flipsBefore = Get-TraceCount "sidebar-hover"
+      $rendersBefore = Get-TraceCount "sidebar-rows"
+      Invoke-RowSweep $sbX $sbTop $sbBottom ($rowH * $scale) 150
+      $flips = (Get-TraceCount "sidebar-hover") - $flipsBefore
+      $renders = (Get-TraceCount "sidebar-rows") - $rendersBefore
+      Write-Output ("sessions sweep: flips {0}, repaints {1}" -f $flips, $renders)
+      if ($flips -lt 4) { $failures += "session rows produced no hover flips" }
+      if ($renders -lt 4) { $failures += "session hover repaints did not follow the cursor" }
+      if ($flips -gt 0 -and $renders -gt (2 * $flips + 4)) {
+        $failures += ("session hover repaint storm: {0} repaints for {1} flips" -f $renders, $flips)
+      }
+    }
+
+    # 2) The sidebar's search area: the spaces dropdown's rows.
+    $trigLine = Wait-Trace "bounds spaces-filter" 20
+    if (-not $trigLine) {
+      $failures += "no spaces-filter probe"
+    } else {
+      $tr = Parse-Numbers $trigLine
+      $trX = [int]($origin.X + (($tr.L + $tr.R) / 2.0) * $scale)
+      $trY = [int]($origin.Y + (($tr.T + $tr.B) / 2.0) * $scale)
+      Click-At $trX $trY
+      $menuLine = Wait-Trace "bounds spaces-menu-rows" 20
+      if (-not $menuLine) {
+        $failures += "spaces menu did not open"
+      } else {
+        $mn = Parse-Numbers $menuLine
+        $mnX = [int]($origin.X + (($mn.L + $mn.R) / 2.0) * $scale)
+        $mnTop = $origin.Y + $mn.T * $scale
+        $mnBottom = $origin.Y + $mn.B * $scale
+        $flipsBefore = Get-TraceCount "spaces-hover"
+        $rendersBefore = Get-TraceCount "sidebar-rows"
+        Invoke-RowSweep $mnX $mnTop $mnBottom (30.0 * $scale) 150
+        $flips = (Get-TraceCount "spaces-hover") - $flipsBefore
+        $renders = (Get-TraceCount "sidebar-rows") - $rendersBefore
+        Write-Output ("spaces menu sweep: flips {0}, repaints {1}" -f $flips, $renders)
+        if ($flips -lt 2) { $failures += "spaces menu rows produced no hover flips" }
+        if ($renders -lt 2) { $failures += "spaces menu hover repaints did not follow the cursor" }
+        if ($flips -gt 0 -and $renders -gt (2 * $flips + 6)) {
+          $failures += ("spaces menu repaint storm: {0} repaints for {1} flips" -f $renders, $flips)
+        }
+        Press-Window 0x1B
+        Start-Sleep -Milliseconds 500
+      }
+    }
+
+    # 3) Settings nav (Ctrl+,).
+    [Win]::keybd_event(0x11, 0, 0, [UIntPtr]::Zero)
+    [Win]::PostMessage($hwnd, 0x0100, [IntPtr]0xBC, [IntPtr]0) | Out-Null
+    Start-Sleep -Milliseconds 60
+    [Win]::PostMessage($hwnd, 0x0101, [IntPtr]0xBC, [IntPtr]0) | Out-Null
+    [Win]::keybd_event(0x11, 0, 2, [UIntPtr]::Zero)
+    $setLine = Wait-Trace "bounds settings-nav-list" 30
+    if (-not $setLine) {
+      $failures += "settings nav did not open (ctrl-comma)"
+    } else {
+      $st = Parse-Numbers $setLine
+      $stX = [int]($origin.X + (($st.L + $st.R) / 2.0) * $scale)
+      $stTop = $origin.Y + $st.T * $scale
+      $stBottom = $origin.Y + $st.B * $scale
+      $flipsBefore = Get-TraceCount "settings-hover"
+      $rendersBefore = Get-TraceCount "settings-nav count"
+      Invoke-RowSweep $stX $stTop $stBottom (32.0 * $scale) 150
+      $flips = (Get-TraceCount "settings-hover") - $flipsBefore
+      $renders = (Get-TraceCount "settings-nav count") - $rendersBefore
+      Write-Output ("settings sweep: flips {0}, repaints {1}" -f $flips, $renders)
+      if ($flips -lt 2) { $failures += "settings rows produced no hover flips" }
+      if ($renders -lt 2) { $failures += "settings hover repaints did not follow the cursor" }
+      if ($flips -gt 0 -and $renders -gt (2 * $flips + 4)) {
+        $failures += ("settings repaint storm: {0} repaints for {1} flips" -f $renders, $flips)
+      }
+    }
+  }
 
   if ($Scenario -eq "smoke" -or $Scenario -eq "hover") {
     # --- Hover sweep -------------------------------------------------------

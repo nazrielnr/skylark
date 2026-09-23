@@ -20,6 +20,11 @@ and `ui_trace::bounds_probe` are the only hooks.
 | `split-frame w open surf wide tween` | one render of an editor tab's sidebar layout (width, openness, measured surface width, branch, tween) | `FilesSurface::render` |
 | `search-rows count row_h paths` | one render of the fuzzy search results | `FilesSurface::render_search_results` |
 | `toggle-search open` | the search field was toggled | `FilesSurface::toggle_search` |
+| `sidebar-rows count row_h ids` | one render of the left sidebar's session list (`ids` is up to 24 row keys) | `Shell::render_chat_sidebar` |
+| `sidebar-hover <id> hovered=` | a session row's hover flipped | the session row's hover listener |
+| `settings-nav count selected` | one render of the settings-mode sidebar | `Shell::render_settings_nav` |
+| `settings-hover <label> hovered=` | a settings nav row's hover flipped | the settings row's hover listener |
+| `spaces-hover <ix|add> hovered=` | a spaces-menu row's hover flipped | the spaces menu row's hover listener |
 | `search-reveal path present missing` | a search result click reveals through the tree (fast path counts) | `FilesSurface::reveal_search_result` |
 | `open-file path` | a document load started | `FilesSurface::open_file` |
 | `file-loaded path` | a document read completed | the read task in `document_io.rs` |
@@ -40,7 +45,20 @@ powershell -ExecutionPolicy Bypass -File tools/ui_debug/run_scenario.ps1
 # -Scenario hover   : hover-sweep only
 # -Scenario tabs    : rapid file-row clicks only
 # -Scenario smoke   : both (default)
+# -Scenario sidebar : left sidebar sessions, space search, settings
 ```
+
+The `sidebar` scenario sweeps the cursor slowly across the left sidebar's
+session rows, the spaces (search) dropdown rows, and the settings nav rows
+(`Ctrl+,`), and asserts for each surface that:
+
+* hover flips fire (the rows have hover listeners),
+* the sidebar repaints on those flips (the highlight follows the cursor
+  instead of waiting for an unrelated draw — the same invariant the
+  workspace tree rows got),
+* the repaint count stays within ~2x the flip count (the pre-fix hover
+  fade repainted the whole window at display rate on every row crossing:
+  the baseline measured 113 repaints for 20 session-row flips).
 
 The `tabs` scenario asserts the workspace-files invariants:
 

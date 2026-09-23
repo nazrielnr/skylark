@@ -266,6 +266,17 @@ impl Shell {
         theme: &Theme,
         cx: &mut Context<Self>,
     ) -> AnyElement {
+        if crate::ui_trace::enabled() {
+            let count = SettingsSection::ALL
+                .into_iter()
+                .filter(|item| *item != SettingsSection::Appshots || crate::appshots::is_desktop())
+                .count();
+            eprintln!(
+                "[trace] settings-nav count={} selected={}",
+                count,
+                section.label()
+            );
+        }
         let section_icon = |item: SettingsSection| match item {
             SettingsSection::Devices => icons::MONITOR,
             SettingsSection::Harnesses => icons::WIDGET,
@@ -310,20 +321,25 @@ impl Shell {
                 // List of settings navigation items: matches sidebar-lists in session sidebar
                 div()
                     .id("settings-nav-list")
+                    .relative()
+                    .child(crate::ui_trace::bounds_probe("settings-nav-list"))
                     .flex_1()
                     .min_h_0()
                     .overflow_y_scroll()
                     .px(crate::typography::ui_rems(Theme::SPACE_SM))
-                    .pt(crate::typography::ui_rems(sidebar_sessions::SIDEBAR_LIST_PAD_TOP))
+                    .pt(crate::typography::ui_rems(
+                        sidebar_sessions::SIDEBAR_LIST_PAD_TOP,
+                    ))
                     .flex()
                     .flex_col()
-                    .gap(crate::typography::ui_rems(sidebar_sessions::SIDEBAR_LIST_GAP))
+                    .gap(crate::typography::ui_rems(
+                        sidebar_sessions::SIDEBAR_LIST_GAP,
+                    ))
                     .children(
                         SettingsSection::ALL
                             .into_iter()
                             .filter(|item| {
-                                *item != SettingsSection::Appshots
-                                    || crate::appshots::is_desktop()
+                                *item != SettingsSection::Appshots || crate::appshots::is_desktop()
                             })
                             .map(|item| {
                                 let selected = item == section;
@@ -360,26 +376,38 @@ impl Shell {
                                     })
                                     .cursor_pointer()
                                     .hover(|s| s.bg(theme.glass_hover()).text_color(theme.text))
+                                    // The fork's hover style doesn't schedule a
+                                    // window draw (the workspace tree-row case):
+                                    // notify from a listener so the highlight
+                                    // follows the cursor.
+                                    .on_hover(cx.listener(move |_, hovered: &bool, _, cx| {
+                                        crate::ui_trace!(
+                                            "settings-hover {} hovered={}",
+                                            item.label(),
+                                            hovered
+                                        );
+                                        cx.notify();
+                                    }))
                                     .on_click(cx.listener(move |this, _, _, cx| {
                                         this.open_settings(item, cx)
                                     }))
-                                     .child(
-                                         div()
-                                             .size(crate::typography::ui_rems(16.0))
-                                             .flex_none()
-                                             .flex()
-                                             .items_center()
-                                             .justify_center()
-                                             .child(
-                                                 icon(section_icon(item))
-                                                     .size(crate::typography::ui_rems(14.0))
-                                                     .text_color(if selected {
-                                                         theme.text
-                                                     } else {
-                                                         theme.text_muted
-                                                     }),
-                                             ),
-                                     )
+                                    .child(
+                                        div()
+                                            .size(crate::typography::ui_rems(16.0))
+                                            .flex_none()
+                                            .flex()
+                                            .items_center()
+                                            .justify_center()
+                                            .child(
+                                                icon(section_icon(item))
+                                                    .size(crate::typography::ui_rems(14.0))
+                                                    .text_color(if selected {
+                                                        theme.text
+                                                    } else {
+                                                        theme.text_muted
+                                                    }),
+                                            ),
+                                    )
                                     .child(
                                         div()
                                             .flex_1()
@@ -410,6 +438,10 @@ impl Shell {
                             .text_color(theme.text_muted)
                             .cursor_pointer()
                             .hover(|s| s.bg(theme.glass_hover()).text_color(theme.text))
+                            .on_hover(cx.listener(|_, hovered: &bool, _, cx| {
+                                crate::ui_trace!("settings-hover back hovered={}", hovered);
+                                cx.notify();
+                            }))
                             .on_click(cx.listener(|this, _, _, cx| this.close_settings(cx)))
                             .child(
                                 // AltArrowLeft chevron (zeron settings-sidebar.tsx),
