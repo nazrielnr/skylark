@@ -23,6 +23,8 @@ using System;
 using System.Runtime.InteropServices;
 public struct POINT { public int X, Y; }
 public class Win {
+  [DllImport("user32.dll", CharSet=CharSet.Auto)] public static extern bool PostMessage(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
+  [DllImport("user32.dll")] public static extern uint SendMessage(IntPtr hWnd, uint msg, IntPtr w, IntPtr l);
   [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
   [DllImport("user32.dll")] public static extern bool ClientToScreen(IntPtr hWnd, ref POINT pt);
   [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
@@ -70,13 +72,31 @@ try {
     [Win]::keybd_event(0x11, 0, 2, [UIntPtr]::Zero)
   }
 
-  function Click-At([int]$x, [int]$y) {
-    [Win]::SetCursorPos($x, $y) | Out-Null
-    Start-Sleep -Milliseconds 50
-    [Win]::mouse_event(0x0002, 0, 0, 0, [UIntPtr]::Zero)
+  # All input goes through PostMessage: the machine may hold a lock-screen
+  # foreground window (hardware keybd/mouse events would be delivered to
+  # it), but posted messages reach the app directly.
+  function Click-Window([int]$cx, [int]$cy) {
+    $lp = [IntPtr](($cy -shl 16) -bor ($cx -band 0xFFFF))
+    [Win]::PostMessage($hwnd, 0x0201, [IntPtr]0x0001, $lp) | Out-Null  # WM_LBUTTONDOWN
     Start-Sleep -Milliseconds 40
-    [Win]::mouse_event(0x0004, 0, 0, 0, [UIntPtr]::Zero)
-    Start-Sleep -Milliseconds 100
+    [Win]::PostMessage($hwnd, 0x0202, [IntPtr]0, $lp) | Out-Null       # WM_LBUTTONUP
+  }
+  function Type-Window([string]$text) {
+    foreach ($ch in $text.ToCharArray()) {
+      $wp = [IntPtr][int][char]$ch
+      [Win]::PostMessage($hwnd, 0x0102, $wp, [IntPtr]0) | Out-Null     # WM_CHAR
+      Start-Sleep -Milliseconds 15
+    }
+  }
+  function Press-Window([byte]$vk) {
+    [Win]::PostMessage($hwnd, 0x0100, [IntPtr]$vk, [IntPtr]0) | Out-Null  # WM_KEYDOWN
+    Start-Sleep -Milliseconds 30
+    [Win]::PostMessage($hwnd, 0x0101, [IntPtr]$vk, [IntPtr]0) | Out-Null  # WM_KEYUP
+  }
+  function Click-At([int]$x, [int]$y) {
+    # Physical screen coords -> client coords for PostMessage.
+    Click-Window ([int]($x - $origin.X)) ([int]($y - $origin.Y))
+    Start-Sleep -Milliseconds 120
   }
 
   function Get-LastTrace([string]$Pattern) {
@@ -94,9 +114,25 @@ try {
 
   # Open the right pane and, when the picker shows, open Files. Boot timing
   # varies with the engine connect, so retry Ctrl+R until something appears.
-  for ($try = 0; $try -lt 4; $try++) {
+  # The embedded engine's chat sync can take 30-45s after rapid restart
+  # cycles; keep retrying Ctrl+R until the pane actually opens.
+  # Wait for the chat selection first (the engine sync can take 30-60s
+  # after rapid restart cycles), THEN open the right pane.
+  for ($try = 0; $try -lt 30; $try++) {
+    $sel = Get-LastTrace "boot-select chats_synced=true selected=true"
+    if ($sel) { break }
+    Start-Sleep -Milliseconds 2000
+  }
+  for ($try = 0; $try -lt 10; $try++) {
     if ((Get-LastTrace "tree-rows") -or (Get-LastTrace "bounds files-card")) { break }
-    Send-CtrlR
+    # Physical ctrl-down updates the global key state (a lock screen may
+    # hold the foreground, so the message itself is POSTED to the app).
+    [Win]::keybd_event(0x11, 0, 0, [UIntPtr]::Zero)
+    Start-Sleep -Milliseconds 80
+    [Win]::PostMessage($hwnd, 0x0100, [IntPtr]0x52, [IntPtr]0) | Out-Null
+    Start-Sleep -Milliseconds 60
+    [Win]::PostMessage($hwnd, 0x0101, [IntPtr]0x52, [IntPtr]0) | Out-Null
+    [Win]::keybd_event(0x11, 0, 2, [UIntPtr]::Zero)
     Start-Sleep -Milliseconds 3000
   }
   if (-not (Get-LastTrace "tree-rows")) {
@@ -301,12 +337,21 @@ try {
           $siY = [int]($origin.Y + (($si.T + $si.B) / 2.0) * $scale)
           Click-At $siX $siY
           Start-Sleep -Milliseconds 400
-          foreach ($ch in @(0x56, 0x45, 0x52, 0x43, 0x45, 0x4C)) {
-            [Win]::keybd_event([byte]$ch, 0, 0, [UIntPtr]::Zero)
-            Start-Sleep -Milliseconds 30
-            [Win]::keybd_event([byte]$ch, 0, 2, [UIntPtr]::Zero)
-            Start-Sleep -Milliseconds 60
-          }
+          # The search state is SHARED now (the raw tab's query persists).
+          # Replace the whole field via clipboard paste: per-char typing
+          # loses focus after the first character once the results render.
+          Set-Clipboard -Value "vercel"
+          [Win]::keybd_event(0x11, 0, 0, [UIntPtr]::Zero)
+          [Win]::keybd_event(0x41, 0, 0, [UIntPtr]::Zero)
+          Start-Sleep -Milliseconds 40
+          [Win]::keybd_event(0x41, 0, 2, [UIntPtr]::Zero)
+          [Win]::keybd_event(0x11, 0, 2, [UIntPtr]::Zero)
+          Start-Sleep -Milliseconds 80
+          [Win]::keybd_event(0x11, 0, 0, [UIntPtr]::Zero)
+          [Win]::keybd_event(0x56, 0, 0, [UIntPtr]::Zero)
+          Start-Sleep -Milliseconds 40
+          [Win]::keybd_event(0x56, 0, 2, [UIntPtr]::Zero)
+          [Win]::keybd_event(0x11, 0, 2, [UIntPtr]::Zero)
           Start-Sleep -Milliseconds 900
           $sr = Get-LastTrace "search-rows"
           $srb = Get-LastTrace "bounds search-results"

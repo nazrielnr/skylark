@@ -195,16 +195,10 @@ pub struct FilesSurface {
     /// an 8 ms timer notifies while an animation is in flight (the
     /// input-driven notify path is the one proven to draw at vsync rate).
     anim_driver: Option<Task<()>>,
-    search: Entity<ComposerInput>,
-    search_state: FileSearchState,
-    search_list: ListState,
-    search_typography_generation: u32,
     preview: FilePreviewState,
     editor_context_menu: crate::popover::Popup<EditorContextMenu>,
     actions_menu: crate::popover::Popup<()>,
-    pub(super) search_open: bool,
     _observe: Subscription,
-    _search_events: Subscription,
 }
 
 impl Render for FilesSurface {
@@ -218,9 +212,9 @@ impl Render for FilesSurface {
         let (phase, tree_has_content, tree_error) = self.tree_view.read_with(cx, |tree, _| {
             (tree.phase(), tree.has_content(), tree.error().cloned())
         });
-        let content = if !self.search_state.query.is_empty() {
-            self.render_search_results(cx)
-        } else if let Some(error) = tree_error.filter(|_| !tree_has_content) {
+        // NOTE: the fuzzy search results render INSIDE the shared tree view
+        // (its render swaps rows for results), so no surface-side branch.
+        let content = if let Some(error) = tree_error.filter(|_| !tree_has_content) {
             div()
                 .flex_1()
                 .flex()
@@ -335,8 +329,6 @@ impl Render for FilesSurface {
             // frozen preview. That keeps every transition repaint cheap
             // (no per-frame text re-wrap) and the file content visible
             // until the tree covers it.
-            let search_open = self.search_open || !self.search_state.query.is_empty();
-            let search_row = search_open.then(|| self.render_search_input_row(&theme));
             let collapsed = self
                 .tree_view
                 .read_with(cx, |tree, _| tree.sidebar_collapsed());
@@ -451,7 +443,6 @@ impl Render for FilesSurface {
                                 .border_color(theme.border)
                                 .flex()
                                 .flex_col()
-                                .when_some(search_row, |el, row| el.child(row))
                                 .child(tree_pane),
                         ),
                 )
@@ -585,35 +576,7 @@ impl FilesSurface {
         word_wrap: bool,
         cx: &mut Context<Self>,
     ) -> Self {
-        let search = cx.new(|cx| {
-            ComposerInput::new("Search files", cx)
-                .with_accessibility_role(gpui::Role::SearchInput)
-                .with_text_metrics(12.0, 18.0)
-        });
-        let search_events = cx.subscribe(&search, |this: &mut Self, _, event, cx| match event {
-            ComposerInputEvent::Edited => this.on_search_edited(cx),
-            ComposerInputEvent::Submitted
-            | ComposerInputEvent::ModifiedSubmitted
-            | ComposerInputEvent::MentionAccept => this.activate_search_result(cx),
-            ComposerInputEvent::MentionNavigate(delta) => {
-                let len = this.search_state.visible_len();
-                if len > 0 {
-                    this.search_state.active = if *delta < 0 {
-                        this.search_state.active.saturating_sub(1)
-                    } else {
-                        (this.search_state.active + 1).min(len - 1)
-                    };
-                    this.search_list
-                        .scroll_to_reveal_item(this.search_state.active);
-                    cx.notify();
-                }
-            }
-            ComposerInputEvent::MentionDismiss => this.clear_search(cx),
-            ComposerInputEvent::PastedImages(_)
-            | ComposerInputEvent::PastedPaths(_)
-            | ComposerInputEvent::CursorMoved
-            | ComposerInputEvent::ViewportChanged => {}
-        });
+
         let observe = cx.observe(&state, |this: &mut Self, _, cx| {
             if this.sync_target(cx) {
                 this.ensure_loaded(cx);
@@ -633,10 +596,6 @@ impl FilesSurface {
             tree_view,
             window_handle: None,
             anim_driver: None,
-            search,
-            search_state: FileSearchState::default(),
-            search_list: ListState::new(0, ListAlignment::Top, px(420.0)),
-            search_typography_generation: 0,
             preview: FilePreviewState::new(
                 autosave_enabled,
                 autosave_delay_ms,
@@ -645,9 +604,7 @@ impl FilesSurface {
             ),
             editor_context_menu: crate::popover::Popup::default(),
             actions_menu: crate::popover::Popup::default(),
-            search_open: false,
             _observe: observe,
-            _search_events: search_events,
         };
         surface.sync_target(cx);
         surface
@@ -802,12 +759,9 @@ impl FilesSurface {
     }
 
     pub fn set_show_all_files(&mut self, _show_all_files: bool, cx: &mut Context<Self>) {
-        // The tree side lives on the shared FileTreeView; the shell applies
-        // the setting there. Only the surface-local search filter resets.
-        if !self.search_state.query.is_empty() {
-            self.search_state.query.clear();
-            self.on_search_edited(cx);
-        }
+        // The tree side AND the search live on the shared FileTreeView; the
+        // shell applies the setting there, and the search clears there.
+        self.tree_view.update(cx, |tree, cx| tree.clear_search(cx));
     }
 
     /// Documents only: the shared tree entity loads the workspace once for
@@ -958,19 +912,9 @@ impl FilesSurface {
     }
 
     pub(super) fn toggle_search(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        crate::ui_trace!("toggle-search open={}", !self.search_open);
-        self.search_open = !self.search_open;
-        if self.search_open {
-            self.search.update(cx, |input, cx| {
-                input.focus_handle.focus(window, cx);
-            });
-        } else {
-            // Closing must also clear the query: the search UI stays up
-            // while the query is non-empty, so without this the close
-            // button looked broken.
-            self.search.update(cx, |search, cx| search.set_text("", cx));
-        }
-        cx.notify();
+        // The search lives on the shared tree view — one state per panel.
+        self.tree_view
+            .update(cx, |tree, cx| tree.toggle_search(window, cx));
     }
 
     pub(super) fn collapse_all(&mut self, cx: &mut Context<Self>) {
@@ -1102,7 +1046,9 @@ impl FilesSurface {
             .read_with(cx, |tree, _| tree.include_ignored());
         let ws_name = self.workspace_name(cx);
         let branch = self.workspace_branch(cx);
-        let is_search_open = self.search_open || !self.search_state.query.is_empty();
+        let is_search_open = self
+            .tree_view
+            .read_with(cx, |tree, _| tree.is_search_open());
 
         let trailing_actions = if is_split {
             let is_menu_open = self.actions_menu.get().is_some();
@@ -1439,46 +1385,5 @@ impl FilesSurface {
                     )
                     .child(trailing_actions),
             )
-            .when(is_search_open && !is_split, |parent| {
-                parent.child(self.render_search_input_row(&theme))
-            })
-    }
-
-    /// The file-search input row. In the raw workspace it sits under the
-    /// toolbar; in the split sidebar it rides the tree overlay's body (the
-    /// fixed-height header slot would clip it) so the search field is
-    /// available in BOTH layouts. No background: it blends with the pane.
-    pub(super) fn render_search_input_row(&self, theme: &crate::theme::Theme) -> gpui::Div {
-        div()
-            .w_full()
-            .px(crate::typography::ui_rems(8.0))
-            .py(crate::typography::ui_rems(4.0))
-            .border_b_1()
-            .border_color(theme.border)
-            .child(
-                div()
-                    .h(crate::typography::ui_rems(
-                        crate::surface_chrome::CONTROL_SIZE,
-                    ))
-                    .min_w_0()
-                    .flex_1()
-                    .px(crate::typography::ui_rems(8.0))
-                    .rounded(crate::typography::ui_rems(
-                        crate::surface_chrome::CONTROL_RADIUS,
-                    ))
-                    .flex()
-                    .items_center()
-                    .gap(crate::typography::ui_rems(6.0))
-                    .text_size(crate::typography::ui_rems(12.0))
-                    .child(
-                        crate::icons::icon(crate::icons::MAGNIFER)
-                            .size(crate::typography::ui_rems(13.0))
-                            .flex_none()
-                            .text_color(theme.text_faint),
-                    )
-                    .child(div().min_w_0().flex_1().child(self.search.clone())),
-            )
-            .relative()
-            .child(crate::ui_trace::bounds_probe("search-input"))
     }
 }

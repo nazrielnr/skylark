@@ -480,15 +480,17 @@ impl FilesSurface {
                             .next()
                             .unwrap_or(&reveal_path)
                             .to_string();
-                        this.reveal_search_result(
-                            WorkspaceFileSearchMatch {
-                                path: reveal_path.clone(),
-                                name,
-                                kind: zeron_proto::WorkspaceEntryKind::File,
-                                score: 0,
-                            },
-                            cx,
-                        );
+                        this.tree_view.update(cx, |tree, cx| {
+                            tree.reveal_search_result(
+                                WorkspaceFileSearchMatch {
+                                    path: reveal_path.clone(),
+                                    name,
+                                    kind: zeron_proto::WorkspaceEntryKind::File,
+                                    score: 0,
+                                },
+                                cx,
+                            );
+                        });
                     }))
                     .child(
                         icon(icons::FOLDER)

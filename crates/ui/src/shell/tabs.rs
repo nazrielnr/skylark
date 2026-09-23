@@ -77,6 +77,12 @@ impl Shell {
     pub(super) fn boot_select_chat(&mut self, cx: &mut Context<Self>) {
         let first = {
             let state = self.state.read(cx);
+            crate::ui_trace!(
+                "boot-select chats_synced={} selected={} auto={}",
+                state.chats_synced,
+                state.selected_chat.is_some(),
+                state.auto_selected
+            );
             if !state.chats_synced || state.selected_chat.is_some() || state.auto_selected {
                 return;
             }
@@ -287,12 +293,17 @@ impl Shell {
             // controls reveal to its left.
             Some(
                 controls
-                    .child(header_icon_button(
-                        "toggle-changes",
-                        icons::SIDEBAR_MINIMALISTIC,
-                        &theme,
-                        cx.listener(|this, _, _, cx| this.toggle_right_pane(cx)),
-                    ))
+                    .child(
+                        div()
+                            .relative()
+                            .child(header_icon_button(
+                                "toggle-changes",
+                                icons::SIDEBAR_MINIMALISTIC,
+                                &theme,
+                                cx.listener(|this, _, _, cx| this.toggle_right_pane(cx)),
+                            ))
+                            .child(crate::ui_trace::bounds_probe("changes-toggle")),
+                    )
                     .into_any_element(),
             )
         } else {

@@ -16,9 +16,9 @@
 use std::{collections::HashMap, ops::Range, time::Duration};
 
 use gpui::{
-    AnyElement, Context, Entity, EventEmitter, FocusHandle, KeyDownEvent, MouseButton,
-    ScrollStrategy, SharedString, Task, UniformListScrollHandle, Window, div, prelude::*, px,
-    uniform_list,
+    AnyElement, Context, Entity, EventEmitter, FocusHandle, KeyDownEvent, ListAlignment,
+    ListState, MouseButton, ScrollStrategy, SharedString, Subscription, Task,
+    UniformListScrollHandle, Window, div, prelude::*, px, uniform_list,
 };
 use zeron_proto::{
     ListWorkspaceDirectoryRequest, WorkspaceEntryKind, WorkspaceFileChangeKind,
@@ -30,8 +30,10 @@ use super::{
     client::{FilesRequestContext, WorkspaceFilesClient},
     model::{DirectoryLoadState, FileTreeModel, VisibleRowKind, parent_path},
     preview::{TREE_SPLIT_DEFAULT, TREE_SPLIT_MAX, TREE_SPLIT_MIN},
+    search::FileSearchState,
     workspace_path_drag_ghost,
 };
+use crate::composer::{ComposerInput, ComposerInputEvent};
 use crate::state::AppState;
 use crate::{
     file_icons::{self, FileIconIdentity},
@@ -62,10 +64,10 @@ pub enum WorkspaceTreeEvent {
 impl EventEmitter<WorkspaceTreeEvent> for FileTreeView {}
 
 pub struct FileTreeView {
-    state: Entity<AppState>,
+    pub(super) state: Entity<AppState>,
     chat_id: String,
-    tree: FileTreeModel,
-    request_context: Option<FilesRequestContext>,
+    pub(super) tree: FileTreeModel,
+    pub(super) request_context: Option<FilesRequestContext>,
     loads: HashMap<(String, Option<String>), Task<()>>,
     watch_task: Option<Task<()>>,
     watch_sequence: Option<u64>,
@@ -80,6 +82,16 @@ pub struct FileTreeView {
     /// switches and returns from the raw workspace (user request: the
     /// collapse must be remembered).
     sidebar_collapsed: bool,
+    /// The workspace file search — SHARED, like everything else on this
+    /// view: the input, the query, the results, and the list state are ONE
+    /// per panel, so switching between the raw browser and file tabs (or
+    /// pressing Files mid-search) never resets it.
+    pub(super) search: Entity<ComposerInput>,
+    pub(super) search_state: FileSearchState,
+    pub(super) search_list: ListState,
+    pub(super) search_open: bool,
+    pub(super) search_typography_generation: u32,
+    _search_events: Subscription,
     tree_scroll: UniformListScrollHandle,
     tree_focus: FocusHandle,
     tree_bar: popover::MenuScrollbarState,
@@ -103,6 +115,35 @@ impl FileTreeView {
         cx: &mut Context<Self>,
     ) -> Self {
         let tree_focus = cx.focus_handle();
+        let search = cx.new(|cx| {
+            ComposerInput::new("Search files", cx)
+                .with_accessibility_role(gpui::Role::SearchInput)
+                .with_text_metrics(12.0, 18.0)
+        });
+        let search_events = cx.subscribe(&search, |this: &mut Self, _, event, cx| match event {
+            ComposerInputEvent::Edited => this.on_search_edited(cx),
+            ComposerInputEvent::Submitted
+            | ComposerInputEvent::ModifiedSubmitted
+            | ComposerInputEvent::MentionAccept => this.activate_search_result(cx),
+            ComposerInputEvent::MentionNavigate(delta) => {
+                let len = this.search_state.visible_len();
+                if len > 0 {
+                    this.search_state.active = if *delta < 0 {
+                        this.search_state.active.saturating_sub(1)
+                    } else {
+                        (this.search_state.active + 1).min(len - 1)
+                    };
+                    this.search_list
+                        .scroll_to_reveal_item(this.search_state.active);
+                    cx.notify();
+                }
+            }
+            ComposerInputEvent::MentionDismiss => this.clear_search(cx),
+            ComposerInputEvent::PastedImages(_)
+            | ComposerInputEvent::PastedPaths(_)
+            | ComposerInputEvent::CursorMoved
+            | ComposerInputEvent::ViewportChanged => {}
+        });
         let surface = Self {
             state,
             chat_id,
@@ -116,6 +157,12 @@ impl FileTreeView {
             started: false,
             sidebar_width: TREE_SPLIT_DEFAULT,
             sidebar_collapsed: false,
+            search,
+            search_state: FileSearchState::default(),
+            search_list: ListState::new(0, ListAlignment::Top, px(420.0)),
+            search_open: false,
+            search_typography_generation: 0,
+            _search_events: search_events,
             tree_scroll: UniformListScrollHandle::new(),
             tree_focus,
             tree_bar: popover::MenuScrollbarState::default(),
@@ -187,7 +234,7 @@ impl FileTreeView {
     /// Search-result reveal: select a path after loading its ancestor
     /// pages (`(page, ancestor-to-expand)` pairs, root first) and scroll it
     /// into view.
-    pub fn reveal_search_result(
+    pub fn apply_reveal(
         &mut self,
         path: &str,
         pages: Vec<(zeron_proto::WorkspaceDirectoryPage, String)>,
@@ -271,6 +318,28 @@ impl FileTreeView {
     /// The shared collapse state (see the field docs).
     pub fn sidebar_collapsed(&self) -> bool {
         self.sidebar_collapsed
+    }
+
+    /// Whether the search UI is up (the toggle opened it or a query is
+    /// active) — read by the surfaces' header buttons.
+    pub fn is_search_open(&self) -> bool {
+        self.search_open || !self.search_state.query.is_empty()
+    }
+
+    /// Toggle the shared search field. Closing also clears the query: the
+    /// search UI stays up while the query is non-empty, so without this
+    /// the close button looked broken.
+    pub fn toggle_search(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        crate::ui_trace!("toggle-search open={}", !self.search_open);
+        self.search_open = !self.search_open;
+        if self.search_open {
+            self.search.update(cx, |input, cx| {
+                input.focus_handle.focus(window, cx);
+            });
+        } else {
+            self.clear_search(cx);
+        }
+        cx.notify();
     }
 
     pub fn set_sidebar_collapsed(&mut self, collapsed: bool) {
@@ -558,6 +627,17 @@ impl FileTreeView {
     }
 
     fn on_key_down(&mut self, event: &KeyDownEvent, window: &mut Window, cx: &mut Context<Self>) {
+        // While searching, the input owns the keyboard (its mention
+        // navigation moves the result selection); tree key nav is off.
+        if !self.search_state.query.is_empty() {
+            crate::ui_trace!(
+                "tree-key-while-searching key={:?} root_focused={} search_open={}",
+                event.keystroke.key,
+                self.tree_focus.is_focused(window),
+                self.search_open
+            );
+            return;
+        }
         let handled = match event.keystroke.key.as_str() {
             "up" => {
                 self.tree.select_previous();
@@ -922,9 +1002,18 @@ impl FileTreeView {
 impl Render for FileTreeView {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = Theme::of(cx).clone();
-        let scrollbar = popover::rail(self, "files-tree-scrollbar", &theme, cx);
+        // The workspace view: while a query is active, the fuzzy RESULTS
+        // replace the tree rows — one shared state, rendered identically
+        // in the raw browser and every file tab's sidebar.
+        let searching = !self.search_state.query.is_empty();
+        let search_open = self.search_open || searching;
+        let scrollbar = if searching {
+            None
+        } else {
+            popover::rail(self, "files-tree-scrollbar", &theme, cx)
+        };
         let row_count = self.tree.visible_rows().len();
-        if crate::ui_trace::enabled() {
+        if crate::ui_trace::enabled() && !searching {
             let b = self.tree_scroll.0.borrow().base_handle.bounds();
             let item_h = self
                 .tree_scroll
@@ -965,6 +1054,20 @@ impl Render for FileTreeView {
                 rows
             );
         }
+        let content: AnyElement = if searching {
+            self.render_search_results(cx)
+        } else {
+            uniform_list(
+                "files-tree-list",
+                row_count,
+                cx.processor(Self::render_tree_rows),
+            )
+            .flex_1()
+            .min_h_0()
+            .track_scroll(&self.tree_scroll)
+            .into_any_element()
+        };
+        let search_row = search_open.then(|| self.render_search_input_row(&theme));
         div()
             .id("files-tree")
             .role(gpui::Role::Tree)
@@ -975,24 +1078,62 @@ impl Render for FileTreeView {
             .flex()
             .flex_col()
             .track_focus(&self.tree_focus)
-            .on_mouse_down(
-                MouseButton::Left,
-                cx.listener(|this, _, window, cx| this.tree_focus.focus(window, cx)),
-            )
+            // Blanket "click anywhere → focus the tree" must not run while
+            // the search row is visible: it would steal focus from the
+            // input on every click. Row clicks focus the tree themselves.
+            .when(!search_open, |el| {
+                el.on_mouse_down(
+                    MouseButton::Left,
+                    cx.listener(|this, _, window, cx| {
+                        this.tree_focus.focus(window, cx)
+                    }),
+                )
+            })
             .on_key_down(cx.listener(|this, event: &KeyDownEvent, window, cx| {
                 this.on_key_down(event, window, cx);
             }))
-            .child(
-                uniform_list(
-                    "files-tree-list",
-                    row_count,
-                    cx.processor(Self::render_tree_rows),
-                )
-                .flex_1()
-                .min_h_0()
-                .track_scroll(&self.tree_scroll),
-            )
+            .when_some(search_row, |el, row| el.child(row))
+            .child(content)
             .children(scrollbar)
+    }
+}
+
+impl FileTreeView {
+    /// The search input row: rides the top of the workspace view in BOTH
+    /// layouts (raw browser below the toolbar, split sidebar at the top of
+    /// the overlay body). No background — it blends with the pane.
+    fn render_search_input_row(&self, theme: &Theme) -> gpui::Div {
+        div()
+            .w_full()
+            .px(crate::typography::ui_rems(8.0))
+            .py(crate::typography::ui_rems(4.0))
+            .border_b_1()
+            .border_color(theme.border)
+            .child(
+                div()
+                    .h(crate::typography::ui_rems(
+                        crate::surface_chrome::CONTROL_SIZE,
+                    ))
+                    .min_w_0()
+                    .flex_1()
+                    .px(crate::typography::ui_rems(8.0))
+                    .rounded(crate::typography::ui_rems(
+                        crate::surface_chrome::CONTROL_RADIUS,
+                    ))
+                    .flex()
+                    .items_center()
+                    .gap(crate::typography::ui_rems(6.0))
+                    .text_size(crate::typography::ui_rems(12.0))
+                    .child(
+                        crate::icons::icon(crate::icons::MAGNIFER)
+                            .size(crate::typography::ui_rems(13.0))
+                            .flex_none()
+                            .text_color(theme.text_faint),
+                    )
+                    .child(div().min_w_0().flex_1().child(self.search.clone())),
+            )
+            .relative()
+            .child(crate::ui_trace::bounds_probe("search-input"))
     }
 }
 

@@ -12,8 +12,8 @@ use zeron_proto::{
 };
 
 use super::{
-    FilesSurface, WorkspacePathDrag, client::WorkspaceFilesClient, model::parent_path,
-    workspace_path_drag_ghost,
+    FileTreeView, WorkspacePathDrag, WorkspaceTreeEvent, client::WorkspaceFilesClient,
+    model::parent_path, workspace_path_drag_ghost,
 };
 use crate::{
     file_icons::{self, FileIconIdentity},
@@ -272,7 +272,7 @@ impl FileSearchState {
     }
 }
 
-impl FilesSurface {
+impl FileTreeView {
     pub(super) fn on_search_edited(&mut self, cx: &mut Context<Self>) {
         let query = self.search.read(cx).text().trim().to_string();
         if self.search_state.query == query {
@@ -314,9 +314,7 @@ impl FilesSurface {
         let request = SearchWorkspaceFilesRequest {
             target: context.target.clone(),
             query: query.clone(),
-            include_ignored: self
-                .tree_view
-                .read_with(cx, |tree, _| tree.include_ignored()),
+            include_ignored: self.tree.include_ignored(),
             limit: Some(SEARCH_RESULT_LIMIT as u16),
         };
         let client = WorkspaceFilesClient::new(engine, context);
@@ -406,6 +404,9 @@ impl FilesSurface {
         let Some(engine) = self.state.read(cx).engine().cloned() else {
             return;
         };
+        // The search state is SHARED (this view is the workspace): opening
+        // results must behave identically from the raw tab and any file
+        // tab's sidebar.
         // Ancestors of the result's parent, shallowest first.
         let mut ancestors = Vec::new();
         let mut current = parent_path(&result.path);
@@ -424,16 +425,13 @@ impl FilesSurface {
         let mut present = Vec::new();
         let mut missing = Vec::new();
         for dir in &ancestors {
-            if self
-                .tree_view
-                .read_with(cx, |tree, _| tree.is_directory_loaded(dir))
-            {
+            if self.is_directory_loaded(dir) {
                 present.push(dir.clone());
             } else {
                 missing.push(dir.clone());
             }
         }
-        let generation = self.tree_view.read_with(cx, |tree, _| tree.generation());
+        let generation = self.tree.generation();
         crate::ui_trace!(
             "search-reveal path={:?} present={} missing={}",
             result.path,
@@ -442,26 +440,21 @@ impl FilesSurface {
         );
 
         if missing.is_empty() {
-            let path = result.path.clone();
-            let is_dir = result.kind == WorkspaceEntryKind::Directory;
-            self.tree_view.update(cx, |tree, cx| {
-                for dir in &present {
-                    tree.expand_directory(dir, cx);
-                }
-                tree.reveal_search_result(&path, Vec::new(), generation, cx);
-            });
-            if is_dir {
-                self.show_tree_sidebar(cx);
-            } else {
-                self.open_tree_file(result.path.clone(), cx);
+            for dir in &present {
+                self.expand_directory(dir, cx);
             }
+            let path = result.path.clone();
+            self.apply_reveal(&path, Vec::new(), generation, cx);
+            if result.kind == WorkspaceEntryKind::Directory {
+                cx.notify();
+                return;
+            }
+            cx.emit(WorkspaceTreeEvent::OpenFile(result.path));
             cx.notify();
             return;
         }
 
-        let include_ignored = self
-            .tree_view
-            .read_with(cx, |tree, _| tree.include_ignored());
+        let include_ignored = self.tree.include_ignored();
         let client = WorkspaceFilesClient::new(engine, context.clone());
         self.search_state.reveal_task = Some(cx.spawn(async move |this, cx| {
             let mut pages = Vec::with_capacity(missing.len());
@@ -477,31 +470,28 @@ impl FilesSurface {
                 {
                     Ok(page) => pages.push((page, directory)),
                     Err(error) => {
-                        let _ = this.update(cx, |surface, cx| {
-                            surface.search_state.error = Some(error.to_string().into());
+                        let _ = this.update(cx, |tree, cx| {
+                            tree.search_state.error = Some(error.to_string().into());
                             cx.notify();
                         });
                         return;
                     }
                 }
             }
-            let _ = this.update(cx, |surface, cx| {
+            let _ = this.update(cx, |tree, cx| {
                 // The tree APPLY is generation-guarded (stale pages must not
                 // apply); the OPEN is not — a tree reset mid-flight must
                 // never swallow the file click.
                 let path = result.path.clone();
-                let present = present.clone();
-                surface.tree_view.update(cx, |tree, cx| {
-                    for dir in &present {
-                        tree.expand_directory(dir, cx);
-                    }
-                    tree.reveal_search_result(&path, pages.clone(), generation, cx);
-                });
-                if result.kind == WorkspaceEntryKind::Directory {
-                    surface.show_tree_sidebar(cx);
-                } else {
-                    surface.open_tree_file(result.path.clone(), cx);
+                for dir in &present {
+                    tree.expand_directory(dir, cx);
                 }
+                tree.apply_reveal(&path, pages.clone(), generation, cx);
+                if result.kind == WorkspaceEntryKind::Directory {
+                    cx.notify();
+                    return;
+                }
+                cx.emit(WorkspaceTreeEvent::OpenFile(result.path));
                 // The search state deliberately STAYS: opening a result
                 // must not exit search mode (the shell syncs the tree
                 // selection when the new tab activates).
@@ -537,9 +527,10 @@ impl FilesSurface {
                 .join("|");
             let h = f32::from(search_row_height(cx));
             eprintln!(
-                "[trace] search-rows count={} row_h={:.1} paths={}",
+                "[trace] search-rows count={} row_h={:.1} query={:?} paths={}",
                 rows.len(),
                 h,
+                self.search_state.query,
                 paths
             );
         }
