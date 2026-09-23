@@ -252,10 +252,18 @@ try {
       $tab = Parse-Numbers $tabsLine
       $tabX = [int]($origin.X + (($tab.L + $tab.R) / 2.0) * $scale)
       $tabY = [int]($origin.Y + (($tab.T + $tab.B) / 2.0) * $scale)
-      $expandBefore = (Select-String -Path $LogPath -Pattern "raw-expand").Count
+      $expandBefore = (Select-String -Path $LogPath -Pattern "cover-expand").Count
+      $coverPreview = (Get-LastTrace "bounds preview-body")
       Click-At $tabX $tabY
       Start-Sleep -Milliseconds 300
-      $expandAfter = (Select-String -Path $LogPath -Pattern "raw-expand").Count
+      $expandAfter = (Select-String -Path $LogPath -Pattern "cover-expand").Count
+      # The file content must stay visible (frozen bounds) during the cover:
+      # it gets covered by the growing tree, not vanished by the swap.
+      $coverFrames = (Select-String -Path $LogPath -Pattern "split-frame").Count
+      $settledPreview = (Get-LastTrace "bounds preview-body")
+      if ($coverPreview -and $settledPreview -and ($coverPreview -ne $settledPreview)) {
+        $failures += "preview bounds changed across the cover transition"
+      }
       Write-Output ("raw return: expands +{0}" -f ($expandAfter - $expandBefore))
       Start-Sleep -Milliseconds 400
       $rawLine = Get-LastTrace "tree-rows"

@@ -76,6 +76,10 @@ pub struct FileTreeView {
     /// a drag on one tab persists across tab switches (per-surface copies
     /// used to make each tab rest at a different width).
     sidebar_width: f32,
+    /// Whether the sidebar is collapsed, SHARED so the state survives tab
+    /// switches and returns from the raw workspace (user request: the
+    /// collapse must be remembered).
+    sidebar_collapsed: bool,
     tree_scroll: UniformListScrollHandle,
     tree_focus: FocusHandle,
     tree_bar: popover::MenuScrollbarState,
@@ -111,6 +115,7 @@ impl FileTreeView {
             error: None,
             started: false,
             sidebar_width: TREE_SPLIT_DEFAULT,
+            sidebar_collapsed: false,
             tree_scroll: UniformListScrollHandle::new(),
             tree_focus,
             tree_bar: popover::MenuScrollbarState::default(),
@@ -236,6 +241,20 @@ impl FileTreeView {
 
     pub fn reset_sidebar_width(&mut self) {
         self.sidebar_width = TREE_SPLIT_DEFAULT;
+    }
+
+    /// The shared collapse state (see the field docs).
+    pub fn sidebar_collapsed(&self) -> bool {
+        self.sidebar_collapsed
+    }
+
+    pub fn set_sidebar_collapsed(&mut self, collapsed: bool) {
+        self.sidebar_collapsed = collapsed;
+    }
+
+    pub fn toggle_sidebar_collapsed(&mut self) -> bool {
+        self.sidebar_collapsed = !self.sidebar_collapsed;
+        self.sidebar_collapsed
     }
 
     // -- Target sync ------------------------------------------------------

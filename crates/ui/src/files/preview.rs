@@ -102,10 +102,14 @@ enum ReloadDecision {
 }
 
 /// Openness is independent of the dragged width, so resizing remains direct.
+/// `from_layout` remembers the preview-reserved width when an expand/collapse
+/// animation begins, so the preview can hold its pre/post width while the
+/// tree overlay animates (its content never re-wraps mid-flight).
 #[derive(Default)]
 struct TreeSidebarMotion {
     target: Option<bool>,
     from: f32,
+    from_layout: f32,
     started: Option<Instant>,
 }
 
@@ -141,8 +145,9 @@ impl TreeSidebarMotion {
         (end, false)
     }
 
-    fn animate_to(&mut self, previous: bool, visible: bool, now: Instant) {
+    fn animate_to(&mut self, previous: bool, visible: bool, from_layout: f32, now: Instant) {
         self.from = self.sample(previous, now, false).0;
+        self.from_layout = from_layout;
         self.target = Some(visible);
         self.started = Some(now);
     }
@@ -164,14 +169,11 @@ pub(super) struct FilePreviewState {
     autosave_delay_ms: u64,
     reload_confirmation: Option<String>,
     close_requested: bool,
-    tree_sidebar_visible: bool,
-    tree_sidebar_dismissed: bool,
-    /// One-shot width transition: the tab was opened while the tree filled
-    /// (or sat at) `from` width — the sidebar eases from there to the
-    /// resting width (held by the shared tree entity) so the
-    /// browser→editor switch reads as the tree sliding aside instead of the
-    /// layout snapping.
-    tree_width_tween: Option<(f32, Instant)>,
+    /// One-shot width transition `(from, target, start)`: the overlay tree
+    /// eases from `from` to `target`. Normally the target is the resting
+    /// width (held by the shared tree entity); the cover transition targets
+    /// the full pane width (see `begin_cover_expand`).
+    tree_width_tween: Option<(f32, f32, Instant)>,
     tree_motion: TreeSidebarMotion,
     tree_edge_bounce: Option<crate::motion::ResizeEdgeBounce>,
     tree_resize_edge: Option<crate::motion::ResizeEdge>,
@@ -279,19 +281,6 @@ impl FilesSurface {
         window.defer(cx, move |window, cx| focus.focus(window, cx));
     }
 
-    pub(super) fn show_tree_sidebar(&mut self, cx: &mut Context<Self>) {
-        self.preview.show_tree_sidebar();
-        cx.notify();
-    }
-
-    fn toggle_tree_sidebar(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self.preview.toggle_tree_sidebar();
-        if !self.preview.tree_sidebar_visible() {
-            // A hidden search input must not keep receiving editor keystrokes.
-            self.focus_editor(window, cx);
-        }
-        cx.notify();
-    }
 
     fn toggle_word_wrap(&mut self, _window: &mut Window, cx: &mut Context<Self>) {
         let word_wrap = !self.preview.word_wrap;

@@ -32,7 +32,9 @@ impl FilesSurface {
         }
         self.preview.active = Some(path.clone());
         self.preview.touch_document(&path);
-        self.preview.show_tree_sidebar();
+        // Activation snaps any pending sidebar animation open (the shared
+        // collapse state is deliberately untouched — it is remembered).
+        self.preview.snap_sidebar_open();
         if !self.preview.documents.contains_key(&path) {
             let Some(context) = self.request_context.as_ref() else {
                 return;

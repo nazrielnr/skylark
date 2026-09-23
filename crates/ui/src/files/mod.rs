@@ -7,7 +7,7 @@ use std::{
 
 use gpui::{
     App, Context, Entity, EventEmitter, ListAlignment, ListState, Pixels, Point, Render,
-    SharedString, Subscription, Window, div, prelude::*, px,
+    SharedString, Subscription, Task, Window, div, prelude::*, px,
 };
 
 use crate::{
@@ -188,9 +188,13 @@ pub struct FilesSurface {
     /// surface (browser + editor tabs) embeds the same entity, so tree
     /// state, loads, and the watcher exist once per panel.
     tree_view: Entity<FileTreeView>,
-    /// Raw-browser transition: expanding the tree back to full pane width
-    /// after a file tab held it as a narrow sidebar. `(from, target, start)`.
-    raw_expand_tween: Option<(f32, f32, std::time::Instant)>,
+    /// Cached window handle for the animation driver's forced draws.
+    window_handle: Option<gpui::AnyWindowHandle>,
+    /// Frame driver for tree transitions: the platform's
+    /// request_animation_frame path doesn't schedule frames on Windows, so
+    /// an 8 ms timer notifies while an animation is in flight (the
+    /// input-driven notify path is the one proven to draw at vsync rate).
+    anim_driver: Option<Task<()>>,
     search: Entity<ComposerInput>,
     search_state: FileSearchState,
     search_list: ListState,
@@ -205,6 +209,9 @@ pub struct FilesSurface {
 
 impl Render for FilesSurface {
     fn render(&mut self, window: &mut gpui::Window, cx: &mut Context<Self>) -> impl IntoElement {
+        if self.window_handle.is_none() {
+            self.window_handle = Some(window.window_handle());
+        }
         let theme = crate::theme::Theme::of(cx).clone();
         // Tree load state comes from the shared tree entity; reading it here
         // also re-renders this surface when the tree notifies.
@@ -321,26 +328,37 @@ impl Render for FilesSurface {
         let mut preview_split_right = None;
         let body = if split_editor {
             let wide = self.preview.is_wide();
-            // The sidebar's resting width is shared (tree entity); the
-            // opening transition (seeded at tab creation) eases toward it in
-            // EITHER branch, so the tree slides aside continuously.
-            let tree_width = self
-                .preview
-                .tree_width_frame(self.resting_tree_width(cx), window, cx);
-            let openness = self.preview.tree_sidebar_frame(window, cx);
+            // OVERLAY TREE LAYOUT: the preview renders at its FINAL width
+            // (pane minus the state-reserved sidebar width) and never
+            // re-lays-out during tree animations — the tree is a
+            // right-anchored overlay whose width animates ON TOP of the
+            // frozen preview. That keeps every transition repaint cheap
+            // (no per-frame text re-wrap) and the file content visible
+            // until the tree covers it.
+            let collapsed = self
+                .tree_view
+                .read_with(cx, |tree, _| tree.sidebar_collapsed());
+            let resting = self.resting_tree_width(cx);
+            let visible = !collapsed;
+            let layout_width = self.preview.sidebar_layout_width(resting, visible);
+            let overlay_width = self.preview.tree_overlay_width(resting, visible, window, cx);
             if crate::ui_trace::enabled() {
+                static T0: std::sync::OnceLock<std::time::Instant> = std::sync::OnceLock::new();
+                let t0 = T0.get_or_init(std::time::Instant::now);
                 eprintln!(
-                    "[trace] split-frame w={:.0} open={:.3} surf={:.0} wide={} tween={:?}",
-                    tree_width,
-                    openness,
+                    "[trace] split-frame t={} w={:.0} layout={:.0} surf={:.0} wide={} collapsed={} tween={:?}",
+                    t0.elapsed().as_millis(),
+                    overlay_width,
+                    layout_width,
                     self.preview.surface_width_read(),
                     wide,
+                    collapsed,
                     self.preview.tree_width_tween_debug()
                 );
             }
-            if wide && self.preview.tree_sidebar_visible() {
+            if wide && visible {
                 preview_split_right =
-                    Some(tree_width * openness - preview::TREE_SPLIT_HITBOX_HALF_WIDTH);
+                    Some(overlay_width - preview::TREE_SPLIT_HITBOX_HALF_WIDTH);
             }
             // Same arrangement as the outer right-sidebar toggle: the trigger
             // is outside the animated controls, in a permanently mounted slot.
@@ -374,16 +392,15 @@ impl Render for FilesSurface {
                     )
                     .child(
                         div()
-                            .w(px((tree_width * openness - toggle_width).max(0.0)))
+                            .w(px((layout_width - toggle_width).max(0.0)))
                             .h_full()
                             .flex_none()
                             .overflow_hidden()
                             .child(
                                 div()
-                                    .w(px(tree_width - toggle_width))
+                                    .w(px((layout_width - toggle_width).max(0.0)))
                                     .h_full()
-                                    .relative()
-                                    .left(px((tree_width - toggle_width) * (openness - 1.0)))
+                                    .flex()
                                     .child(tree_header),
                             ),
                     )
@@ -393,6 +410,7 @@ impl Render for FilesSurface {
             div()
                 .size_full()
                 .min_w_0()
+                .relative()
                 .flex()
                 .child(
                     div()
@@ -400,48 +418,30 @@ impl Render for FilesSurface {
                         .min_w_0()
                         .child(self.render_preview(window, cx)),
                 )
+                .child(div().flex_none().w(px(layout_width.max(0.0))))
+                // The overlay tree: right-anchored, animated width, painted
+                // above the frozen preview (later sibling). OPAQUE: the
+                // file content beneath must never bleed through the tree's
+                // transparent rows — that read as flickering during every
+                // overlay transition.
                 .child(
                     div()
-                        .w(px(tree_width * openness))
-                        .h_full()
-                        .flex_none()
-                        .relative()
+                        .absolute()
+                        .top_0()
+                        .bottom_0()
+                        .right_0()
+                        .w(px(overlay_width.max(0.0)))
+                        .overflow_hidden()
+                        .bg(crate::theme::ink(0.0))
                         .child(
-                            div().size_full().overflow_hidden().child(
-                                div()
-                                    .w(px(tree_width))
-                                    .h_full()
-                                    .relative()
-                                    .left(px(tree_width * (openness - 1.0)))
-                                    .border_l_1()
-                                    .border_color(theme.border)
-                                    .child(tree_pane),
-                            ),
-                        ),
-                )
-                .into_any_element()
-        } else if let Some(width) = self.raw_tree_width_frame(window, cx) {
-            // Raw browser, expanding back from a file tab's sidebar: the tree
-            // stays anchored to the pane's right edge and grows leftward to
-            // full width — the reverse of the editor's opening transition.
-            div()
-                .size_full()
-                .min_w_0()
-                .flex()
-                .child(div().flex_1())
-                .child(
-                    div().w(px(width)).h_full().flex_none().relative().child(
-                        div().size_full().overflow_hidden().child(
                             div()
-                                .w(px(width))
+                                .w(px(overlay_width.max(0.0)))
                                 .h_full()
                                 .relative()
-                                .left(px(0.0))
                                 .border_l_1()
                                 .border_color(theme.border)
                                 .child(tree_pane),
                         ),
-                    ),
                 )
                 .into_any_element()
         } else {
@@ -545,7 +545,9 @@ impl FilesSurface {
         // starts the visual transition.
         surface.preview.seed_surface_width(pane_width);
         if let Some(from_width) = initial_sidebar {
-            surface.preview.seed_sidebar_transition(from_width);
+            let resting = surface.resting_tree_width(cx);
+            surface.preview.seed_sidebar_transition(from_width, resting);
+            surface.drive_tree_animation(cx);
         }
         surface
     }
@@ -608,7 +610,8 @@ impl FilesSurface {
             target_change_pending: false,
             pending_request_context: None,
             tree_view,
-            raw_expand_tween: None,
+            window_handle: None,
+            anim_driver: None,
             search,
             search_state: FileSearchState::default(),
             search_list: ListState::new(0, ListAlignment::Top, px(420.0)),
@@ -958,34 +961,84 @@ impl FilesSurface {
         }
     }
 
-    /// Begin the raw-browser expansion: the tree eases from a file tab's
-    /// sidebar width back to the full pane width.
-    pub fn begin_raw_expand(&mut self, from_width: f32, pane_width: f32, cx: &mut Context<Self>) {
-        crate::ui_trace!("raw-expand from={:.0} to={:.0}", from_width, pane_width);
-        self.raw_expand_tween = Some((from_width, pane_width, std::time::Instant::now()));
+    /// Reveal the tree (search-reveal path): un-collapse the SHARED state
+    /// and snap this surface's overlay open.
+    pub(super) fn show_tree_sidebar(&mut self, cx: &mut Context<Self>) {
+        self.tree_view
+            .update(cx, |tree, _| tree.set_sidebar_collapsed(false));
+        self.preview.snap_sidebar_open();
+    }
+
+    /// The sidebar toggle: flip the SHARED collapsed state (remembered
+    /// across tabs and the raw workspace) and animate this surface's
+    /// overlay.
+    pub(super) fn toggle_tree_sidebar(&mut self, cx: &mut Context<Self>) {
+        let collapsed = self
+            .tree_view
+            .update(cx, |tree, _| tree.toggle_sidebar_collapsed());
+        let resting = self.resting_tree_width(cx);
+        self.preview.animate_sidebar_toggle(!collapsed, resting);
+        self.drive_tree_animation(cx);
         cx.notify();
     }
 
-    /// The tweened tree width while the raw browser expands, or `None` when
-    /// not transitioning (plain full-width raw layout).
-    fn raw_tree_width_frame(&mut self, window: &mut Window, cx: &App) -> Option<f32> {
-        let (from, target, started) = self.raw_expand_tween?;
-        let total = std::time::Duration::from_millis(crate::motion::RESIZE.duration_ms)
-            .mul_f32(crate::motion::speed_scale());
-        let raw = std::time::Instant::now()
-            .saturating_duration_since(started)
-            .as_secs_f32()
-            / total.as_secs_f32();
-        if raw >= 1.0 {
-            self.raw_expand_tween = None;
-            return None;
+    /// The cover transition (raw return): the overlay tree grows from the
+    /// sidebar width to the FULL pane width, covering the frozen preview.
+    /// The shell swaps to the raw surface when the ease completes.
+    pub fn begin_cover_expand(&mut self, from: f32, pane_width: f32, cx: &mut Context<Self>) {
+        crate::ui_trace!("cover-expand from={:.0} to={:.0}", from, pane_width);
+        self.preview.begin_cover_expand(from, pane_width);
+        self.drive_tree_animation(cx);
+        cx.notify();
+    }
+
+    /// Coming from the raw workspace: the overlay starts at full pane
+    /// width and eases to the sidebar (the frozen preview is revealed).
+    pub fn begin_sidebar_reveal(&mut self, pane_width: f32, cx: &mut Context<Self>) {
+        let resting = self.resting_tree_width(cx);
+        crate::ui_trace!("sidebar-reveal from={:.0} to={:.0}", pane_width, resting);
+        self.preview.seed_sidebar_transition(pane_width, resting);
+        self.drive_tree_animation(cx);
+        cx.notify();
+    }
+
+    /// Keep frames coming while a tree animation is in flight: an 8 ms
+    /// timer notifies this surface, which the (proven vsync-rate) dirty
+    /// draw path picks up. Stops itself when every animation settles.
+    fn drive_tree_animation(&mut self, cx: &mut Context<Self>) {
+        if self.anim_driver.is_some() {
+            return;
         }
-        window.request_animation_frame();
-        Some(crate::motion::lerp(
-            from,
-            target,
-            crate::motion::RESIZE.progress(raw),
-        ))
+        let window = self.window_handle;
+        self.anim_driver = Some(cx.spawn(async move |this, cx| {
+            loop {
+                cx.background_executor()
+                    .timer(Duration::from_millis(8))
+                    .await;
+                let still_animating = this
+                    .update(cx, |surface, cx| {
+                        if surface.preview.tree_animation_active() {
+                            cx.notify();
+                            true
+                        } else {
+                            false
+                        }
+                    })
+                    .unwrap_or(false);
+                if !still_animating {
+                    break;
+                }
+                // The platform's request_animation_frame path schedules
+                // nothing on Windows; a forced refresh keeps the next draw
+                // (and its present) coming, which keeps the composition —
+                // and the vsync redraw loop — running at frame rate.
+                if let Some(handle) = window {
+                    let _ = cx.update_window(handle, |_, window, _| window.refresh());
+                }
+            }
+            // Release the slot so the next transition can spawn a driver.
+            let _ = this.update(cx, |surface, _| surface.anim_driver = None);
+        }));
     }
 
     /// The shared tree entity — the shell owns it; every surface embeds the

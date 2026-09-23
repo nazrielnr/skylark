@@ -202,6 +202,9 @@ impl FilesSurface {
         theme: &Theme,
         cx: &mut Context<Self>,
     ) -> AnyElement {
+        let collapsed = self
+            .tree_view
+            .read_with(cx, |tree, _| tree.sidebar_collapsed());
         toolbar(theme)
             .w(crate::typography::ui_rems(
                 crate::surface_chrome::CONTROL_SIZE + crate::surface_chrome::EDGE_INSET,
@@ -210,13 +213,14 @@ impl FilesSurface {
             .child(
                 toolbar_button(
                     "files-toggle-tree-sidebar",
-                    if self.preview.tree_sidebar_visible() {
-                        "Hide files sidebar"
-                    } else {
+                    if collapsed {
                         "Show files sidebar"
+                    } else {
+                        "Hide files sidebar"
                     },
                 )
-                .on_click(cx.listener(|this, _, window, cx| this.toggle_tree_sidebar(window, cx)))
+                .when(collapsed, |el| el.opacity(0.6))
+                .on_click(cx.listener(|this, _, _, cx| this.toggle_tree_sidebar(cx)))
                 .child(
                     icon(icons::SIDEBAR_MINIMALISTIC)
                         .size(crate::typography::ui_rems(crate::surface_chrome::ICON_SIZE))

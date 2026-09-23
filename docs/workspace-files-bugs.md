@@ -108,3 +108,35 @@ surface. The tree-geometry trace shows the sidebar easing
 
 See `docs/ui-tracing.md` for the trace vocabulary and how to add
 scenarios.
+
+## Overlay layout & frame rate
+
+All tree transitions now run through a right-anchored OVERLAY: the preview
+renders at its final width and never re-lays-out during a transition (no
+per-frame text re-wrap), the tree paints above it with an animated width,
+and the overlay is OPAQUE — the original overlay was transparent and the
+file content bled through the tree rows, reading as flickering in every
+transition state.
+
+The raw↔file transitions compose from the same primitives:
+
+* file → raw: `begin_cover_expand` grows the overlay to the full pane
+  width over the FROZEN preview; the shell swaps to the raw surface only
+  when the ease completes (`set_right_active`, deferred + guarded).
+* raw → file (existing tab): `begin_sidebar_reveal` starts the overlay at
+  full pane width and eases to the sidebar.
+* The collapse state is SHARED on the tree entity (`sidebar_collapsed`)
+  and survives tab switches and raw visits; only the toggle animates.
+
+**Known platform limitation (Windows, fork-level):** transitions draw at
+~12-15 fps. The fork's Windows backend leaves `frame_requester` at the
+default `None`, so `request_animation_frame` never schedules a frame;
+draws happen only when input events or the ~2 Hz ambient notifies mark
+the window dirty (input-driven redraws DO reach 60 fps — see the hover
+sweep data). A timer-driven notify loop and `window.refresh()` per tick
+were both tested from app level and do not raise the rate. A true 60 fps
+needs a fork patch: implement `frame_requester` for the Windows backend
+(e.g. `InvalidateRect`/`RedrawWindow` on the invalidator) so
+`request_animation_frame` schedules a WM_PAINT. The transitions stay
+short (200 ms) to remain readable at the current rate.
+

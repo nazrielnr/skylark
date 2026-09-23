@@ -25,8 +25,6 @@ impl FilePreviewState {
             autosave_delay_ms,
             reload_confirmation: None,
             close_requested: false,
-            tree_sidebar_visible: false,
-            tree_sidebar_dismissed: false,
             tree_width_tween: None,
             tree_motion: TreeSidebarMotion::default(),
             tree_edge_bounce: None,
@@ -48,7 +46,6 @@ impl FilePreviewState {
         self.list.reset(0);
         self.reload_confirmation = None;
         self.close_requested = false;
-        self.tree_sidebar_visible = false;
         self.tree_width_tween = None;
         self.tree_motion = TreeSidebarMotion::default();
         self.tree_edge_bounce = None;
@@ -183,25 +180,57 @@ impl FilePreviewState {
         self.surface_width.get()
     }
 
-    pub(crate) fn tree_sidebar_visible(&self) -> bool {
-        self.tree_sidebar_visible || (self.is_wide() && !self.tree_sidebar_dismissed)
+    /// The overlay's animated openness (collapse/expand). The visible flag
+    /// comes from the SHARED tree entity; only the animation is local.
+    pub(crate) fn tree_sidebar_openness(
+        &mut self,
+        visible: bool,
+        window: &mut Window,
+        cx: &App,
+    ) -> f32 {
+        let (openness, animating) =
+            self.tree_motion
+                .sample(visible, Instant::now(), crate::motion::reduced_motion(cx));
+        if animating {
+            window.request_animation_frame();
+        }
+        openness
     }
 
-    pub(crate) fn show_tree_sidebar(&mut self) {
-        // File activation (open/reveal) is immediate: an animating sidebar
-        // starts closed, which renders the loading state over the tree for
-        // the transition's duration (narrow panes especially, where the
-        // openness animation used to run on every tab open). Only the
-        // explicit toggle animates — see `toggle_tree_sidebar`.
-        self.tree_sidebar_visible = true;
-        self.tree_sidebar_dismissed = false;
+    /// The preview-reserved width for THIS frame. Stable during tree
+    /// animations so the preview's content never re-wraps mid-flight:
+    ///
+    /// * collapsing → the new (0) reserved width immediately — the widening
+    ///   happens beneath the still-covering overlay, invisible;
+    /// * expanding → the pre-animation reserved width until the animation
+    ///   ends — the narrowing happens beneath the fully-grown overlay.
+    pub(crate) fn sidebar_layout_width(&self, resting: f32, visible: bool) -> f32 {
+        let expanding =
+            self.tree_motion.started.is_some() && self.tree_motion.target == Some(true);
+        if !visible {
+            0.0
+        } else if expanding {
+            self.tree_motion.from_layout
+        } else {
+            resting
+        }
+    }
+
+    /// Snap the overlay fully open (file activation path — no animation).
+    pub(crate) fn snap_sidebar_open(&mut self) {
         self.tree_motion.snap_open();
     }
 
-    pub(crate) fn show_tree_sidebar_animated(&mut self) {
-        self.tree_sidebar_visible = true;
-        self.tree_sidebar_dismissed = false;
-        self.tree_motion.animate_to(false, true, Instant::now());
+    /// The toggle: animate the overlay between collapsed and open. The
+    /// collapsed state itself is SHARED (tree entity); this animates.
+    pub(crate) fn animate_sidebar_toggle(&mut self, visible: bool, resting: f32) {
+        self.tree_edge_bounce = None;
+        self.tree_resize_edge = None;
+        self.tree_resize_active = false;
+        self.tree_resize_dragging = false;
+        let previous_layout = if visible { 0.0 } else { resting };
+        self.tree_motion
+            .animate_to(!visible, visible, previous_layout, Instant::now());
     }
 
     /// Prime the wide/narrow measurement with the SURFACE width (the pane),
@@ -216,34 +245,75 @@ impl FilePreviewState {
     /// already has (full pane from the raw workspace browser, or the current
     /// sidebar width from another file tab), then ease to the resting width
     /// (held by the shared tree entity).
-    pub(crate) fn seed_sidebar_transition(&mut self, from_width: f32) {
-        self.tree_width_tween = Some((from_width, Instant::now()));
+    pub(crate) fn seed_sidebar_transition(&mut self, from_width: f32, resting: f32) {
+        self.tree_width_tween = Some((from_width, resting, Instant::now()));
+    }
+
+    /// The cover transition (returning to the raw workspace): the overlay
+    /// tree grows from the sidebar width to the FULL pane width, covering
+    /// the (frozen) preview instead of the content vanishing with the
+    /// surface swap.
+    pub(crate) fn begin_cover_expand(&mut self, from_width: f32, pane_width: f32) {
+        self.tree_width_tween = Some((from_width, pane_width, Instant::now()));
+    }
+
+    /// The overlay tree's animated width: the width tween (open/cover)
+    /// first, else openness x resting, plus the drag-edge bounce.
+    pub(crate) fn tree_overlay_width(
+        &mut self,
+        resting: f32,
+        visible: bool,
+        window: &mut Window,
+        cx: &App,
+    ) -> f32 {
+        if let Some((from, target, started)) = self.tree_width_tween {
+            let total = Duration::from_millis(crate::motion::RESIZE.duration_ms)
+                .mul_f32(crate::motion::speed_scale());
+            let raw = Instant::now()
+                .saturating_duration_since(started)
+                .as_secs_f32()
+                / total.as_secs_f32();
+            if raw < 1.0 {
+                window.request_animation_frame();
+                return crate::motion::lerp(from, target, crate::motion::RESIZE.progress(raw));
+            }
+            // Finished: drop the tween so `animation_active` reports false.
+            self.tree_width_tween = None;
+        }
+        let openness = self.tree_sidebar_openness(visible, window, cx);
+        let mut width = resting * openness;
+        if let Some(bounce) = self.tree_edge_bounce {
+            if visible && !crate::motion::reduced_motion(cx) {
+                let total = Duration::from_millis(crate::motion::RESIZE_EDGE_BOUNCE_MS)
+                    .mul_f32(crate::motion::speed_scale());
+                let raw = Instant::now()
+                    .saturating_duration_since(bounce.started)
+                    .as_secs_f32()
+                    / total.as_secs_f32();
+                if raw < 1.0 {
+                    window.request_animation_frame();
+                    width += crate::motion::resize_bounce_offset(bounce.edge, raw);
+                }
+            }
+        }
+        width
     }
 
     pub(crate) fn clear_tree_width_tween(&mut self) {
         self.tree_width_tween = None;
     }
 
-    /// Debug view of the width tween for tracing.
-    pub(crate) fn tree_width_tween_debug(&self) -> Option<(f32, u64)> {
-        self.tree_width_tween
-            .map(|(from, started)| (from, started.elapsed().as_millis() as u64))
+    /// Whether any tree animation is in flight (drives the frame timer).
+    pub(crate) fn tree_animation_active(&self) -> bool {
+        self.tree_width_tween.is_some()
+            || self.tree_motion.started.is_some()
+            || self.tree_edge_bounce.is_some()
     }
 
-    pub(super) fn toggle_tree_sidebar(&mut self) {
-        self.tree_edge_bounce = None;
-        self.tree_resize_edge = None;
-        self.tree_resize_active = false;
-        self.tree_resize_dragging = false;
-        let previous = self.tree_sidebar_visible();
-        if previous {
-            self.tree_sidebar_visible = false;
-            self.tree_sidebar_dismissed = true;
-        } else {
-            self.show_tree_sidebar();
-        }
-        self.tree_motion
-            .animate_to(previous, self.tree_sidebar_visible(), Instant::now());
+    /// Debug view of the width tween for tracing.
+    pub(crate) fn tree_width_tween_debug(&self) -> Option<(f32, f32, u64)> {
+        self.tree_width_tween
+            .map(|(from, target, started)| (from, target, started.elapsed().as_millis() as u64))
     }
 
     pub(super) fn word_wrap(&self) -> bool {
@@ -294,54 +364,6 @@ impl FilePreviewState {
             }
         }
         pending
-    }
-
-    pub(crate) fn tree_sidebar_frame(&mut self, window: &mut Window, cx: &App) -> f32 {
-        let (openness, active) = self.tree_motion.sample(
-            self.tree_sidebar_visible(),
-            Instant::now(),
-            crate::motion::reduced_motion(cx),
-        );
-        if active {
-            window.request_animation_frame();
-        }
-        openness
-    }
-
-    pub(crate) fn tree_width_frame(&self, resting: f32, window: &mut Window, cx: &App) -> f32 {
-        // The opening transition eases the sidebar from the width the tree
-        // had when the tab was created (full pane when it comes from the
-        // raw workspace browser) toward the resting width — in BOTH layout
-        // branches, so narrow panes get the same continuous slide.
-        if let Some((from, started)) = self.tree_width_tween {
-            let total = Duration::from_millis(crate::motion::RESIZE.duration_ms)
-                .mul_f32(crate::motion::speed_scale());
-            let raw = Instant::now()
-                .saturating_duration_since(started)
-                .as_secs_f32()
-                / total.as_secs_f32();
-            if raw < 1.0 {
-                window.request_animation_frame();
-                return crate::motion::lerp(from, resting, crate::motion::RESIZE.progress(raw));
-            }
-        }
-        let Some(bounce) = self.tree_edge_bounce else {
-            return resting;
-        };
-        if crate::motion::reduced_motion(cx) || !self.tree_sidebar_visible() {
-            return resting;
-        }
-        let total = Duration::from_millis(crate::motion::RESIZE_EDGE_BOUNCE_MS)
-            .mul_f32(crate::motion::speed_scale());
-        let raw = Instant::now()
-            .saturating_duration_since(bounce.started)
-            .as_secs_f32()
-            / total.as_secs_f32();
-        if raw >= 1.0 {
-            return resting;
-        }
-        window.request_animation_frame();
-        resting + crate::motion::resize_bounce_offset(bounce.edge, raw)
     }
 
     pub(crate) fn tree_resize_active(&self) -> bool {

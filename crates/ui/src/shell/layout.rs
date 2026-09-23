@@ -2,6 +2,10 @@
 
 use std::time::Duration;
 
+/// The cover transition window before the deferred surface swap: the tree
+/// overlay's ease duration plus a frame of margin.
+const SURFACE_COVER_MS: u64 = RESIZE.duration_ms + 250;
+
 use super::*;
 use crate::motion::{self, RESIZE};
 use crate::settings::{self, SavePolicy};
@@ -270,35 +274,66 @@ impl Shell {
     }
 
     pub(crate) fn set_right_active(&mut self, surface: RightSurface, cx: &mut Context<Self>) {
+        // Cover transition: switching from a file tab to the raw workspace
+        // keeps the file surface mounted while its overlay tree grows to
+        // full pane width — the file content stays visible until the tree
+        // covers it, and only THEN does the surface actually swap. The
+        // pending switch aborts if the user navigates elsewhere meanwhile.
+        if let RightSurface::Files = surface
+            && let RightSurface::File(prev_id) = self.resolved_right_active(cx)
+            && let Some(prev) = self.file_surfaces.get(&prev_id).cloned()
+        {
+            let key = self.panel_key(cx);
+            let pane_width = self.right_target(cx);
+            let from = self
+                .workspace_trees
+                .get(&key)
+                .map(|tree| tree.read_with(cx, |tree, _| tree.sidebar_width()))
+                .filter(|width| *width < pane_width)
+                .unwrap_or(pane_width);
+            prev.update(cx, |prev, cx| {
+                prev.begin_cover_expand(from, pane_width, cx);
+            });
+            let switch_key = key;
+            cx.spawn(async move |this, cx| {
+                cx.background_executor()
+                    .timer(Duration::from_millis(SURFACE_COVER_MS))
+                    .await;
+                let _ = this.update(cx, |this, cx| {
+                    if this.resolved_right_active(cx) == RightSurface::File(prev_id) {
+                        this.panels.update(&switch_key, |p| p.right_active = surface);
+                        cx.notify();
+                    }
+                });
+            })
+            .detach();
+            return;
+        }
+
         if self.resolved_right_active(cx) != surface {
             self.suspend_file_images(cx);
         }
         let key = self.panel_key(cx);
-        // Capture what was active BEFORE the switch (for the raw-browser
-        // expansion seed).
+        // Capture what was active BEFORE the switch (for transition seeds).
         let previous = self.resolved_right_active(cx);
         self.panels.update(&key, |p| p.right_active = surface);
         match surface {
             RightSurface::Files => {
                 if let Some(files) = self.files.get(&key).cloned() {
-                    // Coming back to the raw workspace from a file tab: the
-                    // tree eases from the sidebar width back to full pane
-                    // width (anchored right, growing leftward) instead of
-                    // snapping.
-                    if let RightSurface::File(prev_id) = previous
-                        && let Some(tree) = self.workspace_trees.get(&key).cloned()
-                    {
-                        let from = tree.read_with(cx, |tree, _| tree.sidebar_width());
-                        let target = self.right_target(cx);
-                        files.update(cx, |files, cx| {
-                            files.begin_raw_expand(from, target, cx);
-                        });
-                    }
                     files.update(cx, |files, cx| files.ensure_loaded(cx));
                 }
             }
             RightSurface::File(id) => {
                 if let Some(file) = self.file_surfaces.get(&id).cloned() {
+                    // Coming from the raw workspace to an existing file tab:
+                    // the tree overlay starts at full pane width and eases
+                    // to the sidebar — no instant fallback snap.
+                    if let RightSurface::Files = previous {
+                        let pane_width = self.right_target(cx);
+                        file.update(cx, |file, cx| {
+                            file.begin_sidebar_reveal(pane_width, cx);
+                        });
+                    }
                     file.update(cx, |file, cx| file.ensure_loaded(cx));
                 }
             }
