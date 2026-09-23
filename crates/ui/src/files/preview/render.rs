@@ -225,7 +225,9 @@ impl FilesSurface {
                     icon(icons::SIDEBAR_MINIMALISTIC)
                         .size(crate::typography::ui_rems(crate::surface_chrome::ICON_SIZE))
                         .text_color(theme.text_muted),
-                ),
+                )
+                .relative()
+                .child(crate::ui_trace::bounds_probe("tree-toggle")),
             )
             .into_any_element()
     }

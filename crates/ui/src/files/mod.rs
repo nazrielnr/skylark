@@ -552,8 +552,17 @@ impl FilesSurface {
         // starts the visual transition.
         surface.preview.seed_surface_width(pane_width);
         if let Some(from_width) = initial_sidebar {
-            let resting = surface.resting_tree_width(cx);
-            surface.preview.seed_sidebar_transition(from_width, resting);
+            // A collapsed tree swipes away to the corner; an expanded one
+            // eases to its shared resting width.
+            let collapsed = surface
+                .tree_view
+                .read_with(cx, |tree, _| tree.sidebar_collapsed());
+            let target = if collapsed {
+                0.0
+            } else {
+                surface.resting_tree_width(cx)
+            };
+            surface.preview.seed_sidebar_transition(from_width, target);
             surface.drive_tree_animation(cx);
         }
         surface
@@ -1009,9 +1018,19 @@ impl FilesSurface {
     /// Coming from the raw workspace: the overlay starts at full pane
     /// width and eases to the sidebar (the frozen preview is revealed).
     pub fn begin_sidebar_reveal(&mut self, pane_width: f32, cx: &mut Context<Self>) {
-        let resting = self.resting_tree_width(cx);
-        crate::ui_trace!("sidebar-reveal from={:.0} to={:.0}", pane_width, resting);
-        self.preview.seed_sidebar_transition(pane_width, resting);
+        // Respect the user's collapse: a collapsed tree swipes from full
+        // width away to the corner (target 0), it does NOT expand to the
+        // resting sidebar width.
+        let collapsed = self
+            .tree_view
+            .read_with(cx, |tree, _| tree.sidebar_collapsed());
+        let target = if collapsed {
+            0.0
+        } else {
+            self.resting_tree_width(cx)
+        };
+        crate::ui_trace!("sidebar-reveal from={:.0} to={:.0}", pane_width, target);
+        self.preview.seed_sidebar_transition(pane_width, target);
         self.drive_tree_animation(cx);
         cx.notify();
     }

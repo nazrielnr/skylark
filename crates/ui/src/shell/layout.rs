@@ -285,10 +285,21 @@ impl Shell {
         {
             let key = self.panel_key(cx);
             let pane_width = self.right_target(cx);
+            // A collapsed sidebar starts the cover from the corner (0):
+            // the tree grows out of its hidden state, not from the resting
+            // width it no longer shows.
             let from = self
                 .workspace_trees
                 .get(&key)
-                .map(|tree| tree.read_with(cx, |tree, _| tree.sidebar_width()))
+                .map(|tree| {
+                    tree.read_with(cx, |tree, _| {
+                        if tree.sidebar_collapsed() {
+                            0.0
+                        } else {
+                            tree.sidebar_width()
+                        }
+                    })
+                })
                 .filter(|width| *width < pane_width)
                 .unwrap_or(pane_width);
             prev.update(cx, |prev, cx| {

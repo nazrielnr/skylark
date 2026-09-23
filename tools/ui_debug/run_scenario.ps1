@@ -146,6 +146,84 @@ try {
     if (($after - $before) -lt 3) { $failures += "hover produced no repaint activity" }
   }
 
+  if ($Scenario -eq "collapse") {
+    # --- Collapse-aware transitions -------------------------------------
+    # Open one file, collapse the tree, go raw (cover from=0), return to
+    # the file tab (reveal to=0 — swipe to the corner, NOT expand).
+    $selectsBefore = (Select-String -Path $LogPath -Pattern "tree-select").Count
+    $treeLineC = Get-LastTrace "tree-rows"
+    $treeC = Parse-Numbers $treeLineC
+    $rowH = if ($treeC.count -gt 0 -and $treeC.content_h -gt 0) {
+      ($treeC.content_h / $treeC.count) * $scale
+    } else { 46.5 }
+    # .env.example is row 9 from the paths list.
+    $rowPaths = @(); $rowKinds = @()
+    if ($treeLineC -match "paths=(.*)$") {
+      foreach ($entry in ($Matches[1] -split "\|")) {
+        $k, $pp = $entry -split ":", 2
+        $rowKinds += $k; $rowPaths += $pp
+      }
+    }
+    $fIdx = [array]::IndexOf($rowPaths, ".env.example")
+    if ($fIdx -lt 0) { $fIdx = 9 }
+    $fy = [int]($treeTop + ($fIdx + 0.5) * $rowH)
+    [Win]::SetCursorPos($treeCenterX, $fy) | Out-Null
+    Start-Sleep -Milliseconds 30
+    [Win]::mouse_event(0x0002, 0, 0, 0, [UIntPtr]::Zero)
+    Start-Sleep -Milliseconds 20
+    [Win]::mouse_event(0x0004, 0, 0, 0, [UIntPtr]::Zero)
+    Start-Sleep -Milliseconds 800
+
+    # Collapse via the tree toggle.
+    $tog = Get-LastTrace "bounds tree-toggle"
+    if (-not $tog) { Write-Output "FAIL no tree-toggle probe"; exit 1 }
+    $tg2 = Parse-Numbers $tog
+    $togX = [int]($origin.X + (($tg2.L + $tg2.R) / 2.0) * $scale)
+    $togY = [int]($origin.Y + (($tg2.T + $tg2.B) / 2.0) * $scale)
+    Click-At $togX $togY
+    Start-Sleep -Milliseconds 700
+
+    # Raw: the Files tab (cover must start from the corner).
+    $tabL = Get-LastTrace "bounds files-tab"
+    $tb = Parse-Numbers $tabL
+    $tbX = [int]($origin.X + (($tb.L + $tb.R) / 2.0) * $scale)
+    $tbY = [int]($origin.Y + (($tb.T + $tb.B) / 2.0) * $scale)
+    $coverBefore = (Select-String -Path $LogPath -Pattern "cover-expand").Count
+    Click-At $tbX $tbY
+    Start-Sleep -Milliseconds 700
+    $coverLine = Get-LastTrace "cover-expand"
+
+    # Back to the file tab: reveal must target 0 (swipe to the corner).
+    $treeLineR = Get-LastTrace "tree-rows"
+    $treeR2 = Parse-Numbers $treeLineR
+    $fY2 = [int]($origin.Y + ($treeR2.T + ($fIdx + 0.5) * ($treeR2.content_h / $treeR2.count)) * $scale)
+    $fX2 = [int]($origin.X + (($treeR2.L + $treeR2.R) / 2.0) * $scale)
+    [Win]::SetCursorPos($fX2, $fY2) | Out-Null
+    Start-Sleep -Milliseconds 30
+    [Win]::mouse_event(0x0002, 0, 0, 0, [UIntPtr]::Zero)
+    Start-Sleep -Milliseconds 20
+    [Win]::mouse_event(0x0004, 0, 0, 0, [UIntPtr]::Zero)
+    Start-Sleep -Milliseconds 700
+    $revealLine = Get-LastTrace "sidebar-reveal"
+
+    Write-Output "cover: $coverLine"
+    Write-Output "reveal: $revealLine"
+    if ($coverLine -and $coverLine -match "from=([0-9.]+)") {
+      if ([double]$Matches[1] -gt 5.0) {
+        $failures += ("cover started at {0}, not the collapsed corner" -f $Matches[1])
+      }
+    } else {
+      $failures += "no cover on the raw switch"
+    }
+    if ($revealLine -and $revealLine -match "to=([0-9.]+)") {
+      if ([double]$Matches[1] -gt 5.0) {
+        $failures += ("reveal targeted {0}, not the collapsed corner" -f $Matches[1])
+      }
+    } else {
+      $failures += "no reveal on the file switch"
+    }
+  }
+
   if ($Scenario -eq "smoke" -or $Scenario -eq "tabs") {
     # --- Rapid FILE-row clicks (root level, no expansion -> stable indices)
     $selectsBefore = (Select-String -Path $LogPath -Pattern "tree-select").Count
