@@ -4,6 +4,7 @@ use super::*;
 
 impl FilesSurface {
     pub(crate) fn open_file(&mut self, path: String, cx: &mut Context<Self>) {
+        crate::ui_trace!("open-file path={:?}", path);
         if self
             .preview
             .active
@@ -111,6 +112,7 @@ impl FilesSurface {
                             .as_ref()
                             .zip(file.content_hash.as_ref())
                             .map(|(source, hash)| (source.clone(), hash.clone()));
+                        crate::ui_trace!("file-loaded path={:?}", task_path);
                         document.set_loaded(file);
                         surface.sync_preview_list();
                         if let Some((source, hash)) = highlight {

@@ -20,6 +20,10 @@ and `ui_trace::bounds_probe` are the only hooks.
 | `split-frame w open surf wide tween` | one render of an editor tab's sidebar layout (width, openness, measured surface width, branch, tween) | `FilesSurface::render` |
 | `search-rows count row_h paths` | one render of the fuzzy search results | `FilesSurface::render_search_results` |
 | `toggle-search open` | the search field was toggled | `FilesSurface::toggle_search` |
+| `search-reveal path present missing` | a search result click reveals through the tree (fast path counts) | `FilesSurface::reveal_search_result` |
+| `open-file path` | a document load started | `FilesSurface::open_file` |
+| `file-loaded path` | a document read completed | the read task in `document_io.rs` |
+| `tree-select-file path` | the shell synced the tree selection to the ACTIVE file tab | `FileTreeView::select_file` |
 | `bounds <id> L T R B` | a probe element's on-screen geometry | `ui_trace::bounds_probe` |
 
 Geometry values are **window-local logical pixels**. Convert to physical

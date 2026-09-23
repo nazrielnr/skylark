@@ -140,3 +140,33 @@ needs a fork patch: implement `frame_requester` for the Windows backend
 `request_animation_frame` schedules a WM_PAINT. The transitions stay
 short (200 ms) to remain readable at the current rate.
 
+## Search flow (follow-up fixes)
+
+Three intertwined bugs in the search → open flow:
+
+1. **The file didn't open (race).** `reveal_search_result` fetched every
+   ancestor directory over the network before applying ANYTHING, and the
+   `open_tree_file` call lived inside the tree-generation guard — a tree
+   reset mid-flight swallowed the click entirely (selection moved, code
+   never opened). The open now runs OUTSIDE the guard, and the reveal
+   only fetches ancestors the tree does NOT already have: a root-level
+   result is fully synchronous (zero round trips, zero race window).
+2. **The workspace exited search mode on reveal.** The reveal cleared the
+   query (`set_text("")`), so returning to the surface showed the tree
+   instead of the results. The search state now persists; the close
+   button clears it (see 3).
+3. **The close button looked broken.** `toggle_search` flipped
+   `search_open` but left the query, and the search UI stays up while the
+   query is non-empty — closing now also clears the query.
+
+A fourth, related bug: the tree's selected row went stale whenever a
+file was opened through anything but a tree click (search result,
+markdown link, mention) — the selection only followed `activate_path`.
+The shell now syncs the shared tree's selection to the ACTIVE file tab
+in `set_right_active` (`FileTreeView::select_file`), so the highlighted
+row always matches the visible tab regardless of the open path.
+
+Verified by the `search` scenario: synchronous root-level reveal
+(`missing=0`), `open-file`/`file-loaded` for the clicked file, the new
+tab, `tree-select-file` matching the active path, the close button
+returning to the tree, and zero tree reloads.

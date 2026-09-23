@@ -964,6 +964,11 @@ impl FilesSurface {
             self.search.update(cx, |input, cx| {
                 input.focus_handle.focus(window, cx);
             });
+        } else {
+            // Closing must also clear the query: the search UI stays up
+            // while the query is non-empty, so without this the close
+            // button looked broken.
+            self.search.update(cx, |search, cx| search.set_text("", cx));
         }
         cx.notify();
     }

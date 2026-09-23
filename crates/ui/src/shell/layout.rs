@@ -352,6 +352,17 @@ impl Shell {
                         });
                     }
                     file.update(cx, |file, cx| file.ensure_loaded(cx));
+                    // The workspace tree's selection follows the ACTIVE
+                    // file, whatever opened it (tree click, search result,
+                    // markdown link, mention) — the highlighted row must
+                    // always match the visible tab.
+                    if let Some(path) = self.file_surface_paths.get(&id).cloned()
+                        && let Some(tree) = self.workspace_trees.get(&key).cloned()
+                    {
+                        tree.update(cx, |tree, cx| {
+                            tree.select_file(&path, cx);
+                        });
+                    }
                 }
             }
             RightSurface::Terminal(tab) => {

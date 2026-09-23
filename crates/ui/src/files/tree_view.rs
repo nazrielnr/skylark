@@ -230,6 +230,31 @@ impl FileTreeView {
         self.tree.include_ignored()
     }
 
+    /// Whether a directory's children are already in the tree (no network
+    /// needed to reveal through it).
+    pub fn is_directory_loaded(&self, path: &str) -> bool {
+        self.tree.is_directory_loaded(path)
+    }
+
+    /// Expand an already-loaded directory (search reveal fast path).
+    pub fn expand_directory(&mut self, dir: &str, cx: &mut Context<Self>) {
+        if self.tree.expand(dir) {
+            cx.notify();
+        }
+    }
+
+    /// Select a file path when it exists in the tree — the workspace's
+    /// active info follows the ACTIVE file tab regardless of how it was
+    /// opened (tree click, search, markdown link, mention).
+    pub fn select_file(&mut self, path: &str, cx: &mut Context<Self>) {
+        if self.tree.node(path).is_some() {
+            crate::ui_trace!("tree-select-file path={:?}", path);
+            self.tree.select(path.to_string());
+            self.reveal_tree_selection();
+            cx.notify();
+        }
+    }
+
     /// The shared resting sidebar width (see the field docs).
     pub fn sidebar_width(&self) -> f32 {
         self.sidebar_width

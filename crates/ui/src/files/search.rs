@@ -406,7 +406,7 @@ impl FilesSurface {
         let Some(engine) = self.state.read(cx).engine().cloned() else {
             return;
         };
-        let mut directories = vec![String::new()];
+        // Ancestors of the result's parent, shallowest first.
         let mut ancestors = Vec::new();
         let mut current = parent_path(&result.path);
         while let Some(path) = current {
@@ -417,55 +417,94 @@ impl FilesSurface {
             current = parent_path(&path);
         }
         ancestors.reverse();
-        directories.extend(ancestors.clone());
+        // Fast path: ancestors the tree ALREADY has loaded just expand —
+        // only the missing ones need a network round trip, so revealing a
+        // result in a browsed area is synchronous (no debounce-then-fetch
+        // lag and no window for the generation to race).
+        let mut present = Vec::new();
+        let mut missing = Vec::new();
+        for dir in &ancestors {
+            if self
+                .tree_view
+                .read_with(cx, |tree, _| tree.is_directory_loaded(dir))
+            {
+                present.push(dir.clone());
+            } else {
+                missing.push(dir.clone());
+            }
+        }
         let generation = self.tree_view.read_with(cx, |tree, _| tree.generation());
+        crate::ui_trace!(
+            "search-reveal path={:?} present={} missing={}",
+            result.path,
+            present.len(),
+            missing.len()
+        );
+
+        if missing.is_empty() {
+            let path = result.path.clone();
+            let is_dir = result.kind == WorkspaceEntryKind::Directory;
+            self.tree_view.update(cx, |tree, cx| {
+                for dir in &present {
+                    tree.expand_directory(dir, cx);
+                }
+                tree.reveal_search_result(&path, Vec::new(), generation, cx);
+            });
+            if is_dir {
+                self.show_tree_sidebar(cx);
+            } else {
+                self.open_tree_file(result.path.clone(), cx);
+            }
+            cx.notify();
+            return;
+        }
+
         let include_ignored = self
             .tree_view
             .read_with(cx, |tree, _| tree.include_ignored());
         let client = WorkspaceFilesClient::new(engine, context.clone());
         self.search_state.reveal_task = Some(cx.spawn(async move |this, cx| {
-            let mut pages = Vec::with_capacity(directories.len());
-            for directory in directories {
+            let mut pages = Vec::with_capacity(missing.len());
+            for directory in missing {
                 match client
                     .list_directory(ListWorkspaceDirectoryRequest {
                         target: context.target.clone(),
-                        directory,
+                        directory: directory.clone(),
                         include_ignored,
                         cursor: None,
                     })
                     .await
                 {
-                    Ok(page) => pages.push(page),
+                    Ok(page) => pages.push((page, directory)),
                     Err(error) => {
                         let _ = this.update(cx, |surface, cx| {
-                            if surface.tree_view.read_with(cx, |tree, _| tree.generation())
-                                == generation
-                            {
-                                surface.search_state.error = Some(error.to_string().into());
-                                cx.notify();
-                            }
+                            surface.search_state.error = Some(error.to_string().into());
+                            cx.notify();
                         });
                         return;
                     }
                 }
             }
             let _ = this.update(cx, |surface, cx| {
-                if surface.tree_view.read_with(cx, |tree, _| tree.generation()) != generation {
-                    return;
-                }
-                let pairs: Vec<_> = pages.into_iter().zip(ancestors.iter().cloned()).collect();
-                surface
-                    .search
-                    .update(cx, |search, cx| search.set_text("", cx));
+                // The tree APPLY is generation-guarded (stale pages must not
+                // apply); the OPEN is not — a tree reset mid-flight must
+                // never swallow the file click.
                 let path = result.path.clone();
+                let present = present.clone();
                 surface.tree_view.update(cx, |tree, cx| {
-                    tree.reveal_search_result(&path, pairs, generation, cx);
+                    for dir in &present {
+                        tree.expand_directory(dir, cx);
+                    }
+                    tree.reveal_search_result(&path, pages.clone(), generation, cx);
                 });
                 if result.kind == WorkspaceEntryKind::Directory {
                     surface.show_tree_sidebar(cx);
                 } else {
                     surface.open_tree_file(result.path.clone(), cx);
                 }
+                // The search state deliberately STAYS: opening a result
+                // must not exit search mode (the shell syncs the tree
+                // selection when the new tab activates).
                 cx.notify();
             });
         }));

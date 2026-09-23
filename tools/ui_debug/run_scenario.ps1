@@ -293,6 +293,104 @@ try {
           } else {
             $failures += "search input missing in the split sidebar"
           }
+
+          # Search FROM the file tab's sidebar: type "vercel", click the
+          # vercel.json result (root-level: the reveal must be SYNCHRONOUS)
+          # and the new tab's path must sync into the tree selection.
+          $siX = [int]($origin.X + (($si.L + $si.R) / 2.0) * $scale)
+          $siY = [int]($origin.Y + (($si.T + $si.B) / 2.0) * $scale)
+          Click-At $siX $siY
+          Start-Sleep -Milliseconds 400
+          foreach ($ch in @(0x56, 0x45, 0x52, 0x43, 0x45, 0x4C)) {
+            [Win]::keybd_event([byte]$ch, 0, 0, [UIntPtr]::Zero)
+            Start-Sleep -Milliseconds 30
+            [Win]::keybd_event([byte]$ch, 0, 2, [UIntPtr]::Zero)
+            Start-Sleep -Milliseconds 60
+          }
+          Start-Sleep -Milliseconds 900
+          $sr = Get-LastTrace "search-rows"
+          $srb = Get-LastTrace "bounds search-results"
+          $clicked = $false
+          if ($sr -and $sr -match "paths=(.*)$" -and $srb) {
+            $sp = $Matches[1] -split "\|"
+            $vi = -1
+            for ($i = 0; $i -lt $sp.Count; $i++) {
+              $k, $pp = $sp[$i] -split ":", 2
+              if ($pp -eq "vercel.json") { $vi = $i; break }
+            }
+            if ($vi -ge 0) {
+              $sbg = Parse-Numbers $srb
+              $srh = 28.0
+              if ($sr -match "row_h=([0-9.]+)") { $srh = [double]$Matches[1] }
+              $vx = [int]($origin.X + (($sbg.L + $sbg.R) / 2.0) * $scale)
+              $vy = [int]($origin.Y + ($sbg.T + ($vi + 0.5) * $srh) * $scale)
+              [Win]::SetCursorPos($vx, $vy) | Out-Null
+              Start-Sleep -Milliseconds 40
+              [Win]::mouse_event(0x0002, 0, 0, 0, [UIntPtr]::Zero)
+              Start-Sleep -Milliseconds 30
+              [Win]::mouse_event(0x0004, 0, 0, 0, [UIntPtr]::Zero)
+              Start-Sleep -Milliseconds 900
+              $clicked = $true
+            }
+          }
+          if (-not $clicked) {
+            $failures += "vercel.json not found in split search results"
+          } else {
+            $revealL = Get-LastTrace "search-reveal"
+            Write-Output ("split reveal: {0}" -f $revealL)
+            if ($revealL -and $revealL -match "vercel.json" -and $revealL -match "missing=([0-9]+)") {
+              if ([int]$Matches[1] -ne 0) {
+                $failures += ("root-level reveal fetched {0} ancestors (should be synchronous)" -f $Matches[1])
+              }
+            }
+            $opened = Get-LastTrace "surface-new kind=file"
+            Write-Output ("split opened: {0}" -f $opened)
+            if (-not ($opened -match "vercel.json")) {
+              $failures += "split search result did not open vercel.json"
+            }
+            $loaded = Get-LastTrace "file-loaded"
+            Write-Output ("loaded: {0}" -f $loaded)
+            if (-not ($loaded -match "vercel.json")) {
+              $failures += "vercel.json did not load its content"
+            }
+            $sel = Get-LastTrace "tree-select-file"
+            Write-Output ("selection sync: {0}" -f $sel)
+            if (-not ($sel -match "vercel.json")) {
+              $failures += "tree selection did not sync to vercel.json"
+            }
+          }
+
+          # Close button: toggle search on in this tab, type one char, then
+          # close — the search UI must actually CLOSE (query cleared).
+          $stog2 = Get-LastTrace "bounds search-toggle"
+          $stg2 = Parse-Numbers $stog2
+          $stX2 = [int]($origin.X + (($stg2.L + $stg2.R) / 2.0) * $scale)
+          $stY2 = [int]($origin.Y + (($stg2.T + $stg2.B) / 2.0) * $scale)
+          Click-At $stX2 $stY2
+          Start-Sleep -Milliseconds 400
+          $siL = Get-LastTrace "bounds search-input"
+          if ($siL) {
+            $sii = Parse-Numbers $siL
+            $sx = [int]($origin.X + (($sii.L + $sii.R) / 2.0) * $scale)
+            $sy = [int]($origin.Y + (($sii.T + $sii.B) / 2.0) * $scale)
+            Click-At $sx $sy
+            Start-Sleep -Milliseconds 300
+            foreach ($ch in @(0x56)) {
+              [Win]::keybd_event([byte]$ch, 0, 0, [UIntPtr]::Zero)
+              Start-Sleep -Milliseconds 30
+              [Win]::keybd_event([byte]$ch, 0, 2, [UIntPtr]::Zero)
+            }
+            Start-Sleep -Milliseconds 600
+          }
+          # close
+          Click-At $stX2 $stY2
+          Start-Sleep -Milliseconds 600
+          $closeLine = (Select-String -Path $LogPath -Pattern "toggle-search open=False" | Select-Object -Last 1)
+          $treeAfter = (Select-String -Path $LogPath -Pattern "tree-rows" | Where-Object { $_.LineNumber -gt $closeLine.LineNumber } | Select-Object -Last 1)
+          Write-Output ("close works: toggled={0} tree-after={1}" -f [bool]$closeLine, [bool]$treeAfter)
+          if (-not $treeAfter) {
+            $failures += "close search did not return to the tree"
+          }
         }
       } else {
         $failures += "no search results rendered"
@@ -304,7 +402,7 @@ try {
     # --- Collapse-aware transitions -------------------------------------
     # Open one file, collapse the tree, go raw (cover from=0), return to
     # the file tab (reveal to=0 — swipe to the corner, NOT expand).
-    $selectsBefore = (Select-String -Path $LogPath -Pattern "tree-select").Count
+    $selectsBefore = (Select-String -Path $LogPath -Pattern "tree-select path=").Count
     $treeLineC = Get-LastTrace "tree-rows"
     $treeC = Parse-Numbers $treeLineC
     $rowH = if ($treeC.count -gt 0 -and $treeC.content_h -gt 0) {
@@ -380,7 +478,7 @@ try {
 
   if ($Scenario -eq "smoke" -or $Scenario -eq "tabs") {
     # --- Rapid FILE-row clicks (root level, no expansion -> stable indices)
-    $selectsBefore = (Select-String -Path $LogPath -Pattern "tree-select").Count
+    $selectsBefore = (Select-String -Path $LogPath -Pattern "tree-select path=").Count
     $opensBefore = (Select-String -Path $LogPath -Pattern "tree-open").Count
     $fileTabsBefore = (Select-String -Path $LogPath -Pattern "surface-new kind=file").Count
     $rootLoadsBefore = (Select-String -Path $LogPath -Pattern 'tree-load dir=""').Count
@@ -444,11 +542,11 @@ try {
     }
     Start-Sleep -Seconds 2
 
-    $selectsAfter = (Select-String -Path $LogPath -Pattern "tree-select").Count
+    $selectsAfter = (Select-String -Path $LogPath -Pattern "tree-select path=").Count
     $opensAfter = (Select-String -Path $LogPath -Pattern "tree-open").Count
     $fileTabsAfter = (Select-String -Path $LogPath -Pattern "surface-new kind=file").Count
     $rootLoadsAfter = (Select-String -Path $LogPath -Pattern 'tree-load dir=""').Count
-    $lastSelect = Get-LastTrace "tree-select"
+    $lastSelect = Get-LastTrace "tree-select path="
     $lastOpen = Get-LastTrace "tree-open"
 
     Write-Output ("file clicks: {0}; selects +{1}; opens +{2}; file tabs +{3}" -f `
